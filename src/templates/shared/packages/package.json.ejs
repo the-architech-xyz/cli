@@ -1,0 +1,61 @@
+{
+  "name": "@<%= projectName %>/<%= packageName %>",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts,.tsx"
+  },
+  "dependencies": {
+    <% if (packageType === 'ui') { %>
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+    <% } else if (packageType === 'db') { %>
+    <% if (dbTechnology === 'drizzle') { %>
+    "drizzle-orm": "^0.44.3",
+    "@neondatabase/serverless": "^1.0.1",
+    "postgres": "^3.4.0"
+    <% } else if (dbTechnology === 'prisma') { %>
+    "@prisma/client": "^5.0.0"
+    <% } else if (dbTechnology === 'typeorm') { %>
+    "typeorm": "^0.3.0",
+    "mysql2": "^3.0.0"
+    <% } %>
+    <% } else if (packageType === 'auth') { %>
+    <% if (authTechnology === 'better-auth') { %>
+    "better-auth": "^1.3.0",
+    "@better-auth/utils": "^0.2.6"
+    <% } else if (authTechnology === 'next-auth') { %>
+    "next-auth": "^4.24.0"
+    <% } %>
+    <% } else if (packageType === 'config') { %>
+    "zod": "^3.22.0"
+    <% } %>
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "tsup": "^8.0.0",
+    "@types/node": "^20.0.0"
+    <% if (packageType === 'db' && dbTechnology === 'drizzle') { %>,
+    "drizzle-kit": "^0.31.4"
+    <% } else if (packageType === 'db' && dbTechnology === 'prisma') { %>,
+    "prisma": "^5.0.0"
+    <% } %>
+  }
+} 

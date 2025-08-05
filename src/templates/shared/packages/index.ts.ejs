@@ -1,0 +1,46 @@
+/**
+ * <%= packageName %> Package
+ * 
+ * Generated with The Architech - Revolutionary AI-Powered Application Generator
+ */
+
+<% if (packageType === 'ui') { %>
+// UI Package Exports
+export * from './components';
+export * from './hooks';
+export * from './utils';
+<% } else if (packageType === 'db') { %>
+// Database Package Exports
+<% if (dbTechnology === 'drizzle') { %>
+export * from './schema';
+export * from './connection';
+export * from './migrations';
+<% } else if (dbTechnology === 'prisma') { %>
+export * from './client';
+export * from './schema';
+<% } else if (dbTechnology === 'typeorm') { %>
+export * from './entities';
+export * from './connection';
+<% } %>
+<% } else if (packageType === 'auth') { %>
+// Auth Package Exports
+<% if (authTechnology === 'better-auth') { %>
+export * from './auth';
+export * from './providers';
+export * from './types';
+<% } else if (authTechnology === 'next-auth') { %>
+export * from './auth';
+export * from './providers';
+export * from './types';
+<% } %>
+<% } else if (packageType === 'config') { %>
+// Config Package Exports
+export * from './database';
+export * from './auth';
+export * from './ui';
+export * from './environment';
+<% } %>
+
+// Package metadata
+export const packageName = '<%= packageName %>';
+export const version = '0.1.0'; 
