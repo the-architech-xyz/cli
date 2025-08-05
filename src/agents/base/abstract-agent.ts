@@ -33,7 +33,7 @@ import {
   Artifact
 } from '../../types/agents.js';
 import { structureService } from '../../core/project/structure-service.js';
-import * as fsExtra from 'fs-extra';
+import fsExtra from 'fs-extra';
 import * as path from 'path';
 
 // Type definition for ora

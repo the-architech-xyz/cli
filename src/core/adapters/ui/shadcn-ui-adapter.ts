@@ -8,7 +8,7 @@
 
 import { IUIProvider } from '../../interfaces/providers.js';
 import { AgentContext, PluginResult, PluginMetadata, ParameterSchema, CoreCategory, ValidationResult, ValidationError } from '../../interfaces/base.js';
-import * as fsExtra from 'fs-extra';
+import fsExtra from 'fs-extra';
 import * as path from 'path';
 
 export class ShadcnUIAdapter implements IUIProvider {

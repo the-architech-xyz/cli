@@ -8,7 +8,7 @@
 
 import { existsSync } from 'fs';
 import * as path from 'path';
-import * as fsExtra from 'fs-extra';
+import fsExtra from 'fs-extra';
 import { AbstractAgent } from './base/abstract-agent.js';
 import { AdapterRegistry, createDeploymentAdapter } from '../core/registry/adapter-registry';
 import { AgentContext as AdapterContext, PluginResult, CoreCategory } from '../core/interfaces/base';

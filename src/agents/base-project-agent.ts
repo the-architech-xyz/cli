@@ -14,7 +14,7 @@ import { Logger } from '../core/cli/logger.js';
 import { TemplateService, templateService } from '../core/templates/template-service.js';
 import { existsSync } from 'fs';
 import * as path from 'path';
-import * as fsExtra from 'fs-extra';
+import fsExtra from 'fs-extra';
 
 export class BaseProjectAgent extends AbstractAgent {
   private runner: CommandRunner;
