@@ -1,0 +1,112 @@
+{
+  "id": "typeorm",
+  "name": "TypeORM",
+  "description": "TypeScript ORM for Node.js with decorators and migrations",
+  "category": "database",
+  "version": "0.3.0",
+  "blueprint": "blueprint.ts",
+  "dependencies": [],
+  "capabilities": [
+    "decorator-based-entities",
+    "migrations",
+    "schema-synchronization",
+    "query-builder",
+    "relation-mapping",
+    "connection-management",
+    "cli-tools",
+    "multi-database-support"
+  ],
+  "limitations": "Requires a supported database (PostgreSQL, MySQL, SQLite, MongoDB)",
+  "parameters": {
+    "synchronize": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable schema synchronization",
+      "required": false
+    },
+    "logging": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable query logging",
+      "required": false
+    },
+    "databaseType": {
+      "type": "string",
+      "default": "postgresql",
+      "description": "Database type",
+      "required": true,
+      "options": [
+        "postgresql",
+        "mysql",
+        "sqlite",
+        "mongodb"
+      ]
+    }
+  },
+  "features": {
+    "entity-management": {
+      "id": "entity-management",
+      "name": "Entity Management",
+      "description": "Advanced entity management with decorators and relationships",
+      "blueprint": "features/entity-management.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "decorators": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable decorator-based entities",
+          "required": false
+        },
+        "relationships": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable relationship mapping",
+          "required": false
+        }
+      }
+    },
+    "migration-system": {
+      "id": "migration-system",
+      "name": "Migration System",
+      "description": "Database migrations and schema versioning",
+      "blueprint": "features/migration-system.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "auto-migration": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable automatic migrations",
+          "required": false
+        },
+        "migration-tracking": {
+          "type": "boolean",
+          "default": true,
+          "description": "Track migration history",
+          "required": false
+        }
+      }
+    },
+    "query-builder": {
+      "id": "query-builder",
+      "name": "Query Builder",
+      "description": "Advanced query building and optimization tools",
+      "blueprint": "features/query-builder.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "query-caching": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable query result caching",
+          "required": false
+        },
+        "performance-monitoring": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable query performance monitoring",
+          "required": false
+        }
+      }
+    }
+  },
+  "constraints": {}
+}

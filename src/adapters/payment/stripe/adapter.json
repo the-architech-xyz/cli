@@ -1,0 +1,147 @@
+{
+  "id": "stripe",
+  "name": "Stripe Payment Processing",
+  "description": "Complete payment processing with Stripe including subscriptions and one-time payments",
+  "category": "payment",
+  "version": "1.0.0",
+  "blueprint": "blueprint.ts",
+  "dependencies": [],
+  "capabilities": [
+    "one-time-payments",
+    "subscriptions",
+    "webhooks",
+    "customer-management",
+    "invoice-generation",
+    "refunds",
+    "multi-currency",
+    "tax-calculation",
+    "fraud-protection",
+    "mobile-payments"
+  ],
+  "limitations": "Requires Stripe account and API keys",
+  "parameters": {
+    "currency": {
+      "type": "select",
+      "choices": [
+        "usd",
+        "eur",
+        "gbp",
+        "cad",
+        "aud",
+        "jpy"
+      ],
+      "required": false,
+      "default": "usd",
+      "description": "Default currency for payments"
+    },
+    "mode": {
+      "type": "select",
+      "choices": [
+        "test",
+        "live"
+      ],
+      "required": false,
+      "default": "test",
+      "description": "Stripe mode (test or live)"
+    },
+    "webhooks": {
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "Enable webhook handling"
+    },
+    "dashboard": {
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "Enable Stripe Dashboard integration"
+    }
+  },
+  "features": {
+    "one-time-payments": {
+      "id": "one-time-payments",
+      "name": "One-Time Payments",
+      "description": "Process single payments with Stripe Checkout and Payment Intents",
+      "blueprint": "features/one-time-payments.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "checkout": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Stripe Checkout",
+          "required": false
+        },
+        "payment-intents": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Payment Intents API",
+          "required": false
+        }
+      }
+    },
+    "subscriptions": {
+      "id": "subscriptions",
+      "name": "Subscription Management",
+      "description": "Handle recurring payments and subscription lifecycle",
+      "blueprint": "features/subscriptions.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "billing-portal": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Stripe Billing Portal",
+          "required": false
+        },
+        "proration": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable proration for plan changes",
+          "required": false
+        }
+      }
+    },
+    "marketplace": {
+      "id": "marketplace",
+      "name": "Marketplace Payments",
+      "description": "Multi-party payments for marketplace applications",
+      "blueprint": "features/marketplace.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "connect": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Stripe Connect",
+          "required": false
+        },
+        "split-payments": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable split payments",
+          "required": false
+        }
+      }
+    },
+    "invoicing": {
+      "id": "invoicing",
+      "name": "Invoice Generation",
+      "description": "Generate and manage invoices automatically",
+      "blueprint": "features/invoicing.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "auto-invoice": {
+          "type": "boolean",
+          "default": false,
+          "description": "Auto-generate invoices",
+          "required": false
+        },
+        "custom-templates": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable custom invoice templates",
+          "required": false
+        }
+      }
+    }
+  },
+  "constraints": {}
+}

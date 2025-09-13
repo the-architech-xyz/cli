@@ -1,0 +1,18 @@
+{
+  "id": "stripe-shadcn-integration",
+  "name": "Stripe Shadcn Integration",
+  "description": "Integrates Stripe with Shadcn UI components for payment forms and UI",
+  "version": "1.0.0",
+  "category": "integration",
+  "type": "feature",
+  "dependencies": [
+    "stripe",
+    "shadcn-ui"
+  ],
+  "features": [
+    "payment-forms",
+    "subscription-cards",
+    "invoice-tables",
+    "pricing-cards"
+  ]
+}

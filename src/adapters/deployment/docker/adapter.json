@@ -1,0 +1,94 @@
+{
+  "id": "docker",
+  "name": "Docker Deployment",
+  "description": "Containerization and deployment setup with Docker",
+  "category": "deployment",
+  "version": "1.0.0",
+  "blueprint": "blueprint.ts",
+  "dependencies": [],
+  "capabilities": [
+    "containerization",
+    "multi-stage-builds",
+    "optimization",
+    "production-ready",
+    "health-checks",
+    "environment-config"
+  ],
+  "limitations": "Requires Docker to be installed",
+  "parameters": {
+    "nodeVersion": {
+      "type": "string",
+      "default": "18-alpine",
+      "description": "Node.js version for Docker image",
+      "required": false
+    },
+    "optimization": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable production optimizations",
+      "required": false
+    },
+    "healthCheck": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable health check endpoint",
+      "required": false
+    }
+  },
+  "features": {
+    "multi-stage": {
+      "id": "multi-stage",
+      "name": "Multi-Stage Builds",
+      "description": "Optimized multi-stage Docker builds for production",
+      "blueprint": "features/multi-stage.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "stages": {
+          "type": "array",
+          "default": [
+            "deps",
+            "builder",
+            "runner"
+          ],
+          "description": "Build stages to include",
+          "required": false,
+          "options": [
+            "deps",
+            "builder",
+            "runner",
+            "test",
+            "lint"
+          ]
+        },
+        "optimization": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable build optimizations",
+          "required": false
+        }
+      }
+    },
+    "production-ready": {
+      "id": "production-ready",
+      "name": "Production Ready",
+      "description": "Production-ready configuration with security and monitoring",
+      "blueprint": "features/production-ready.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "security": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable security hardening",
+          "required": false
+        },
+        "monitoring": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable monitoring and health checks",
+          "required": false
+        }
+      }
+    }
+  },
+  "constraints": {}
+}

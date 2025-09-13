@@ -1,0 +1,117 @@
+{
+  "id": "web3-nextjs-integration",
+  "name": "Web3 Next.js Integration",
+  "description": "Complete Web3 integration for Next.js with wallet connection, smart contract interaction, and blockchain utilities",
+  "category": "integration",
+  "tech_stack": {
+    "framework": "nextjs",
+    "adapters": ["web3"]
+  },
+  "requirements": {
+    "modules": ["web3", "nextjs"],
+    "dependencies": []
+  },
+  "provides": {
+    "files": [
+      "src/lib/web3/wallet.ts",
+      "src/lib/web3/contracts.ts",
+      "src/lib/web3/transactions.ts",
+      "src/lib/web3/network.ts",
+      "src/lib/web3/events.ts",
+      "src/lib/web3/utils.ts",
+      "src/lib/web3/types.ts",
+      "src/lib/web3/constants.ts",
+      "src/hooks/useWallet.ts",
+      "src/hooks/useContract.ts",
+      "src/hooks/useTransaction.ts",
+      "src/hooks/useNetwork.ts",
+      "src/hooks/useWeb3.ts",
+      "src/components/web3/WalletProvider.tsx",
+      "src/components/web3/WalletButton.tsx",
+      "src/components/web3/WalletModal.tsx",
+      "src/components/web3/NetworkSwitcher.tsx",
+      "src/components/web3/TransactionStatus.tsx",
+      "src/components/web3/ContractInterface.tsx",
+      "src/app/api/web3/balance/route.ts",
+      "src/app/api/web3/transaction/route.ts",
+      "src/app/api/web3/contract/route.ts",
+      "src/middleware.ts"
+    ],
+    "components": [
+      "WalletProvider",
+      "WalletButton",
+      "WalletModal",
+      "NetworkSwitcher",
+      "TransactionStatus",
+      "ContractInterface"
+    ],
+    "pages": [
+      "src/app/web3/page.tsx",
+      "src/app/web3/wallet/page.tsx",
+      "src/app/web3/contracts/page.tsx",
+      "src/app/web3/transactions/page.tsx"
+    ]
+  },
+  "sub_features": {
+    "walletConnection": {
+      "name": "Wallet Connection",
+      "description": "Connect to various Web3 wallets (MetaMask, WalletConnect, etc.)",
+      "type": "boolean",
+      "default": true
+    },
+    "smartContracts": {
+      "name": "Smart Contracts",
+      "description": "Smart contract interaction and deployment utilities",
+      "type": "boolean",
+      "default": true
+    },
+    "transactions": {
+      "name": "Transactions",
+      "description": "Transaction management and status tracking",
+      "type": "boolean",
+      "default": true
+    },
+    "networkSwitching": {
+      "name": "Network Switching",
+      "description": "Switch between different blockchain networks",
+      "type": "boolean",
+      "default": true
+    },
+    "eventListening": {
+      "name": "Event Listening",
+      "description": "Listen to blockchain events and contract events",
+      "type": "boolean",
+      "default": true
+    },
+    "apiRoutes": {
+      "name": "API Routes",
+      "description": "Next.js API routes for Web3 operations",
+      "type": "boolean",
+      "default": true
+    },
+    "middleware": {
+      "name": "Middleware",
+      "description": "Web3 middleware for authentication and validation",
+      "type": "boolean",
+      "default": true
+    },
+    "uiComponents": {
+      "name": "UI Components",
+      "description": "React components for Web3 interactions",
+      "type": "boolean",
+      "default": true
+    },
+    "typeScript": {
+      "name": "TypeScript Support",
+      "description": "Full TypeScript support for Web3 operations",
+      "type": "boolean",
+      "default": true
+    },
+    "errorHandling": {
+      "name": "Error Handling",
+      "description": "Comprehensive error handling for Web3 operations",
+      "type": "boolean",
+      "default": true
+    }
+  }
+}

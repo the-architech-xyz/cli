@@ -1,0 +1,99 @@
+{
+  "id": "zustand",
+  "name": "Zustand State Management",
+  "description": "Simple, modern state management with Zustand",
+  "category": "state",
+  "version": "1.0.0",
+  "blueprint": "blueprint.ts",
+  "requirements": {
+    "capabilities": ["react-framework"]
+  },
+  "capabilities": [
+    "state-management",
+    "persistence",
+    "devtools",
+    "middleware",
+    "subscriptions",
+    "typescript",
+    "lightweight"
+  ],
+  "limitations": "Requires React framework for state management",
+  "parameters": {
+    "persistence": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable state persistence",
+      "required": false
+    },
+    "devtools": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable Redux DevTools",
+      "required": false
+    },
+    "middleware": {
+      "type": "array",
+      "default": [
+        "persist"
+      ],
+      "description": "Middleware to use",
+      "required": false,
+      "options": [
+        "persist",
+        "devtools",
+        "subscribeWithSelector"
+      ]
+    }
+  },
+  "features": {
+    "persistence": {
+      "id": "persistence",
+      "name": "State Persistence",
+      "description": "Persist state to localStorage, sessionStorage, or custom storage",
+      "blueprint": "features/persistence.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "storage": {
+          "type": "string",
+          "default": "localStorage",
+          "description": "Storage type to use",
+          "required": false,
+          "options": [
+            "localStorage",
+            "sessionStorage",
+            "indexedDB",
+            "custom"
+          ]
+        },
+        "encryption": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable state encryption",
+          "required": false
+        }
+      }
+    },
+    "devtools": {
+      "id": "devtools",
+      "name": "Redux DevTools",
+      "description": "Integration with Redux DevTools for debugging",
+      "blueprint": "features/devtools.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable DevTools integration",
+          "required": false
+        },
+        "name": {
+          "type": "string",
+          "default": "zustand-store",
+          "description": "Store name in DevTools",
+          "required": false
+        }
+      }
+    }
+  },
+  "constraints": {}
+}

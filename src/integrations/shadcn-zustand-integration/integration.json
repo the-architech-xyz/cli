@@ -1,0 +1,140 @@
+{
+  "id": "shadcn-zustand-integration",
+  "name": "Shadcn Zustand Integration",
+  "description": "Beautiful Shadcn/ui components integrated with Zustand state management for forms, modals, and interactive UI",
+  "category": "integration",
+  "version": "1.0.0",
+  "tech_stack": {
+    "framework": "agnostic",
+    "adapters": ["shadcn-ui", "zustand"]
+  },
+  "requirements": {
+    "modules": ["shadcn-ui", "zustand"],
+    "dependencies": ["@radix-ui/react-*", "class-variance-authority", "clsx", "tailwind-merge", "zustand"]
+  },
+  "provides": {
+    "files": [
+      "src/components/forms/FormProvider.tsx",
+      "src/components/forms/FormField.tsx",
+      "src/components/forms/FormInput.tsx",
+      "src/components/forms/FormSelect.tsx",
+      "src/components/forms/FormTextarea.tsx",
+      "src/components/forms/FormCheckbox.tsx",
+      "src/components/forms/FormRadio.tsx",
+      "src/components/modals/ModalProvider.tsx",
+      "src/components/modals/Modal.tsx",
+      "src/components/modals/ConfirmModal.tsx",
+      "src/components/modals/AlertModal.tsx",
+      "src/components/toasts/ToastProvider.tsx",
+      "src/components/toasts/Toast.tsx",
+      "src/components/toasts/useToast.tsx",
+      "src/components/data/DataTable.tsx",
+      "src/components/data/DataGrid.tsx",
+      "src/components/data/DataList.tsx",
+      "src/components/data/DataCard.tsx",
+      "src/components/state/StateDebugger.tsx",
+      "src/components/state/StateInspector.tsx",
+      "src/components/state/StateMonitor.tsx",
+      "src/hooks/useFormState.ts",
+      "src/hooks/useModalState.ts",
+      "src/hooks/useToastState.ts",
+      "src/hooks/useTableState.ts",
+      "src/stores/form-store.ts",
+      "src/stores/modal-store.ts",
+      "src/stores/toast-store.ts",
+      "src/stores/table-store.ts"
+    ],
+    "components": [
+      "FormProvider",
+      "FormField",
+      "FormInput",
+      "FormSelect",
+      "FormTextarea",
+      "FormCheckbox",
+      "FormRadio",
+      "ModalProvider",
+      "Modal",
+      "ConfirmModal",
+      "AlertModal",
+      "ToastProvider",
+      "Toast",
+      "DataTable",
+      "DataGrid",
+      "DataList",
+      "DataCard",
+      "StateDebugger",
+      "StateInspector",
+      "StateMonitor"
+    ],
+    "pages": []
+  },
+  "sub_features": {
+    "formComponents": {
+      "name": "Form Components",
+      "description": "Form components integrated with Zustand state management",
+      "type": "boolean",
+      "default": true
+    },
+    "modalComponents": {
+      "name": "Modal Components",
+      "description": "Modal and dialog components with state management",
+      "type": "boolean",
+      "default": true
+    },
+    "toastComponents": {
+      "name": "Toast Components",
+      "description": "Toast notification components with state management",
+      "type": "boolean",
+      "default": true
+    },
+    "dataComponents": {
+      "name": "Data Components",
+      "description": "Data display components (tables, grids, lists) with state management",
+      "type": "boolean",
+      "default": true
+    },
+    "stateDebugging": {
+      "name": "State Debugging",
+      "description": "State debugging and inspection components",
+      "type": "boolean",
+      "default": true
+    },
+    "formValidation": {
+      "name": "Form Validation",
+      "description": "Form validation with error handling and state management",
+      "type": "boolean",
+      "default": true
+    },
+    "modalManagement": {
+      "name": "Modal Management",
+      "description": "Modal state management and stacking",
+      "type": "boolean",
+      "default": true
+    },
+    "toastManagement": {
+      "name": "Toast Management",
+      "description": "Toast state management and queuing",
+      "type": "boolean",
+      "default": true
+    },
+    "tableState": {
+      "name": "Table State",
+      "description": "Table state management (sorting, filtering, pagination)",
+      "type": "boolean",
+      "default": true
+    },
+    "responsiveDesign": {
+      "name": "Responsive Design",
+      "description": "Responsive design utilities and breakpoints",
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "blueprint": {
+    "id": "shadcn-zustand-integration",
+    "name": "Shadcn Zustand Integration",
+    "description": "Beautiful Shadcn/ui components integrated with Zustand state management",
+    "version": "1.0.0",
+    "actions": []
+  }
+}

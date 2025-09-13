@@ -1,0 +1,166 @@
+{
+  "id": "shadcn-ui",
+  "name": "Shadcn/ui",
+  "description": "Beautifully designed components built with Radix UI and Tailwind CSS",
+  "category": "ui",
+  "version": "latest",
+  "blueprint": "blueprint.ts",
+  "requirements": {
+    "capabilities": ["react-framework"]
+  },
+  "capabilities": [
+    "components",
+    "tailwind",
+    "radix-ui",
+    "accessibility",
+    "dark-mode",
+    "theming",
+    "responsive",
+    "typescript"
+  ],
+  "limitations": "Requires React framework and Tailwind CSS",
+  "parameters": {
+    "components": {
+      "type": "array",
+      "default": [
+        "button",
+        "input",
+        "card"
+      ],
+      "description": "Components to install",
+      "required": false,
+      "options": [
+        "button",
+        "input",
+        "card",
+        "dialog",
+        "form",
+        "table",
+        "badge",
+        "avatar",
+        "dropdown-menu",
+        "toast"
+      ]
+    },
+    "theme": {
+      "type": "string",
+      "default": "default",
+      "description": "Color theme to use",
+      "required": false,
+      "options": [
+        "default",
+        "dark",
+        "blue",
+        "green",
+        "purple"
+      ]
+    },
+    "darkMode": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable dark mode support",
+      "required": false
+    },
+    "tailwind": {
+      "type": "boolean",
+      "default": true,
+      "description": "Configure Tailwind CSS",
+      "required": false
+    }
+  },
+  "features": {
+    "advanced-components": {
+      "id": "advanced-components",
+      "name": "Advanced Components",
+      "description": "Tables, Forms, Dialogs, Dropdowns and complex UI components",
+      "blueprint": "features/advanced-components.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "components": {
+          "type": "array",
+          "default": [
+            "table",
+            "form",
+            "dialog",
+            "dropdown-menu"
+          ],
+          "description": "Advanced components to install",
+          "required": false,
+          "options": [
+            "table",
+            "form",
+            "dialog",
+            "dropdown-menu",
+            "sheet",
+            "tabs",
+            "accordion",
+            "carousel",
+            "calendar",
+            "date-picker"
+          ]
+        }
+      }
+    },
+    "theming": {
+      "id": "theming",
+      "name": "Advanced Theming",
+      "description": "Custom themes, color schemes, and design system",
+      "blueprint": "features/theming.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "themes": {
+          "type": "array",
+          "default": [
+            "default",
+            "dark"
+          ],
+          "description": "Themes to include",
+          "required": false,
+          "options": [
+            "default",
+            "dark",
+            "blue",
+            "green",
+            "purple",
+            "orange",
+            "red"
+          ]
+        },
+        "custom-colors": {
+          "type": "boolean",
+          "default": false,
+          "description": "Include custom color palette",
+          "required": false
+        }
+      }
+    },
+    "accessibility": {
+      "id": "accessibility",
+      "name": "Accessibility Features",
+      "description": "WCAG compliance, screen reader support, and accessibility tools",
+      "blueprint": "features/accessibility.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "screen-reader": {
+          "type": "boolean",
+          "default": true,
+          "description": "Screen reader support",
+          "required": false
+        },
+        "keyboard-navigation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Keyboard navigation support",
+          "required": false
+        },
+        "focus-management": {
+          "type": "boolean",
+          "default": true,
+          "description": "Focus management utilities",
+          "required": false
+        }
+      }
+    }
+  },
+  "constraints": {}
+}

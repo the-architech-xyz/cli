@@ -1,0 +1,185 @@
+{
+  "id": "nextjs",
+  "name": "Next.js",
+  "description": "The React Framework for Production",
+  "category": "framework",
+  "version": "14.0.0",
+  "blueprint": "blueprint.ts",
+  "dependencies": [],
+  "capabilities": [
+    "ssr",
+    "ssg",
+    "api-routes",
+    "app-router",
+    "pages-router",
+    "typescript",
+    "tailwind",
+    "eslint",
+    "src-dir",
+    "import-alias"
+  ],
+  "limitations": "Requires Node.js 18+ and npm/yarn/pnpm/bun",
+  "paths": {
+    "source_root": "src/",
+    "app_root": "src/app/",
+    "shared_library": "src/lib/",
+    "ui_components": "src/components/ui/",
+    "api_routes": "src/app/api/",
+    "database_config": "src/lib/db",
+    "auth_config": "src/lib/auth",
+    "payment_config": "src/lib/payment",
+    "email_config": "src/lib/email",
+    "observability_config": "src/lib/observability",
+    "state_config": "src/lib/state",
+    "testing_config": "src/lib/testing",
+    "deployment_config": "src/lib/deployment",
+    "content_config": "src/lib/content",
+    "blockchain_config": "src/lib/blockchain"
+  },
+  "parameters": {
+    "typescript": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable TypeScript support",
+      "required": false
+    },
+    "tailwind": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable Tailwind CSS",
+      "required": false
+    },
+    "eslint": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable ESLint",
+      "required": false
+    },
+    "appRouter": {
+      "type": "boolean",
+      "default": true,
+      "description": "Use App Router (recommended)",
+      "required": false
+    },
+    "srcDir": {
+      "type": "boolean",
+      "default": true,
+      "description": "Use src/ directory",
+      "required": false
+    },
+    "importAlias": {
+      "type": "string",
+      "default": "@/*",
+      "description": "Import alias for absolute imports",
+      "required": false
+    }
+  },
+  "features": {
+    "api-routes": {
+      "id": "api-routes",
+      "name": "API Routes",
+      "description": "Next.js API routes with middleware and error handling",
+      "blueprint": "features/api-routes.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "middleware": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include API middleware",
+          "required": false
+        },
+        "error-handling": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include error handling utilities",
+          "required": false
+        }
+      }
+    },
+    "ssr-optimization": {
+      "id": "ssr-optimization",
+      "name": "SSR Optimization",
+      "description": "Server-side rendering optimization and caching",
+      "blueprint": "features/ssr-optimization.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "caching": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable response caching",
+          "required": false
+        },
+        "streaming": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable streaming SSR",
+          "required": false
+        }
+      }
+    },
+    "middleware": {
+      "id": "middleware",
+      "name": "Middleware",
+      "description": "Next.js middleware for auth, redirects, and more",
+      "blueprint": "features/middleware.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "auth": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include auth middleware",
+          "required": false
+        },
+        "redirects": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include redirect middleware",
+          "required": false
+        }
+      }
+    },
+    "performance": {
+      "id": "performance",
+      "name": "Performance Optimization",
+      "description": "Image optimization, bundle analysis, and performance monitoring",
+      "blueprint": "features/performance.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "image-optimization": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable image optimization",
+          "required": false
+        },
+        "bundle-analysis": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include bundle analysis tools",
+          "required": false
+        }
+      }
+    },
+    "deployment": {
+      "id": "deployment",
+      "name": "Deployment Configuration",
+      "description": "Vercel, Docker, and CI/CD deployment configs",
+      "blueprint": "features/deployment.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "platform": {
+          "type": "string",
+          "default": "vercel",
+          "description": "Deployment platform",
+          "required": false,
+          "options": [
+            "vercel",
+            "docker",
+            "aws",
+            "netlify"
+          ]
+        }
+      }
+    }
+  },
+  "constraints": {}
+}

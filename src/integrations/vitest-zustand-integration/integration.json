@@ -1,0 +1,125 @@
+{
+  "id": "vitest-zustand-integration",
+  "name": "Vitest Zustand Integration",
+  "description": "Complete Vitest testing setup for Zustand state management with store testing, middleware testing, and persistence testing",
+  "category": "integration",
+  "version": "1.0.0",
+  "tech_stack": {
+    "framework": "agnostic",
+    "adapters": ["vitest", "zustand"]
+  },
+  "requirements": {
+    "modules": ["vitest", "zustand"],
+    "dependencies": ["vitest", "zustand", "@testing-library/react", "jsdom"]
+  },
+  "provides": {
+    "files": [
+      "vitest.config.zustand.ts",
+      "vitest.setup.zustand.ts",
+      "test-utils/store-test-utils.ts",
+      "test-utils/mock-storage.ts",
+      "test-utils/mock-persistence.ts",
+      "test-utils/mock-devtools.ts",
+      "test-utils/mock-middleware.ts",
+      "test-utils/store-helpers.ts",
+      "test-utils/store-fixtures.ts",
+      "test-utils/store-mocks.ts",
+      "tests/stores/auth-store.test.ts",
+      "tests/stores/user-store.test.ts",
+      "tests/stores/cart-store.test.ts",
+      "tests/stores/ui-store.test.ts",
+      "tests/stores/theme-store.test.ts",
+      "tests/stores/notification-store.test.ts",
+      "tests/middleware/persist.test.ts",
+      "tests/middleware/devtools.test.ts",
+      "tests/middleware/subscribeWithSelector.test.ts",
+      "tests/middleware/immer.test.ts",
+      "tests/middleware/logger.test.ts",
+      "tests/middleware/custom.test.ts",
+      "tests/persistence/localStorage.test.ts",
+      "tests/persistence/sessionStorage.test.ts",
+      "tests/persistence/indexedDB.test.ts",
+      "tests/persistence/custom.test.ts",
+      "tests/integration/store-integration.test.ts",
+      "tests/integration/middleware-integration.test.ts",
+      "tests/integration/persistence-integration.test.ts",
+      "tests/fixtures/store-states.json",
+      "tests/fixtures/store-actions.json",
+      "tests/fixtures/store-mutations.json",
+      "tests/mocks/store-mocks.ts",
+      "tests/mocks/middleware-mocks.ts",
+      "tests/mocks/persistence-mocks.ts"
+    ],
+    "components": [],
+    "pages": []
+  },
+  "sub_features": {
+    "storeTesting": {
+      "name": "Store Testing",
+      "description": "Unit tests for Zustand stores and actions",
+      "type": "boolean",
+      "default": true
+    },
+    "middlewareTesting": {
+      "name": "Middleware Testing",
+      "description": "Tests for Zustand middleware (persist, devtools, etc.)",
+      "type": "boolean",
+      "default": true
+    },
+    "persistenceTesting": {
+      "name": "Persistence Testing",
+      "description": "Tests for state persistence across storage types",
+      "type": "boolean",
+      "default": true
+    },
+    "integrationTesting": {
+      "name": "Integration Testing",
+      "description": "Integration tests for store interactions",
+      "type": "boolean",
+      "default": true
+    },
+    "mocking": {
+      "name": "Mocking",
+      "description": "Mock utilities for stores, storage, and middleware",
+      "type": "boolean",
+      "default": true
+    },
+    "fixtures": {
+      "name": "Fixtures",
+      "description": "Test fixtures and sample data for stores",
+      "type": "boolean",
+      "default": true
+    },
+    "coverageReporting": {
+      "name": "Coverage Reporting",
+      "description": "Code coverage reporting for store logic",
+      "type": "boolean",
+      "default": true
+    },
+    "watchMode": {
+      "name": "Watch Mode",
+      "description": "Watch mode for development testing",
+      "type": "boolean",
+      "default": true
+    },
+    "parallelTesting": {
+      "name": "Parallel Testing",
+      "description": "Parallel test execution for faster runs",
+      "type": "boolean",
+      "default": true
+    },
+    "typescriptSupport": {
+      "name": "TypeScript Support",
+      "description": "Full TypeScript support for store tests",
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "blueprint": {
+    "id": "vitest-zustand-integration",
+    "name": "Vitest Zustand Integration",
+    "description": "Complete Vitest testing setup for Zustand state management",
+    "version": "1.0.0",
+    "actions": []
+  }
+}

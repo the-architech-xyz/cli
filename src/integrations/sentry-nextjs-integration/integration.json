@@ -1,0 +1,89 @@
+{
+  "id": "sentry-nextjs-integration",
+  "name": "Sentry Next.js Integration",
+  "description": "Complete Sentry integration for Next.js applications with error tracking, performance monitoring, and middleware",
+  "category": "integration",
+  "version": "1.0.0",
+  "tech_stack": {
+    "framework": "nextjs",
+    "adapters": ["sentry"]
+  },
+  "requirements": {
+    "modules": ["sentry", "nextjs"],
+    "dependencies": ["@sentry/nextjs", "@sentry/profiling-node"]
+  },
+  "provides": {
+    "files": [
+      "src/app/sentry.client.config.ts",
+      "src/app/sentry.server.config.ts",
+      "src/app/sentry.edge.config.ts",
+      "src/middleware.ts",
+      "src/lib/sentry/client.ts",
+      "src/lib/sentry/server.ts",
+      "src/lib/sentry/performance.ts",
+      "src/lib/sentry/errors.ts",
+      "src/lib/sentry/user-feedback.ts"
+    ],
+    "components": [
+      "src/components/sentry/ErrorBoundary.tsx",
+      "src/components/sentry/UserFeedback.tsx",
+      "src/components/sentry/PerformanceMonitor.tsx"
+    ],
+    "pages": [
+      "src/app/admin/sentry/page.tsx",
+      "src/app/admin/sentry/errors/page.tsx",
+      "src/app/admin/sentry/performance/page.tsx"
+    ]
+  },
+  "sub_features": {
+    "errorTracking": {
+      "name": "Error Tracking",
+      "description": "Comprehensive error tracking with breadcrumbs and context",
+      "type": "boolean",
+      "default": true
+    },
+    "performanceMonitoring": {
+      "name": "Performance Monitoring",
+      "description": "Web vitals, transactions, and performance tracking",
+      "type": "boolean",
+      "default": true
+    },
+    "userFeedback": {
+      "name": "User Feedback",
+      "description": "User feedback collection and error reporting",
+      "type": "boolean",
+      "default": true
+    },
+    "middleware": {
+      "name": "Middleware",
+      "description": "Sentry middleware for automatic error capture",
+      "type": "boolean",
+      "default": true
+    },
+    "profiling": {
+      "name": "Profiling",
+      "description": "Performance profiling and analysis",
+      "type": "boolean",
+      "default": false
+    },
+    "alerts": {
+      "name": "Alerts & Dashboard",
+      "description": "Custom alerts and monitoring dashboard",
+      "type": "boolean",
+      "default": false
+    },
+    "releaseTracking": {
+      "name": "Release Tracking",
+      "description": "Release tracking and deployment monitoring",
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "blueprint": {
+    "id": "sentry-nextjs-integration",
+    "name": "Sentry Next.js Integration",
+    "description": "Complete error monitoring and performance tracking for Next.js",
+    "version": "1.0.0",
+    "actions": []
+  }
+}

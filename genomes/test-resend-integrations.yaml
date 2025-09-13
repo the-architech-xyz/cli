@@ -1,0 +1,47 @@
+version: "1.0.0"
+project:
+  name: "test-resend-project"
+  framework: "nextjs"
+  path: "./test-resend-project"
+
+modules:
+  - id: "framework/nextjs"
+    category: "framework"
+    version: "1.0.0"
+    parameters:
+      tailwind: true
+      typescript: true
+      eslint: true
+  - id: "email/resend"
+    category: "email"
+    version: "1.0.0"
+    parameters:
+      apiKey: "re_test_123"
+      fromEmail: "noreply@test.com"
+      webhooks: true
+      analytics: true
+  - id: "ui/shadcn-ui"
+    category: "ui"
+    version: "1.0.0"
+    parameters:
+      theme: "default"
+      components: ["button", "card", "form", "input", "textarea", "select", "dialog", "alert", "badge", "switch", "separator", "tabs"]
+
+integrations:
+  - name: "resend-nextjs-integration"
+    features:
+      apiRoutes: true
+      webhooks: true
+      templates: true
+      analytics: false
+      batchSending: false
+      middleware: true
+      adminPanel: true
+  - name: "resend-shadcn-integration"
+    features:
+      emailForm: true
+      emailTemplates: true
+      emailCampaigns: false
+      emailList: false
+      emailComposer: true
+      emailSettings: true

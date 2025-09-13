@@ -1,0 +1,42 @@
+version: "1.0.0"
+
+project:
+  name: "test-stripe-simple"
+  framework: "nextjs"
+  path: "./test-stripe-simple"
+
+modules:
+  - id: "framework/nextjs"
+    category: "framework"
+    version: "14.0.0"
+    parameters:
+      typescript: true
+      tailwind: true
+      eslint: true
+      appRouter: true
+      srcDir: true
+      importAlias: "@/*"
+  
+  - id: "payment/stripe"
+    category: "payment"
+    version: "14.0.0"
+    parameters:
+      webhooks: true
+      checkout: true
+      subscriptions: false
+      invoices: false
+      refunds: false
+
+integrations:
+  - name: "stripe-nextjs-integration"
+    features:
+      webhooks: true
+      checkout: true
+      subscriptions: false
+      invoices: false
+      refunds: false
+      apiRoutes: true
+
+options:
+  skipInstall: true
+  verbose: true

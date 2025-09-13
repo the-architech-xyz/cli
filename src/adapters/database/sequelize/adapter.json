@@ -1,0 +1,156 @@
+{
+  "id": "sequelize",
+  "name": "Sequelize ORM",
+  "description": "Promise-based Node.js ORM for PostgreSQL, MySQL, MariaDB, SQLite and Microsoft SQL Server",
+  "category": "database",
+  "version": "6.0.0",
+  "blueprint": "blueprint.ts",
+  "dependencies": [],
+  "capabilities": [
+    "type-safe-database-access",
+    "migrations",
+    "associations",
+    "query-builder",
+    "transactions",
+    "hooks",
+    "validation",
+    "seeding",
+    "cli-tools"
+  ],
+  "limitations": "Requires a supported database (PostgreSQL, MySQL, SQLite, MariaDB, MSSQL)",
+  "parameters": {
+    "host": {
+      "type": "string",
+      "default": "localhost",
+      "description": "Database host",
+      "required": false
+    },
+    "port": {
+      "type": "number",
+      "default": 5432,
+      "description": "Database port",
+      "required": false
+    },
+    "username": {
+      "type": "string",
+      "default": "postgres",
+      "description": "Database username",
+      "required": false
+    },
+    "password": {
+      "type": "string",
+      "default": "",
+      "description": "Database password",
+      "required": false
+    },
+    "databaseName": {
+      "type": "string",
+      "default": "myapp",
+      "description": "Database name",
+      "required": true
+    },
+    "logging": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable SQL logging",
+      "required": false
+    },
+    "pool": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable connection pooling",
+      "required": false
+    },
+    "databaseType": {
+      "type": "string",
+      "default": "postgresql",
+      "description": "Database type",
+      "required": true,
+      "options": [
+        "postgresql",
+        "mysql",
+        "sqlite",
+        "mariadb",
+        "mssql"
+      ]
+    }
+  },
+  "features": {
+    "migrations": {
+      "id": "migrations",
+      "name": "Database Migrations",
+      "description": "Automated database schema migrations and versioning",
+      "blueprint": "features/migrations.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "auto-migrate": {
+          "type": "boolean",
+          "default": false,
+          "description": "Auto-migrate on startup",
+          "required": false
+        },
+        "backup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Create backups before migrations",
+          "required": false
+        }
+      }
+    },
+    "associations": {
+      "id": "associations",
+      "name": "Model Associations",
+      "description": "Advanced model relationships and associations",
+      "blueprint": "features/associations.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "types": {
+          "type": "array",
+          "default": [
+            "hasMany",
+            "belongsTo",
+            "belongsToMany"
+          ],
+          "description": "Association types to enable",
+          "required": false,
+          "options": [
+            "hasOne",
+            "hasMany",
+            "belongsTo",
+            "belongsToMany",
+            "hasOneThrough",
+            "hasManyThrough"
+          ]
+        },
+        "eager-loading": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable eager loading",
+          "required": false
+        }
+      }
+    },
+    "query-optimization": {
+      "id": "query-optimization",
+      "name": "Query Optimization",
+      "description": "Advanced query building and optimization tools",
+      "blueprint": "features/query-optimization.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "query-logging": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable query logging",
+          "required": false
+        },
+        "performance-monitoring": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable performance monitoring",
+          "required": false
+        }
+      }
+    }
+  },
+  "constraints": {}
+}

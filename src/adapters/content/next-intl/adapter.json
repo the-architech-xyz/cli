@@ -1,0 +1,121 @@
+{
+  "id": "next-intl",
+  "name": "Next.js Internationalization",
+  "description": "Complete internationalization solution with next-intl including advanced features like pluralization, rich text, and dynamic imports",
+  "category": "content",
+  "version": "1.0.0",
+  "blueprint": "blueprint.ts",
+  "dependencies": [
+    "framework/nextjs"
+  ],
+  "capabilities": [
+    "internationalization",
+    "localization",
+    "pluralization",
+    "rich-text",
+    "dynamic-imports",
+    "routing",
+    "seo"
+  ],
+  "limitations": "Requires Next.js framework with App Router",
+  "parameters": {
+    "locales": {
+      "type": "array",
+      "default": [
+        "en",
+        "fr"
+      ],
+      "description": "Supported locales",
+      "required": true
+    },
+    "defaultLocale": {
+      "type": "string",
+      "default": "en",
+      "description": "Default locale",
+      "required": true
+    },
+    "routing": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable locale-based routing",
+      "required": false
+    },
+    "seo": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable SEO optimization",
+      "required": false
+    }
+  },
+  "features": {
+    "routing": {
+      "id": "routing",
+      "name": "Internationalized Routing",
+      "description": "Locale-based routing with pathname translations",
+      "blueprint": "features/routing.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "pathnames": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable pathname translations",
+          "required": false
+        },
+        "locale-prefix": {
+          "type": "string",
+          "default": "always",
+          "description": "Locale prefix strategy",
+          "required": false,
+          "options": [
+            "always",
+            "as-needed",
+            "never"
+          ]
+        }
+      }
+    },
+    "seo-optimization": {
+      "id": "seo-optimization",
+      "name": "SEO Optimization",
+      "description": "Multilingual SEO with hreflang and metadata",
+      "blueprint": "features/seo-optimization.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "hreflang": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable hreflang tags",
+          "required": false
+        },
+        "canonical-urls": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable canonical URLs",
+          "required": false
+        }
+      }
+    },
+    "dynamic-imports": {
+      "id": "dynamic-imports",
+      "name": "Dynamic Imports",
+      "description": "Lazy loading of translations and locale-specific content",
+      "blueprint": "features/dynamic-imports.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "lazy-loading": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable lazy loading of translations",
+          "required": false
+        },
+        "preload": {
+          "type": "boolean",
+          "default": false,
+          "description": "Preload common translations",
+          "required": false
+        }
+      }
+    }
+  },
+  "constraints": {}
+}

@@ -1,0 +1,78 @@
+{
+  "id": "better-auth-nextjs-integration",
+  "name": "Better Auth Next.js Integration",
+  "description": "Complete Next.js integration for Better Auth with API routes, middleware, and UI components",
+  "category": "integration",
+  "tech_stack": {
+    "framework": "nextjs",
+    "adapters": ["better-auth"]
+  },
+  "requirements": {
+    "modules": ["better-auth", "nextjs"],
+    "dependencies": []
+  },
+  "provides": {
+    "files": [
+      "src/app/api/auth/[...all]/route.ts",
+      "src/middleware.ts",
+      "src/lib/auth/nextjs-handler.ts",
+      "src/lib/auth/middleware.ts",
+      "src/components/auth/auth-provider.tsx",
+      "src/components/auth/login-form.tsx",
+      "src/components/auth/register-form.tsx",
+      "src/components/auth/user-menu.tsx"
+    ],
+    "components": [
+      "auth-provider",
+      "login-form", 
+      "register-form",
+      "user-menu"
+    ],
+    "pages": []
+  },
+  "sub_features": {
+    "apiRoutes": {
+      "name": "API Routes",
+      "description": "Next.js API routes for authentication endpoints",
+      "type": "boolean",
+      "default": true
+    },
+    "middleware": {
+      "name": "Middleware",
+      "description": "Next.js middleware for authentication and route protection",
+      "type": "boolean",
+      "default": true
+    },
+    "uiComponents": {
+      "name": "UI Components",
+      "description": "React components for authentication UI",
+      "type": "string",
+      "default": "shadcn",
+      "options": ["shadcn", "chakra", "mui", "none"]
+    },
+    "adminPanel": {
+      "name": "Admin Panel",
+      "description": "Admin API routes for user management",
+      "type": "boolean",
+      "default": false
+    },
+    "emailVerification": {
+      "name": "Email Verification",
+      "description": "Email verification API routes and components",
+      "type": "boolean",
+      "default": false
+    },
+    "mfa": {
+      "name": "Multi-Factor Authentication",
+      "description": "MFA API routes and components",
+      "type": "boolean",
+      "default": false
+    },
+    "passwordReset": {
+      "name": "Password Reset",
+      "description": "Password reset API routes and components",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

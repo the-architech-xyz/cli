@@ -1,0 +1,78 @@
+version: "1.0.0"
+
+project:
+  name: "test-stripe-integrations"
+  framework: "nextjs"
+  path: "./test-stripe-project"
+
+modules:
+  - id: "framework/nextjs"
+    category: "framework"
+    version: "14.0.0"
+    parameters:
+      typescript: true
+      tailwind: true
+      eslint: true
+      appRouter: true
+      srcDir: true
+      importAlias: "@/*"
+  
+  - id: "payment/stripe"
+    category: "payment"
+    version: "14.0.0"
+    parameters:
+      webhooks: true
+      checkout: true
+      subscriptions: false
+      invoices: false
+      refunds: false
+  
+  - id: "database/drizzle"
+    category: "database"
+    version: "0.29.0"
+    parameters:
+      provider: "neon"
+      migrations: true
+      studio: true
+      databaseType: "postgresql"
+  
+  - id: "ui/shadcn-ui"
+    category: "ui"
+    version: "latest"
+    parameters:
+      components: ["button", "input", "card", "form", "table", "badge"]
+      theme: "default"
+      darkMode: true
+      tailwind: true
+
+integrations:
+  - name: "stripe-nextjs-integration"
+    features:
+      webhooks: true
+      checkout: true
+      subscriptions: false
+      invoices: false
+      refunds: false
+      apiRoutes: true
+  
+  - name: "stripe-shadcn-integration"
+    features:
+      paymentForms: true
+      subscriptionCards: false
+      invoiceTables: false
+      paymentButtons: true
+      adminPanels: false
+      pricingCards: false
+  
+  - name: "stripe-drizzle-integration"
+    features:
+      paymentSchema: true
+      subscriptionSchema: false
+      webhookLogs: true
+      migrations: true
+      indexes: true
+      paymentTracking: false
+
+options:
+  skipInstall: false
+  verbose: true

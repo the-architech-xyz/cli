@@ -1,0 +1,172 @@
+{
+  "id": "web3",
+  "name": "Web3.js Ethereum Integration",
+  "description": "Complete Web3.js integration for Ethereum blockchain interactions",
+  "category": "blockchain",
+  "version": "1.0.0",
+  "blueprint": "blueprint.ts",
+  "dependencies": [],
+  "capabilities": [
+    "wallet-connection",
+    "contract-interaction",
+    "nft-support",
+    "defi-support",
+    "multi-network",
+    "ethereum",
+    "polygon",
+    "arbitrum"
+  ],
+  "limitations": "Requires Web3 wallet and RPC endpoints",
+  "parameters": {
+    "networks": {
+      "type": "array",
+      "default": [
+        "mainnet",
+        "polygon",
+        "arbitrum"
+      ],
+      "description": "Supported blockchain networks",
+      "required": true,
+      "options": [
+        "mainnet",
+        "sepolia",
+        "goerli",
+        "polygon",
+        "bsc",
+        "arbitrum"
+      ]
+    },
+    "walletConnect": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable WalletConnect support",
+      "required": false
+    },
+    "contracts": {
+      "type": "array",
+      "default": [],
+      "description": "Smart contract addresses",
+      "required": false
+    }
+  },
+  "features": {
+    "smart-contracts": {
+      "id": "smart-contracts",
+      "name": "Smart Contracts",
+      "description": "Deploy and interact with smart contracts",
+      "blueprint": "features/smart-contracts.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "contract-types": {
+          "type": "array",
+          "default": [
+            "erc20",
+            "erc721"
+          ],
+          "description": "Contract types to support",
+          "required": false,
+          "options": [
+            "erc20",
+            "erc721",
+            "erc1155",
+            "custom"
+          ]
+        },
+        "deployment": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable contract deployment tools",
+          "required": false
+        }
+      }
+    },
+    "wallet-integration": {
+      "id": "wallet-integration",
+      "name": "Wallet Integration",
+      "description": "MetaMask, WalletConnect and other wallet integrations",
+      "blueprint": "features/wallet-integration.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "wallets": {
+          "type": "array",
+          "default": [
+            "metamask",
+            "walletconnect"
+          ],
+          "description": "Supported wallets",
+          "required": false,
+          "options": [
+            "metamask",
+            "walletconnect",
+            "coinbase",
+            "rainbow"
+          ]
+        },
+        "auto-connect": {
+          "type": "boolean",
+          "default": false,
+          "description": "Auto-connect to previously connected wallet",
+          "required": false
+        }
+      }
+    },
+    "nft-management": {
+      "id": "nft-management",
+      "name": "NFT Management",
+      "description": "Mint, transfer, and manage NFTs",
+      "blueprint": "features/nft-management.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "standards": {
+          "type": "array",
+          "default": [
+            "erc721"
+          ],
+          "description": "NFT standards to support",
+          "required": false,
+          "options": [
+            "erc721",
+            "erc1155"
+          ]
+        },
+        "metadata": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable metadata management",
+          "required": false
+        }
+      }
+    },
+    "defi-integration": {
+      "id": "defi-integration",
+      "name": "DeFi Integration",
+      "description": "DEX, lending, staking and other DeFi protocols",
+      "blueprint": "features/defi-integration.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "protocols": {
+          "type": "array",
+          "default": [
+            "uniswap"
+          ],
+          "description": "DeFi protocols to integrate",
+          "required": false,
+          "options": [
+            "uniswap",
+            "aave",
+            "compound",
+            "curve",
+            "balancer"
+          ]
+        },
+        "yield-farming": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable yield farming features",
+          "required": false
+        }
+      }
+    }
+  },
+  "constraints": {}
+}

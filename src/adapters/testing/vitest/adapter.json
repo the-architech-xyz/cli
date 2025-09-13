@@ -1,0 +1,115 @@
+{
+  "id": "vitest",
+  "name": "Vitest",
+  "description": "Fast unit test framework powered by Vite",
+  "category": "testing",
+  "version": "1.0.0",
+  "blueprint": "blueprint.ts",
+  "dependencies": [
+    "framework/nextjs"
+  ],
+  "capabilities": [
+    "unit-testing",
+    "integration-testing",
+    "coverage",
+    "watch-mode",
+    "typescript",
+    "jsx",
+    "esm",
+    "mocking",
+    "snapshots",
+    "parallel"
+  ],
+  "limitations": "Requires Node.js 16+ and Next.js framework",
+  "parameters": {
+    "coverage": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable code coverage reporting",
+      "required": false
+    },
+    "watch": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable watch mode for development",
+      "required": false
+    },
+    "ui": {
+      "type": "boolean",
+      "default": false,
+      "description": "Enable Vitest UI",
+      "required": false
+    },
+    "jsx": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable JSX support for React testing",
+      "required": false
+    },
+    "environment": {
+      "type": "string",
+      "default": "jsdom",
+      "description": "Test environment",
+      "required": false,
+      "options": [
+        "jsdom",
+        "node",
+        "happy-dom"
+      ]
+    }
+  },
+  "features": {
+    "coverage": {
+      "id": "coverage",
+      "name": "Code Coverage",
+      "description": "Comprehensive code coverage reporting with HTML and LCOV reports",
+      "blueprint": "features/coverage.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "threshold": {
+          "type": "number",
+          "default": 80,
+          "description": "Coverage threshold percentage",
+          "required": false
+        },
+        "reports": {
+          "type": "array",
+          "default": [
+            "text",
+            "html"
+          ],
+          "description": "Coverage report formats",
+          "required": false,
+          "options": [
+            "text",
+            "html",
+            "lcov",
+            "json"
+          ]
+        }
+      }
+    },
+    "ui": {
+      "id": "ui",
+      "name": "Vitest UI",
+      "description": "Interactive web-based test runner interface",
+      "blueprint": "features/ui.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "port": {
+          "type": "number",
+          "default": 51204,
+          "description": "UI server port",
+          "required": false
+        },
+        "open": {
+          "type": "boolean",
+          "default": true,
+          "description": "Auto-open UI in browser",
+          "required": false
+        }
+      }
+    }
+  },
+  "constraints": {}
+}

@@ -1,0 +1,124 @@
+{
+  "id": "prisma",
+  "name": "Prisma ORM",
+  "description": "Next-generation ORM for Node.js and TypeScript",
+  "category": "database",
+  "version": "5.0.0",
+  "blueprint": "blueprint.ts",
+  "dependencies": [],
+  "capabilities": [
+    "type-safe-database-access",
+    "migrations",
+    "schema-management",
+    "query-builder",
+    "relation-mapping",
+    "seeding",
+    "studio",
+    "multi-database-support"
+  ],
+  "limitations": "Requires a supported database (PostgreSQL, MySQL, SQLite, MongoDB)",
+  "parameters": {
+    "provider": {
+      "type": "string",
+      "default": "postgresql",
+      "description": "Database provider",
+      "required": true,
+      "options": [
+        "postgresql",
+        "mysql",
+        "sqlite",
+        "mongodb"
+      ]
+    },
+    "studio": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable Prisma Studio",
+      "required": false
+    },
+    "migrations": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable database migrations",
+      "required": false
+    },
+    "databaseType": {
+      "type": "string",
+      "default": "postgresql",
+      "description": "Database type",
+      "required": true,
+      "options": [
+        "postgresql",
+        "mysql",
+        "sqlite",
+        "mongodb"
+      ]
+    }
+  },
+  "features": {
+    "schema-management": {
+      "id": "schema-management",
+      "name": "Schema Management",
+      "description": "Advanced schema management with Prisma schema and migrations",
+      "blueprint": "features/schema-management.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "introspection": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable database introspection",
+          "required": false
+        },
+        "schema-validation": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable schema validation",
+          "required": false
+        }
+      }
+    },
+    "query-optimization": {
+      "id": "query-optimization",
+      "name": "Query Optimization",
+      "description": "Advanced query building and optimization tools",
+      "blueprint": "features/query-optimization.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "query-logging": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable query logging",
+          "required": false
+        },
+        "performance-monitoring": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable performance monitoring",
+          "required": false
+        }
+      }
+    },
+    "studio-integration": {
+      "id": "studio-integration",
+      "name": "Prisma Studio Integration",
+      "description": "Database management interface and admin tools",
+      "blueprint": "features/studio-integration.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "custom-theme": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable custom theme",
+          "required": false
+        },
+        "user-management": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable user management",
+          "required": false
+        }
+      }
+    }
+  },
+  "constraints": {}
+}

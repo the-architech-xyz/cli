@@ -1,0 +1,129 @@
+{
+  "id": "sentry",
+  "name": "Sentry Error Monitoring",
+  "description": "Complete error monitoring and performance tracking with Sentry",
+  "category": "observability",
+  "version": "1.0.0",
+  "blueprint": "blueprint.ts",
+  "dependencies": [],
+  "capabilities": [
+    "error-monitoring",
+    "performance-tracking",
+    "release-tracking",
+    "user-feedback",
+    "breadcrumbs",
+    "source-maps",
+    "alerts"
+  ],
+  "limitations": "Requires Sentry DSN",
+  "parameters": {
+    "dsn": {
+      "type": "string",
+      "default": "",
+      "description": "Sentry DSN",
+      "required": true
+    },
+    "environment": {
+      "type": "string",
+      "default": "development",
+      "description": "Environment name",
+      "required": false
+    },
+    "performance": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable performance monitoring",
+      "required": false
+    },
+    "release": {
+      "type": "string",
+      "default": "",
+      "description": "Release version",
+      "required": false
+    }
+  },
+  "features": {
+    "performance-monitoring": {
+      "id": "performance-monitoring",
+      "name": "Performance Monitoring",
+      "description": "Advanced performance tracking, web vitals, and transaction monitoring",
+      "blueprint": "features/performance-monitoring.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "web-vitals": {
+          "type": "boolean",
+          "default": true,
+          "description": "Track web vitals metrics",
+          "required": false
+        },
+        "transactions": {
+          "type": "boolean",
+          "default": true,
+          "description": "Track API transactions",
+          "required": false
+        },
+        "profiling": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable profiling for performance analysis",
+          "required": false
+        }
+      }
+    },
+    "error-tracking": {
+      "id": "error-tracking",
+      "name": "Advanced Error Tracking",
+      "description": "Enhanced error tracking with breadcrumbs, context, and user feedback",
+      "blueprint": "features/error-tracking.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "breadcrumbs": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable automatic breadcrumbs",
+          "required": false
+        },
+        "user-context": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include user context in errors",
+          "required": false
+        },
+        "user-feedback": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable user feedback collection",
+          "required": false
+        }
+      }
+    },
+    "alerts-dashboard": {
+      "id": "alerts-dashboard",
+      "name": "Alerts & Dashboard",
+      "description": "Custom alerts, monitoring dashboard, and notification system",
+      "blueprint": "features/alerts-dashboard.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "custom-alerts": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable custom alert rules",
+          "required": false
+        },
+        "dashboard": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include monitoring dashboard",
+          "required": false
+        },
+        "notifications": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable notification system",
+          "required": false
+        }
+      }
+    }
+  },
+  "constraints": {}
+}

@@ -1,0 +1,17 @@
+{
+  "id": "stripe-drizzle-integration",
+  "name": "Stripe Drizzle Integration",
+  "description": "Integrates Stripe with Drizzle ORM for database operations",
+  "version": "1.0.0",
+  "category": "integration",
+  "type": "feature",
+  "dependencies": [
+    "stripe",
+    "drizzle"
+  ],
+  "features": [
+    "payment-tracking",
+    "subscription-management",
+    "webhook-logging"
+  ]
+}

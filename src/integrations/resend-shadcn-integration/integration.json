@@ -1,0 +1,79 @@
+{
+  "id": "resend-shadcn-integration",
+  "name": "Resend Shadcn Integration",
+  "description": "Beautiful email UI components using Shadcn/ui for Resend email management",
+  "category": "integration",
+  "version": "1.0.0",
+  "tech_stack": {
+    "framework": "agnostic",
+    "adapters": ["resend", "shadcn-ui"]
+  },
+  "requirements": {
+    "modules": ["resend", "shadcn-ui"],
+    "dependencies": ["resend", "react", "react-dom", "@radix-ui/react-*", "class-variance-authority", "clsx", "tailwind-merge"]
+  },
+  "provides": {
+    "files": [
+      "src/components/email/EmailForm.tsx",
+      "src/components/email/EmailTemplates.tsx",
+      "src/components/email/EmailCampaigns.tsx",
+      "src/components/email/EmailList.tsx",
+      "src/components/email/EmailComposer.tsx",
+      "src/components/email/EmailSettings.tsx"
+    ],
+    "components": [
+      "src/components/email/EmailForm.tsx",
+      "src/components/email/EmailTemplates.tsx",
+      "src/components/email/EmailCampaigns.tsx",
+      "src/components/email/EmailList.tsx",
+      "src/components/email/EmailComposer.tsx",
+      "src/components/email/EmailSettings.tsx"
+    ],
+    "pages": []
+  },
+  "sub_features": {
+    "emailForm": {
+      "name": "Email Form",
+      "description": "Beautiful email sending form with validation",
+      "type": "boolean",
+      "default": true
+    },
+    "emailTemplates": {
+      "name": "Email Templates",
+      "description": "Template management and preview components",
+      "type": "boolean",
+      "default": true
+    },
+    "emailCampaigns": {
+      "name": "Email Campaigns",
+      "description": "Campaign creation and management interface",
+      "type": "boolean",
+      "default": false
+    },
+    "emailList": {
+      "name": "Email List",
+      "description": "Email list management and subscriber interface",
+      "type": "boolean",
+      "default": false
+    },
+    "emailComposer": {
+      "name": "Email Composer",
+      "description": "Rich text email composer with template support",
+      "type": "boolean",
+      "default": true
+    },
+    "emailSettings": {
+      "name": "Email Settings",
+      "description": "Email configuration and preferences interface",
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "blueprint": {
+    "id": "resend-shadcn-integration",
+    "name": "Resend Shadcn Integration",
+    "description": "Beautiful email UI components using Shadcn/ui",
+    "version": "1.0.0",
+    "actions": []
+  }
+}

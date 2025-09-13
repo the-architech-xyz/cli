@@ -1,0 +1,371 @@
+version: "1.0.0"
+
+project:
+  name: "Full Stack Test App"
+  description: "Complete test application with all adapters and integrations"
+  version: "1.0.0"
+  framework: "nextjs"
+  path: "./test-full-app"
+
+modules:
+  # Framework
+  - id: "framework/nextjs"
+    category: "framework"
+    version: "14.0.0"
+    parameters:
+      typescript: true
+      tailwind: true
+      eslint: true
+      appRouter: true
+      srcDir: true
+      importAlias: "@/*"
+
+  # Database
+  - id: "database/drizzle"
+    category: "database"
+    version: "0.29.0"
+    parameters:
+      provider: "neon"
+      migrations: true
+      studio: true
+      databaseType: "postgresql"
+
+  # Authentication
+  - id: "auth/better-auth"
+    category: "auth"
+    version: "0.18.0"
+    parameters:
+      providers: ["email", "google", "github"]
+      session: "jwt"
+      csrf: true
+      rateLimit: true
+
+  # Payment
+  - id: "payment/stripe"
+    category: "payment"
+    version: "1.0.0"
+    parameters:
+      mode: "test"
+      currencies: ["usd", "eur"]
+      webhooks: true
+      subscriptions: true
+
+  # Email
+  - id: "email/resend"
+    category: "email"
+    version: "1.0.0"
+    parameters:
+      apiKey: "re_test_123"
+      templates: true
+      analytics: true
+
+  # Observability
+  - id: "observability/sentry"
+    category: "observability"
+    version: "1.0.0"
+    parameters:
+      dsn: "https://test@sentry.io/123"
+      environment: "development"
+      performance: true
+      profiling: true
+
+  # State Management
+  - id: "state/zustand"
+    category: "state"
+    version: "1.0.0"
+    parameters:
+      devtools: true
+      persistence: true
+      middleware: true
+
+  # UI Components
+  - id: "ui/shadcn-ui"
+    category: "ui"
+    version: "1.0.0"
+    parameters:
+      theme: "default"
+      components: ["button", "input", "card", "dialog", "form"]
+      darkMode: true
+
+  # Testing
+  - id: "testing/vitest"
+    category: "testing"
+    version: "1.0.0"
+    parameters:
+      coverage: true
+      ui: true
+      watch: true
+
+  # Deployment
+  - id: "deployment/docker"
+    category: "deployment"
+    version: "1.0.0"
+    parameters:
+      multiStage: true
+      production: true
+      nginx: true
+
+  # Content
+  - id: "content/next-intl"
+    category: "content"
+    version: "1.0.0"
+    parameters:
+      locales: ["en", "fr", "es"]
+      defaultLocale: "en"
+      routing: true
+      seo: true
+
+  # Blockchain
+  - id: "blockchain/web3"
+    category: "blockchain"
+    version: "1.0.0"
+    parameters:
+      networks: ["goerli", "polygon"]
+      walletConnect: true
+      contracts: []
+
+integrations:
+  # Database Integrations
+  - name: "drizzle-nextjs-integration"
+    features:
+      apiRoutes: true
+      middleware: true
+      queries: true
+      transactions: true
+      migrations: true
+      seeding: false
+      validators: true
+      adminPanel: false
+      healthChecks: true
+      connectionPooling: true
+
+  # Auth Integrations
+  - name: "better-auth-nextjs-integration"
+    features:
+      apiRoutes: true
+      middleware: true
+      uiComponents: "shadcn"
+      adminPanel: false
+      emailVerification: true
+      mfa: false
+      passwordReset: true
+
+  - name: "better-auth-drizzle-integration"
+    features:
+      userSchema: true
+      adapterLogic: true
+      migrations: true
+      indexes: true
+      seedData: false
+
+  # Payment Integrations
+  - name: "stripe-nextjs-integration"
+    features:
+      webhooks: true
+      checkout: true
+      subscriptions: true
+      invoices: true
+      refunds: false
+      apiRoutes: true
+
+  - name: "stripe-shadcn-integration"
+    features:
+      paymentForms: true
+      subscriptionCards: true
+      invoiceTables: false
+      paymentButtons: true
+      adminPanels: false
+      pricingCards: true
+
+  - name: "stripe-drizzle-integration"
+    features:
+      paymentSchema: true
+      subscriptionSchema: true
+      webhookLogs: true
+      migrations: true
+      indexes: true
+      paymentTracking: false
+
+  # Email Integrations
+  - name: "resend-nextjs-integration"
+    features:
+      apiRoutes: true
+      webhooks: true
+      templates: true
+      analytics: false
+      batchSending: false
+      middleware: true
+      adminPanel: false
+
+  - name: "resend-shadcn-integration"
+    features:
+      emailForm: true
+      emailTemplates: true
+      emailCampaigns: false
+      emailList: false
+      emailComposer: true
+      emailSettings: true
+
+  # Observability Integrations
+  - name: "sentry-nextjs-integration"
+    features:
+      errorTracking: true
+      performanceMonitoring: true
+      userFeedback: true
+      middleware: true
+      profiling: false
+      alerts: false
+      releaseTracking: true
+
+  - name: "sentry-drizzle-integration"
+    features:
+      errorLogging: true
+      performanceTracking: true
+      queryMonitoring: true
+      userFeedback: false
+      migrations: true
+      indexes: true
+
+  # State Management Integrations
+  - name: "zustand-nextjs-integration"
+    features:
+      authStore: true
+      uiStore: true
+      cartStore: false
+      userStore: false
+      themeStore: true
+      notificationStore: true
+      ssrSupport: true
+      devtools: true
+      persistence: true
+      middleware: true
+
+  - name: "shadcn-zustand-integration"
+    features:
+      formComponents: true
+      modalComponents: true
+      toastComponents: true
+      dataComponents: true
+      stateDebugging: true
+      formValidation: true
+      modalManagement: true
+      toastManagement: true
+      tableState: true
+      responsiveDesign: true
+
+  # UI Integrations
+  - name: "shadcn-nextjs-integration"
+    features:
+      coreComponents: true
+      advancedComponents: true
+      layoutComponents: true
+      themeSystem: true
+      accessibility: true
+      responsiveDesign: true
+      animations: true
+      icons: true
+      forms: true
+      dataDisplay: true
+
+  # Testing Integrations
+  - name: "vitest-nextjs-integration"
+    features:
+      unitTesting: true
+      integrationTesting: true
+      e2eTesting: false
+      coverageReporting: true
+      watchMode: true
+      uiMode: false
+      mocking: true
+      snapshots: true
+      parallelTesting: true
+      typescriptSupport: true
+
+  - name: "vitest-zustand-integration"
+    features:
+      storeTesting: true
+      middlewareTesting: true
+      persistenceTesting: true
+      integrationTesting: true
+      mocking: true
+      fixtures: true
+      coverageReporting: true
+      watchMode: true
+      parallelTesting: true
+      typescriptSupport: true
+
+  # Deployment Integrations
+  - name: "docker-nextjs-integration"
+    features:
+      multiStageBuild: true
+      developmentMode: true
+      productionMode: true
+      nginxReverseProxy: true
+      sslSupport: false
+      healthChecks: true
+      environmentConfig: true
+      volumeManagement: true
+      networking: true
+      monitoring: false
+      backupRestore: false
+      securityHardening: true
+
+  - name: "docker-drizzle-integration"
+    features:
+      postgresService: true
+      migrationService: true
+      backupService: true
+      monitoringService: false
+      seedData: false
+      sslSupport: false
+      replication: false
+      clustering: false
+      performanceTuning: true
+      securityHardening: true
+      volumeManagement: true
+      networking: true
+
+  # Content Integrations
+  - name: "next-intl-nextjs-integration"
+    features:
+      routing: true
+      seoOptimization: true
+      dynamicImports: true
+      middleware: true
+      uiComponents: true
+      hooks: true
+      typeScript: true
+      pluralization: true
+      richText: false
+      dateTimeFormatting: true
+
+  # Web3 Integrations
+  - name: "web3-nextjs-integration"
+    features:
+      walletConnection: true
+      smartContracts: true
+      transactions: true
+      networkSwitching: true
+      eventListening: true
+      apiRoutes: true
+      middleware: true
+      uiComponents: true
+      typeScript: true
+      errorHandling: true
+
+  - name: "web3-shadcn-integration"
+    features:
+      walletComponents: true
+      transactionComponents: true
+      contractComponents: true
+      networkComponents: true
+      tokenComponents: true
+      nftComponents: false
+      dashboardComponents: false
+      chartComponents: false
+      alertComponents: true
+      settingsComponents: true
+
+options:
+  skipInstall: true
+  verbose: true

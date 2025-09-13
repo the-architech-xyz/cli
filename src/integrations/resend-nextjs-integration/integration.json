@@ -1,0 +1,88 @@
+{
+  "id": "resend-nextjs-integration",
+  "name": "Resend Next.js Integration",
+  "description": "Complete Resend email integration for Next.js applications with API routes, middleware, and email templates",
+  "category": "integration",
+  "version": "1.0.0",
+  "tech_stack": {
+    "framework": "nextjs",
+    "adapters": ["resend"]
+  },
+  "requirements": {
+    "modules": ["resend", "nextjs"],
+    "dependencies": ["resend", "next", "react", "react-dom"]
+  },
+  "provides": {
+    "files": [
+      "src/app/api/email/send/route.ts",
+      "src/app/api/email/webhooks/route.ts",
+      "src/app/api/email/templates/route.ts",
+      "src/lib/email/server.ts",
+      "src/lib/email/client.ts",
+      "src/lib/email/templates.ts",
+      "src/lib/email/webhooks.ts",
+      "src/middleware.ts"
+    ],
+    "components": [
+      "src/components/email/EmailPreview.tsx",
+      "src/components/email/EmailForm.tsx",
+      "src/components/email/EmailAnalytics.tsx"
+    ],
+    "pages": [
+      "src/app/admin/emails/page.tsx",
+      "src/app/admin/emails/templates/page.tsx",
+      "src/app/admin/emails/analytics/page.tsx"
+    ]
+  },
+  "sub_features": {
+    "apiRoutes": {
+      "name": "API Routes",
+      "description": "Next.js API routes for email sending and management",
+      "type": "boolean",
+      "default": true
+    },
+    "webhooks": {
+      "name": "Webhooks",
+      "description": "Resend webhook handlers for email events",
+      "type": "boolean",
+      "default": true
+    },
+    "templates": {
+      "name": "Email Templates",
+      "description": "React-based email templates with preview",
+      "type": "boolean",
+      "default": true
+    },
+    "analytics": {
+      "name": "Analytics Dashboard",
+      "description": "Email analytics and tracking dashboard",
+      "type": "boolean",
+      "default": false
+    },
+    "batchSending": {
+      "name": "Batch Sending",
+      "description": "Bulk email sending and campaign management",
+      "type": "boolean",
+      "default": false
+    },
+    "middleware": {
+      "name": "Middleware",
+      "description": "Email rate limiting and security middleware",
+      "type": "boolean",
+      "default": true
+    },
+    "adminPanel": {
+      "name": "Admin Panel",
+      "description": "Email management admin interface",
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "blueprint": {
+    "id": "resend-nextjs-integration",
+    "name": "Resend Next.js Integration",
+    "description": "Complete email integration for Next.js applications",
+    "version": "1.0.0",
+    "actions": []
+  }
+}

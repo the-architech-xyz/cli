@@ -1,0 +1,128 @@
+{
+  "id": "docker-drizzle-integration",
+  "name": "Docker Drizzle Integration",
+  "description": "Complete Docker containerization for Drizzle ORM with database services, migrations, and production-ready configuration",
+  "category": "integration",
+  "version": "1.0.0",
+  "tech_stack": {
+    "framework": "agnostic",
+    "adapters": ["docker", "drizzle"]
+  },
+  "requirements": {
+    "modules": ["docker", "drizzle"],
+    "dependencies": ["docker", "drizzle-orm", "postgres"]
+  },
+  "provides": {
+    "files": [
+      "docker-compose.database.yml",
+      "docker-compose.migration.yml",
+      "docker-compose.backup.yml",
+      "database/Dockerfile.postgres",
+      "database/Dockerfile.migration",
+      "database/init.sql",
+      "database/seed.sql",
+      "database/migrations/001_initial.sql",
+      "database/migrations/002_add_indexes.sql",
+      "database/migrations/003_add_constraints.sql",
+      "scripts/db-setup.sh",
+      "scripts/db-migrate.sh",
+      "scripts/db-seed.sh",
+      "scripts/db-backup.sh",
+      "scripts/db-restore.sh",
+      "scripts/db-reset.sh",
+      "scripts/db-health.sh",
+      "scripts/db-shell.sh",
+      "scripts/db-logs.sh",
+      "monitoring/database/prometheus.yml",
+      "monitoring/database/grafana/dashboards/postgres.json",
+      "monitoring/database/grafana/provisioning/dashboards/dashboard.yml",
+      "monitoring/database/grafana/provisioning/datasources/postgres.yml",
+      "backup/backup.sh",
+      "backup/restore.sh",
+      "backup/cleanup.sh"
+    ],
+    "components": [],
+    "pages": []
+  },
+  "sub_features": {
+    "postgresService": {
+      "name": "PostgreSQL Service",
+      "description": "PostgreSQL database service with Docker",
+      "type": "boolean",
+      "default": true
+    },
+    "migrationService": {
+      "name": "Migration Service",
+      "description": "Drizzle migration service with Docker",
+      "type": "boolean",
+      "default": true
+    },
+    "backupService": {
+      "name": "Backup Service",
+      "description": "Database backup and restore service",
+      "type": "boolean",
+      "default": true
+    },
+    "monitoringService": {
+      "name": "Monitoring Service",
+      "description": "Database monitoring with Prometheus and Grafana",
+      "type": "boolean",
+      "default": false
+    },
+    "seedData": {
+      "name": "Seed Data",
+      "description": "Database seeding with sample data",
+      "type": "boolean",
+      "default": false
+    },
+    "sslSupport": {
+      "name": "SSL Support",
+      "description": "SSL/TLS encryption for database connections",
+      "type": "boolean",
+      "default": false
+    },
+    "replication": {
+      "name": "Replication",
+      "description": "Database replication setup",
+      "type": "boolean",
+      "default": false
+    },
+    "clustering": {
+      "name": "Clustering",
+      "description": "Database clustering configuration",
+      "type": "boolean",
+      "default": false
+    },
+    "performanceTuning": {
+      "name": "Performance Tuning",
+      "description": "Database performance optimization",
+      "type": "boolean",
+      "default": true
+    },
+    "securityHardening": {
+      "name": "Security Hardening",
+      "description": "Database security hardening and best practices",
+      "type": "boolean",
+      "default": true
+    },
+    "volumeManagement": {
+      "name": "Volume Management",
+      "description": "Docker volumes for database persistence",
+      "type": "boolean",
+      "default": true
+    },
+    "networking": {
+      "name": "Networking",
+      "description": "Database networking and service discovery",
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "blueprint": {
+    "id": "docker-drizzle-integration",
+    "name": "Docker Drizzle Integration",
+    "description": "Complete Docker containerization for Drizzle ORM with database services",
+    "version": "1.0.0",
+    "actions": []
+  }
+}

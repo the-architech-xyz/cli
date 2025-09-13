@@ -1,0 +1,72 @@
+{
+  "id": "sentry-drizzle-nextjs-integration",
+  "name": "Sentry Drizzle Next.js Integration",
+  "description": "Complete Sentry integration with Drizzle ORM for Next.js applications with error logging, performance tracking, and database monitoring",
+  "category": "integration",
+  "version": "1.0.0",
+  "tech_stack": {
+    "framework": "nextjs",
+    "adapters": ["sentry", "drizzle"]
+  },
+  "requirements": {
+    "modules": ["sentry", "drizzle", "nextjs"],
+    "dependencies": ["@sentry/nextjs", "drizzle-orm"]
+  },
+  "provides": {
+    "files": [
+      "src/lib/db/schema/sentry.ts",
+      "src/lib/db/migrations/sentry.sql",
+      "src/lib/sentry/drizzle-adapter.ts",
+      "src/lib/sentry/error-logger.ts",
+      "src/lib/sentry/performance-tracker.ts",
+      "src/lib/sentry/query-monitor.ts"
+    ],
+    "components": [],
+    "pages": []
+  },
+  "sub_features": {
+    "errorLogging": {
+      "name": "Error Logging",
+      "description": "Database schema and logging for Sentry errors",
+      "type": "boolean",
+      "default": true
+    },
+    "performanceTracking": {
+      "name": "Performance Tracking",
+      "description": "Database performance metrics and monitoring",
+      "type": "boolean",
+      "default": true
+    },
+    "queryMonitoring": {
+      "name": "Query Monitoring",
+      "description": "Database query performance and error tracking",
+      "type": "boolean",
+      "default": true
+    },
+    "userFeedback": {
+      "name": "User Feedback Storage",
+      "description": "Database storage for user feedback and reports",
+      "type": "boolean",
+      "default": false
+    },
+    "migrations": {
+      "name": "Database Migrations",
+      "description": "SQL migrations for Sentry tables",
+      "type": "boolean",
+      "default": true
+    },
+    "indexes": {
+      "name": "Database Indexes",
+      "description": "Performance indexes for Sentry queries",
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "blueprint": {
+    "id": "sentry-drizzle-nextjs-integration",
+    "name": "Sentry Drizzle Next.js Integration",
+    "description": "Complete Sentry integration with Drizzle ORM for Next.js applications",
+    "version": "1.0.0",
+    "actions": []
+  }
+}

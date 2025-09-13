@@ -1,0 +1,56 @@
+{
+  "id": "better-auth-drizzle-integration",
+  "name": "Better Auth Drizzle Integration",
+  "description": "Complete Drizzle ORM integration for Better Auth with database schema and adapter",
+  "category": "integration",
+  "tech_stack": {
+    "framework": "agnostic",
+    "adapters": ["better-auth", "drizzle"]
+  },
+  "requirements": {
+    "modules": ["better-auth", "drizzle"],
+    "dependencies": []
+  },
+  "provides": {
+    "files": [
+      "src/lib/auth/drizzle-adapter.ts",
+      "src/lib/db/schema/auth.ts",
+      "src/lib/db/migrations/auth.sql",
+      "src/lib/auth/database.ts"
+    ],
+    "components": [],
+    "pages": []
+  },
+  "sub_features": {
+    "userSchema": {
+      "name": "User Schema",
+      "description": "Drizzle schema for users, sessions, and accounts tables",
+      "type": "boolean",
+      "default": true
+    },
+    "adapterLogic": {
+      "name": "Adapter Logic",
+      "description": "Drizzle adapter implementation for Better Auth",
+      "type": "boolean",
+      "default": true
+    },
+    "migrations": {
+      "name": "Database Migrations",
+      "description": "SQL migrations for auth tables",
+      "type": "boolean",
+      "default": true
+    },
+    "indexes": {
+      "name": "Database Indexes",
+      "description": "Performance indexes for auth queries",
+      "type": "boolean",
+      "default": true
+    },
+    "seedData": {
+      "name": "Seed Data",
+      "description": "Sample data for development and testing",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

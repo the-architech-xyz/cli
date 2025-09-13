@@ -1,0 +1,80 @@
+version: "1.0"
+project:
+  name: "{{projectName}}"
+  framework: "nextjs"
+  path: "./{{projectName}}"
+  description: "A decentralized application with Web3 integration, NFT support, and DeFi features"
+modules:
+  # Core Framework
+  - id: "nextjs"
+    category: "framework"
+    version: "latest"
+    parameters:
+      typescript: true
+      tailwind: true
+      appRouter: true
+      eslint: true
+  
+  # UI Components
+  - id: "shadcn-ui"
+    category: "ui"
+    version: "latest"
+    parameters:
+      components: ["button", "input", "card", "dialog", "form", "table"]
+      style: "new-york"
+      baseColor: "neutral"
+  
+  # Database
+  - id: "drizzle"
+    category: "database"
+    version: "latest"
+    parameters:
+      databaseType: "postgresql"
+      features: ["migrations", "studio", "relations"]
+  
+  # Authentication
+  - id: "better-auth"
+    category: "auth"
+    version: "latest"
+    parameters:
+      providers: ["github", "google"]
+      emailPassword: true
+      features: ["sessions", "verification"]
+  
+  # Blockchain Integration
+  - id: "web3"
+    category: "blockchain"
+    version: "latest"
+    parameters:
+      features: ["wallet-connection", "contract-interaction", "nft-support", "defi-support"]
+      networks: ["mainnet", "polygon", "arbitrum"]
+      contracts: ["erc20", "erc721", "erc1155"]
+  
+  # State Management
+  - id: "zustand"
+    category: "state"
+    version: "latest"
+    parameters:
+      features: ["persistence", "devtools", "middleware"]
+      stores: ["user", "wallet", "nfts", "tokens", "transactions"]
+  
+  # Testing
+  - id: "vitest"
+    category: "testing"
+    version: "latest"
+    parameters:
+      coverage: true
+      ui: true
+      features: ["unit", "integration"]
+  
+  # Monitoring
+  - id: "sentry"
+    category: "observability"
+    version: "latest"
+    parameters:
+      features: ["errors", "performance"]
+      integrations: ["nextjs"]
+
+options:
+  skipInstall: false
+  verbose: true

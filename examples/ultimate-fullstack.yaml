@@ -1,0 +1,102 @@
+version: "1.0"
+project:
+  name: "ultimate-fullstack"
+  framework: "nextjs"
+  path: "./ultimate-fullstack-new"
+modules:
+  # TIER 1: Golden Path - Core Foundation
+  - id: "nextjs"
+    category: "framework"
+    version: "latest"
+    parameters:
+      typescript: true
+      tailwind: true
+      appRouter: true
+      eslint: true
+  
+  - id: "shadcn-ui"
+    category: "ui"
+    version: "latest"
+    parameters:
+      components: ["button", "input", "card", "dialog", "form", "table"]
+      style: "new-york"
+      baseColor: "neutral"
+  
+  - id: "drizzle"
+    category: "database"
+    version: "latest"
+    parameters:
+      databaseType: "postgresql"
+      features: ["migrations", "studio", "relations"]
+  
+  - id: "better-auth"
+    category: "auth"
+    version: "latest"
+    parameters:
+      providers: ["github", "google", "discord"]
+      emailPassword: true
+      features: ["sessions", "verification", "password-reset"]
+  
+  - id: "docker"
+    category: "deployment"
+    version: "latest"
+    parameters:
+      features: ["multi-stage", "optimization", "health-check"]
+      ports: [3000, 5432]
+  
+  # TIER 2: Production Features
+  - id: "vitest"
+    category: "testing"
+    version: "latest"
+    parameters:
+      coverage: true
+      ui: true
+      features: ["unit", "integration", "e2e"]
+  
+  - id: "zustand"
+    category: "state"
+    version: "latest"
+    parameters:
+      features: ["persistence", "devtools", "middleware"]
+      stores: ["user", "theme", "cart"]
+  
+  - id: "stripe"
+    category: "payment"
+    version: "latest"
+    parameters:
+      features: ["subscriptions", "one-time", "marketplace", "webhooks"]
+      products: ["basic", "pro", "enterprise"]
+  
+  - id: "resend"
+    category: "email"
+    version: "latest"
+    parameters:
+      features: ["transactions", "templates", "analytics"]
+      templates: ["welcome", "password-reset", "invoice"]
+  
+  - id: "sentry"
+    category: "observability"
+    version: "latest"
+    parameters:
+      features: ["errors", "performance", "releases"]
+      integrations: ["nextjs", "vercel"]
+  
+  # TIER 3: Advanced & Specific
+  - id: "next-intl"
+    category: "content"
+    version: "latest"
+    parameters:
+      features: ["routing", "pluralization", "rich-text"]
+      locales: ["en", "fr", "es"]
+  
+  - id: "web3"
+    category: "blockchain"
+    version: "latest"
+    parameters:
+      features: ["wallet-connection", "contract-interaction", "nft-support"]
+      networks: ["mainnet", "polygon", "arbitrum"]
+      contracts: ["erc20", "erc721", "erc1155"]
+
+options:
+  skipInstall: false
+  verbose: true

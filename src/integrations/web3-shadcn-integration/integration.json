@@ -1,0 +1,123 @@
+{
+  "id": "web3-shadcn-integration",
+  "name": "Web3 Shadcn Integration",
+  "description": "Beautiful Web3 UI components using Shadcn/ui for wallet management, transaction display, and blockchain interactions",
+  "category": "integration",
+  "tech_stack": {
+    "framework": "agnostic",
+    "adapters": ["web3", "shadcn-ui"]
+  },
+  "requirements": {
+    "modules": ["web3", "shadcn-ui"],
+    "dependencies": []
+  },
+  "provides": {
+    "files": [
+      "src/components/web3/WalletCard.tsx",
+      "src/components/web3/TransactionCard.tsx",
+      "src/components/web3/ContractCard.tsx",
+      "src/components/web3/NetworkCard.tsx",
+      "src/components/web3/BalanceCard.tsx",
+      "src/components/web3/TokenCard.tsx",
+      "src/components/web3/NFTCard.tsx",
+      "src/components/web3/TransactionHistory.tsx",
+      "src/components/web3/WalletModal.tsx",
+      "src/components/web3/NetworkSwitcher.tsx",
+      "src/components/web3/TransactionStatus.tsx",
+      "src/components/web3/ContractInterface.tsx",
+      "src/components/web3/TokenList.tsx",
+      "src/components/web3/NFTCarousel.tsx",
+      "src/components/web3/Web3Dashboard.tsx",
+      "src/components/web3/Web3Stats.tsx",
+      "src/components/web3/Web3Charts.tsx",
+      "src/components/web3/Web3Alerts.tsx",
+      "src/components/web3/Web3Settings.tsx",
+      "src/components/web3/Web3Profile.tsx"
+    ],
+    "components": [
+      "WalletCard",
+      "TransactionCard",
+      "ContractCard",
+      "NetworkCard",
+      "BalanceCard",
+      "TokenCard",
+      "NFTCard",
+      "TransactionHistory",
+      "WalletModal",
+      "NetworkSwitcher",
+      "TransactionStatus",
+      "ContractInterface",
+      "TokenList",
+      "NFTCarousel",
+      "Web3Dashboard",
+      "Web3Stats",
+      "Web3Charts",
+      "Web3Alerts",
+      "Web3Settings",
+      "Web3Profile"
+    ],
+    "pages": []
+  },
+  "sub_features": {
+    "walletComponents": {
+      "name": "Wallet Components",
+      "description": "Beautiful wallet management UI components",
+      "type": "boolean",
+      "default": true
+    },
+    "transactionComponents": {
+      "name": "Transaction Components",
+      "description": "Transaction display and management components",
+      "type": "boolean",
+      "default": true
+    },
+    "contractComponents": {
+      "name": "Contract Components",
+      "description": "Smart contract interaction components",
+      "type": "boolean",
+      "default": true
+    },
+    "networkComponents": {
+      "name": "Network Components",
+      "description": "Network switching and display components",
+      "type": "boolean",
+      "default": true
+    },
+    "tokenComponents": {
+      "name": "Token Components",
+      "description": "Token display and management components",
+      "type": "boolean",
+      "default": true
+    },
+    "nftComponents": {
+      "name": "NFT Components",
+      "description": "NFT display and gallery components",
+      "type": "boolean",
+      "default": false
+    },
+    "dashboardComponents": {
+      "name": "Dashboard Components",
+      "description": "Web3 dashboard and analytics components",
+      "type": "boolean",
+      "default": false
+    },
+    "chartComponents": {
+      "name": "Chart Components",
+      "description": "Data visualization and chart components",
+      "type": "boolean",
+      "default": false
+    },
+    "alertComponents": {
+      "name": "Alert Components",
+      "description": "Notification and alert components",
+      "type": "boolean",
+      "default": true
+    },
+    "settingsComponents": {
+      "name": "Settings Components",
+      "description": "Configuration and settings components",
+      "type": "boolean",
+      "default": true
+    }
+  }
+}

@@ -1,0 +1,87 @@
+version: "1.0"
+project:
+  name: "{{projectName}}"
+  framework: "nextjs"
+  path: "./{{projectName}}"
+  description: "A professional blog with CMS, internationalization, and SEO optimization"
+modules:
+  # Core Framework
+  - id: "nextjs"
+    category: "framework"
+    version: "latest"
+    parameters:
+      typescript: true
+      tailwind: true
+      appRouter: true
+      eslint: true
+  
+  # UI Components
+  - id: "shadcn-ui"
+    category: "ui"
+    version: "latest"
+    parameters:
+      components: ["button", "input", "card", "dialog"]
+      style: "new-york"
+      baseColor: "neutral"
+  
+  # Database
+  - id: "drizzle"
+    category: "database"
+    version: "latest"
+    parameters:
+      databaseType: "sqlite"
+      features: ["migrations", "studio", "relations"]
+  
+  # Authentication
+  - id: "better-auth"
+    category: "auth"
+    version: "latest"
+    parameters:
+      providers: ["github", "google"]
+      emailPassword: true
+      features: ["sessions", "verification"]
+  
+  # Content Management
+  - id: "next-intl"
+    category: "content"
+    version: "latest"
+    parameters:
+      features: ["routing", "pluralization", "rich-text"]
+      locales: ["en", "fr", "es"]
+  
+  # Testing
+  - id: "vitest"
+    category: "testing"
+    version: "latest"
+    parameters:
+      coverage: true
+      ui: true
+      features: ["unit", "integration"]
+  
+  # State Management
+  - id: "zustand"
+    category: "state"
+    version: "latest"
+    parameters:
+      features: ["persistence", "devtools"]
+      stores: ["user", "theme", "posts"]
+  
+  # Email
+  - id: "resend"
+    category: "email"
+    version: "latest"
+    parameters:
+      features: ["transactions", "templates"]
+      templates: ["welcome", "newsletter", "comment-notification"]
+  
+  # Monitoring
+  - id: "sentry"
+    category: "observability"
+    version: "latest"
+    parameters:
+      features: ["errors", "performance"]
+      integrations: ["nextjs"]
+
+options:
+  skipInstall: false
+  verbose: true

@@ -1,0 +1,145 @@
+{
+  "id": "shadcn-nextjs-integration",
+  "name": "Shadcn Next.js Integration",
+  "description": "Complete Shadcn/ui integration for Next.js with components, theming, and layout utilities",
+  "category": "integration",
+  "version": "1.0.0",
+  "tech_stack": {
+    "framework": "nextjs",
+    "adapters": ["shadcn-ui"]
+  },
+  "requirements": {
+    "modules": ["shadcn-ui", "nextjs"],
+    "dependencies": ["@radix-ui/react-*", "class-variance-authority", "clsx", "tailwind-merge", "lucide-react"]
+  },
+  "provides": {
+    "files": [
+      "src/lib/utils.ts",
+      "src/components/ui/button.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/form.tsx",
+      "src/components/ui/table.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/avatar.tsx",
+      "src/components/ui/dropdown-menu.tsx",
+      "src/components/ui/toast.tsx",
+      "src/components/ui/sheet.tsx",
+      "src/components/ui/tabs.tsx",
+      "src/components/ui/accordion.tsx",
+      "src/components/ui/carousel.tsx",
+      "src/components/ui/calendar.tsx",
+      "src/components/ui/date-picker.tsx",
+      "src/components/layout/header.tsx",
+      "src/components/layout/footer.tsx",
+      "src/components/layout/sidebar.tsx",
+      "src/components/layout/navigation.tsx",
+      "src/components/theme/theme-provider.tsx",
+      "src/components/theme/theme-toggle.tsx",
+      "src/components/theme/theme-switcher.tsx",
+      "src/styles/globals.css",
+      "tailwind.config.js",
+      "components.json"
+    ],
+    "components": [
+      "Button",
+      "Input",
+      "Card",
+      "Dialog",
+      "Form",
+      "Table",
+      "Badge",
+      "Avatar",
+      "DropdownMenu",
+      "Toast",
+      "Sheet",
+      "Tabs",
+      "Accordion",
+      "Carousel",
+      "Calendar",
+      "DatePicker",
+      "Header",
+      "Footer",
+      "Sidebar",
+      "Navigation",
+      "ThemeProvider",
+      "ThemeToggle",
+      "ThemeSwitcher"
+    ],
+    "pages": [
+      "src/app/components/page.tsx",
+      "src/app/theme/page.tsx",
+      "src/app/layout.tsx"
+    ]
+  },
+  "sub_features": {
+    "coreComponents": {
+      "name": "Core Components",
+      "description": "Essential UI components (Button, Input, Card, etc.)",
+      "type": "boolean",
+      "default": true
+    },
+    "advancedComponents": {
+      "name": "Advanced Components",
+      "description": "Complex UI components (Table, Form, Dialog, etc.)",
+      "type": "boolean",
+      "default": true
+    },
+    "layoutComponents": {
+      "name": "Layout Components",
+      "description": "Layout and navigation components (Header, Footer, Sidebar)",
+      "type": "boolean",
+      "default": true
+    },
+    "themeSystem": {
+      "name": "Theme System",
+      "description": "Complete theming system with dark mode and custom themes",
+      "type": "boolean",
+      "default": true
+    },
+    "accessibility": {
+      "name": "Accessibility",
+      "description": "WCAG compliance and accessibility features",
+      "type": "boolean",
+      "default": true
+    },
+    "responsiveDesign": {
+      "name": "Responsive Design",
+      "description": "Mobile-first responsive design utilities",
+      "type": "boolean",
+      "default": true
+    },
+    "animations": {
+      "name": "Animations",
+      "description": "Smooth animations and transitions",
+      "type": "boolean",
+      "default": true
+    },
+    "icons": {
+      "name": "Icons",
+      "description": "Lucide React icons integration",
+      "type": "boolean",
+      "default": true
+    },
+    "forms": {
+      "name": "Forms",
+      "description": "Form components with validation",
+      "type": "boolean",
+      "default": true
+    },
+    "dataDisplay": {
+      "name": "Data Display",
+      "description": "Tables, lists, and data visualization components",
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "blueprint": {
+    "id": "shadcn-nextjs-integration",
+    "name": "Shadcn Next.js Integration",
+    "description": "Complete Shadcn/ui integration for Next.js applications",
+    "version": "1.0.0",
+    "actions": []
+  }
+}

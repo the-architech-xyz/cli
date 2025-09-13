@@ -1,0 +1,149 @@
+{
+  "id": "drizzle",
+  "name": "Drizzle ORM",
+  "description": "TypeScript ORM with excellent developer experience",
+  "category": "database",
+  "version": "0.29.0",
+  "blueprint": "blueprint.ts",
+  "dependencies": [],
+  "capabilities": [
+    "sql",
+    "postgresql",
+    "mysql",
+    "sqlite",
+    "serverless",
+    "migrations",
+    "schema-validation",
+    "type-safety",
+    "query-builder",
+    "relations"
+  ],
+  "limitations": "Requires a supported database (PostgreSQL, MySQL, SQLite)",
+  "parameters": {
+    "provider": {
+      "type": "string",
+      "default": "neon",
+      "description": "Database provider",
+      "required": false,
+      "options": [
+        "neon",
+        "planetscale",
+        "supabase",
+        "local"
+      ]
+    },
+    "migrations": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable database migrations",
+      "required": false
+    },
+    "studio": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable Drizzle Studio",
+      "required": false
+    },
+    "databaseType": {
+      "type": "string",
+      "default": "postgresql",
+      "description": "Database type to use",
+      "required": true,
+      "options": [
+        "postgresql",
+        "mysql",
+        "sqlite"
+      ]
+    }
+  },
+  "features": {
+    "migrations": {
+      "id": "migrations",
+      "name": "Database Migrations",
+      "description": "Automated database schema migrations and versioning",
+      "blueprint": "features/migrations.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "auto-generate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Auto-generate migration files",
+          "required": false
+        },
+        "backup": {
+          "type": "boolean",
+          "default": true,
+          "description": "Create backups before migrations",
+          "required": false
+        }
+      }
+    },
+    "studio": {
+      "id": "studio",
+      "name": "Drizzle Studio",
+      "description": "Visual database browser and query interface",
+      "blueprint": "features/studio.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "port": {
+          "type": "number",
+          "default": 4983,
+          "description": "Studio server port",
+          "required": false
+        },
+        "host": {
+          "type": "string",
+          "default": "localhost",
+          "description": "Studio server host",
+          "required": false
+        }
+      }
+    },
+    "relations": {
+      "id": "relations",
+      "name": "Database Relations",
+      "description": "Advanced relationship management and queries",
+      "blueprint": "features/relations.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "types": {
+          "type": "array",
+          "default": [
+            "one-to-many",
+            "many-to-many"
+          ],
+          "description": "Relation types to enable",
+          "required": false,
+          "options": [
+            "one-to-one",
+            "one-to-many",
+            "many-to-many",
+            "self-referencing"
+          ]
+        }
+      }
+    },
+    "seeding": {
+      "id": "seeding",
+      "name": "Database Seeding",
+      "description": "Data seeding and fixtures management",
+      "blueprint": "features/seeding.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "fixtures": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include sample data fixtures",
+          "required": false
+        },
+        "faker": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include faker.js for test data",
+          "required": false
+        }
+      }
+    }
+  },
+  "constraints": {}
+}

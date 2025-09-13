@@ -1,0 +1,67 @@
+{
+  "id": "stripe-nextjs-integration",
+  "name": "Stripe Next.js Integration",
+  "description": "Complete Next.js integration for Stripe with API routes, webhooks, and payment processing",
+  "category": "integration",
+  "tech_stack": {
+    "framework": "nextjs",
+    "adapters": ["stripe"]
+  },
+  "requirements": {
+    "modules": ["stripe", "nextjs"],
+    "dependencies": []
+  },
+  "provides": {
+    "files": [
+      "src/app/api/stripe/webhooks/route.ts",
+      "src/app/api/stripe/checkout/route.ts",
+      "src/app/api/stripe/subscriptions/route.ts",
+      "src/app/api/stripe/invoices/route.ts",
+      "src/app/api/stripe/refunds/route.ts",
+      "src/lib/stripe/nextjs-handler.ts",
+      "src/lib/stripe/webhooks.ts",
+      "src/lib/stripe/checkout.ts",
+      "src/lib/stripe/subscriptions.ts"
+    ],
+    "components": [],
+    "pages": []
+  },
+  "sub_features": {
+    "webhooks": {
+      "name": "Webhooks",
+      "description": "Stripe webhook handlers for payment events",
+      "type": "boolean",
+      "default": true
+    },
+    "checkout": {
+      "name": "Checkout",
+      "description": "Stripe Checkout integration for payments",
+      "type": "boolean",
+      "default": true
+    },
+    "subscriptions": {
+      "name": "Subscriptions",
+      "description": "Subscription management and billing",
+      "type": "boolean",
+      "default": false
+    },
+    "invoices": {
+      "name": "Invoices",
+      "description": "Invoice generation and management",
+      "type": "boolean",
+      "default": false
+    },
+    "refunds": {
+      "name": "Refunds",
+      "description": "Refund processing and management",
+      "type": "boolean",
+      "default": false
+    },
+    "apiRoutes": {
+      "name": "API Routes",
+      "description": "Next.js API routes for Stripe operations",
+      "type": "boolean",
+      "default": true
+    }
+  }
+}

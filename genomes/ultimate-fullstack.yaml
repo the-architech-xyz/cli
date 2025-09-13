@@ -1,0 +1,226 @@
+version: "1.0"
+project:
+  name: "{{projectName}}"
+  framework: "nextjs"
+  path: "./{{projectName}}"
+  description: "Ultimate fullstack application with all adapters and features enabled"
+modules:
+  # Core Framework
+  - id: "nextjs"
+    category: "framework"
+    version: "latest"
+    parameters:
+      typescript: true
+      tailwind: true
+      appRouter: true
+      eslint: true
+      srcDir: true
+      importAlias: "@/*"
+    features:
+      - "api-routes"
+      - "middleware"
+      - "ssr-optimization"
+  
+  # UI Components - Shadcn/ui
+  - id: "shadcn-ui"
+    category: "ui"
+    version: "latest"
+    parameters:
+      components: 
+        - "button"
+        - "input"
+        - "card"
+        - "dialog"
+        - "form"
+        - "table"
+        - "badge"
+        - "avatar"
+        - "dropdown-menu"
+      style: "new-york"
+      baseColor: "neutral"
+      darkMode: true
+    features:
+      - "accessibility"
+      - "advanced-components"
+      - "theming"
+  
+  
+  # Database
+  - id: "drizzle"
+    category: "database"
+    version: "latest"
+    parameters:
+      databaseType: "postgresql"
+      provider: "neon"
+      migrations: true
+      studio: true
+      relations: true
+      seeding: true
+    features:
+      - "migrations"
+      - "relations"
+      - "seeding"
+      - "studio"
+  
+  # Authentication
+  - id: "better-auth"
+    category: "auth"
+    version: "latest"
+    parameters:
+      providers:
+        - "email"
+        - "google"
+        - "github"
+        - "discord"
+        - "twitter"
+      session: "jwt"
+      csrf: true
+      rateLimit: true
+    features:
+      - "oauth-providers"
+      - "session-management"
+      - "email-verification"
+      - "password-reset"
+      - "multi-factor"
+      - "admin-panel"
+  
+  # Payment Processing
+  - id: "stripe"
+    category: "payment"
+    version: "latest"
+    parameters:
+      mode: "test"
+      currency: "usd"
+      webhooks: true
+      subscriptions: true
+      marketplace: true
+    features:
+      - "subscriptions"
+  
+  # Email Service
+  - id: "resend"
+    category: "email"
+    version: "latest"
+    parameters:
+      apiKey: ""
+      fromEmail: "noreply@example.com"
+      templates: true
+      analytics: true
+      batchSending: true
+    features:
+      - "templates"
+      - "analytics"
+      - "batch-sending"
+  
+  # State Management
+  - id: "zustand"
+    category: "state"
+    version: "latest"
+    parameters:
+      devtools: true
+      persistence: true
+      middleware: true
+      stores:
+        - "user"
+        - "auth"
+        - "cart"
+        - "notifications"
+        - "theme"
+        - "settings"
+    features:
+      - "devtools"
+      - "persistence"
+  
+  # Testing Framework
+  - id: "vitest"
+    category: "testing"
+    version: "latest"
+    parameters:
+      coverage: true
+      watch: true
+      ui: true
+      jsx: true
+      environment: "jsdom"
+      reporters:
+        - "verbose"
+        - "json"
+        - "html"
+    features:
+      - "coverage"
+      - "ui"
+  
+  # Observability & Monitoring
+  - id: "sentry"
+    category: "observability"
+    version: "latest"
+    parameters:
+      dsn: ""
+      environment: "production"
+      performance: true
+      release: "1.0.0"
+      tracesSampleRate: 1.0
+      profilesSampleRate: 1.0
+    features:
+      - "error-tracking"
+      - "performance-monitoring"
+      - "alerts-dashboard"
+  
+  # Internationalization
+  - id: "next-intl"
+    category: "content"
+    version: "latest"
+    parameters:
+      locales:
+        - "en"
+        - "es"
+        - "fr"
+        - "de"
+      defaultLocale: "en"
+      routing: true
+      seo: true
+      dynamicImports: true
+    features:
+      - "routing"
+      - "seo-optimization"
+      - "dynamic-imports"
+  
+  # Blockchain Integration
+  - id: "web3"
+    category: "blockchain"
+    version: "latest"
+    parameters:
+      networks:
+        - "mainnet"
+        - "polygon"
+        - "arbitrum"
+        - "optimism"
+        - "base"
+      contracts:
+        - "erc20"
+        - "erc721"
+        - "erc1155"
+      features:
+        - "wallet-connection"
+        - "contract-interaction"
+        - "nft-management"
+        - "defi-integration"
+        - "smart-contracts"
+    features:
+      - "wallet-integration"
+      - "nft-management"
+      - "defi-integration"
+      - "smart-contracts"
+  
+  # Deployment
+  - id: "docker"
+    category: "deployment"
+    version: "latest"
+    parameters:
+      nodeVersion: "18"
+      multiStage: true
+      production: true
+      security: true
+      optimization: true
+    features:
+      - "multi-stage"
+      - "production-ready"

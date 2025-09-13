@@ -1,0 +1,173 @@
+{
+  "id": "better-auth",
+  "name": "Better Auth",
+  "description": "Modern authentication library for TypeScript",
+  "category": "auth",
+  "version": "0.18.0",
+  "blueprint": "blueprint.ts",
+  "dependencies": [],
+  "capabilities": [
+    "email-password",
+    "oauth",
+    "social-login",
+    "session-management",
+    "jwt",
+    "csrf-protection",
+    "rate-limiting",
+    "multi-factor",
+    "password-reset",
+    "email-verification"
+  ],
+  "limitations": "Requires a database adapter (Drizzle recommended)",
+  "parameters": {
+    "providers": {
+      "type": "array",
+      "required": false,
+      "default": [
+        "email"
+      ],
+      "description": "Authentication providers to enable"
+    },
+    "session": {
+      "type": "select",
+      "choices": [
+        "jwt",
+        "database"
+      ],
+      "required": false,
+      "default": "jwt",
+      "description": "Session management strategy"
+    },
+    "csrf": {
+      "type": "boolean",
+      "required": false,
+      "default": true,
+      "description": "Enable CSRF protection"
+    },
+    "rateLimit": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable rate limiting",
+      "required": false
+    }
+  },
+  "features": {
+    "oauth-providers": {
+      "id": "oauth-providers",
+      "name": "OAuth Providers",
+      "description": "Google, GitHub, Discord, Twitter authentication",
+      "blueprint": "features/oauth-providers.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "providers": {
+          "type": "array",
+          "default": [
+            "google",
+            "github"
+          ],
+          "description": "OAuth providers to enable",
+          "required": true,
+          "options": [
+            "google",
+            "github",
+            "discord",
+            "twitter"
+          ]
+        }
+      }
+    },
+    "session-management": {
+      "id": "session-management",
+      "name": "Advanced Session Management",
+      "description": "JWT, database sessions, session security",
+      "blueprint": "features/session-management.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "strategy": {
+          "type": "string",
+          "default": "jwt",
+          "description": "Session management strategy",
+          "required": true,
+          "options": [
+            "jwt",
+            "database",
+            "hybrid"
+          ]
+        }
+      }
+    },
+    "email-verification": {
+      "id": "email-verification",
+      "name": "Email Verification",
+      "description": "Email verification system with templates",
+      "blueprint": "features/email-verification.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "templates": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include email templates",
+          "required": false
+        }
+      }
+    },
+    "password-reset": {
+      "id": "password-reset",
+      "name": "Password Reset",
+      "description": "Secure password reset flow",
+      "blueprint": "features/password-reset.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "templates": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include email templates",
+          "required": false
+        }
+      }
+    },
+    "multi-factor": {
+      "id": "multi-factor",
+      "name": "Multi-Factor Authentication",
+      "description": "2FA/TOTP support",
+      "blueprint": "features/multi-factor.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "methods": {
+          "type": "array",
+          "default": [
+            "totp"
+          ],
+          "description": "MFA methods to enable",
+          "required": true,
+          "options": [
+            "totp",
+            "sms",
+            "email"
+          ]
+        }
+      }
+    },
+    "admin-panel": {
+      "id": "admin-panel",
+      "name": "Admin Panel",
+      "description": "User management admin interface",
+      "blueprint": "features/admin-panel.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "ui-framework": {
+          "type": "string",
+          "default": "shadcn",
+          "description": "UI framework for admin panel",
+          "required": false,
+          "options": [
+            "shadcn",
+            "chakra",
+            "mui"
+          ]
+        }
+      }
+    }
+  },
+  "constraints": {}
+}

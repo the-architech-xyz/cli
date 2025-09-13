@@ -1,0 +1,128 @@
+{
+  "id": "resend",
+  "name": "Resend Email Service",
+  "description": "Modern email API for transactional emails with Resend",
+  "category": "email",
+  "version": "1.0.0",
+  "blueprint": "blueprint.ts",
+  "dependencies": [],
+  "capabilities": [
+    "transactional-emails",
+    "templates",
+    "analytics",
+    "webhooks",
+    "batch-sending",
+    "delivery-tracking",
+    "suppression-management"
+  ],
+  "limitations": "Requires Resend API key",
+  "parameters": {
+    "apiKey": {
+      "type": "string",
+      "default": "",
+      "description": "Resend API key",
+      "required": true
+    },
+    "fromEmail": {
+      "type": "string",
+      "default": "noreply@example.com",
+      "description": "Default from email address",
+      "required": true
+    },
+    "webhooks": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable webhook handling",
+      "required": false
+    },
+    "analytics": {
+      "type": "boolean",
+      "default": true,
+      "description": "Enable email analytics",
+      "required": false
+    }
+  },
+  "features": {
+    "templates": {
+      "id": "templates",
+      "name": "Email Templates",
+      "description": "Advanced email template system with React components",
+      "blueprint": "features/templates.blueprint.ts",
+      "category": "core",
+      "parameters": {
+        "template-engine": {
+          "type": "string",
+          "default": "react-email",
+          "description": "Template engine to use",
+          "required": false,
+          "options": [
+            "react-email",
+            "handlebars",
+            "mjml"
+          ]
+        },
+        "preview-mode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable template preview mode",
+          "required": false
+        }
+      }
+    },
+    "analytics": {
+      "id": "analytics",
+      "name": "Email Analytics",
+      "description": "Detailed email tracking, open rates, and click analytics",
+      "blueprint": "features/analytics.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "track-opens": {
+          "type": "boolean",
+          "default": true,
+          "description": "Track email opens",
+          "required": false
+        },
+        "track-clicks": {
+          "type": "boolean",
+          "default": true,
+          "description": "Track link clicks",
+          "required": false
+        },
+        "dashboard": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include analytics dashboard",
+          "required": false
+        }
+      }
+    },
+    "batch-sending": {
+      "id": "batch-sending",
+      "name": "Batch Sending",
+      "description": "Bulk email sending, list management, and campaign tools",
+      "blueprint": "features/batch-sending.blueprint.ts",
+      "category": "premium",
+      "parameters": {
+        "list-management": {
+          "type": "boolean",
+          "default": true,
+          "description": "Email list management",
+          "required": false
+        },
+        "campaigns": {
+          "type": "boolean",
+          "default": true,
+          "description": "Email campaign management",
+          "required": false
+        },
+        "scheduling": {
+          "type": "boolean",
+          "default": true,
+          "description": "Scheduled email sending",
+          "required": false
+        }
+      }
+    }
+  },
+  "constraints": {}
+}

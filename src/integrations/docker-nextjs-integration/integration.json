@@ -1,0 +1,131 @@
+{
+  "id": "docker-nextjs-integration",
+  "name": "Docker Next.js Integration",
+  "description": "Complete Docker containerization for Next.js applications with multi-stage builds, optimization, and production-ready configuration",
+  "category": "integration",
+  "version": "1.0.0",
+  "tech_stack": {
+    "framework": "nextjs",
+    "adapters": ["docker"]
+  },
+  "requirements": {
+    "modules": ["docker", "nextjs"],
+    "dependencies": ["docker", "next", "react", "react-dom"]
+  },
+  "provides": {
+    "files": [
+      "Dockerfile",
+      "Dockerfile.dev",
+      "Dockerfile.prod",
+      ".dockerignore",
+      "docker-compose.yml",
+      "docker-compose.dev.yml",
+      "docker-compose.prod.yml",
+      "docker-compose.override.yml",
+      "scripts/docker-build.sh",
+      "scripts/docker-run.sh",
+      "scripts/docker-dev.sh",
+      "scripts/docker-prod.sh",
+      "scripts/docker-clean.sh",
+      "scripts/docker-logs.sh",
+      "scripts/docker-shell.sh",
+      "scripts/docker-health.sh",
+      "nginx/nginx.conf",
+      "nginx/nextjs.conf",
+      "nginx/ssl.conf",
+      "scripts/entrypoint.sh",
+      "scripts/healthcheck.sh",
+      "scripts/init-db.sh",
+      "scripts/backup.sh",
+      "scripts/restore.sh",
+      "monitoring/docker-compose.monitoring.yml",
+      "monitoring/prometheus.yml",
+      "monitoring/grafana/dashboards/nextjs.json",
+      "monitoring/grafana/provisioning/dashboards/dashboard.yml",
+      "monitoring/grafana/provisioning/datasources/prometheus.yml"
+    ],
+    "components": [],
+    "pages": []
+  },
+  "sub_features": {
+    "multiStageBuild": {
+      "name": "Multi-Stage Build",
+      "description": "Optimized multi-stage Docker builds for production",
+      "type": "boolean",
+      "default": true
+    },
+    "developmentMode": {
+      "name": "Development Mode",
+      "description": "Docker setup for development with hot reloading",
+      "type": "boolean",
+      "default": true
+    },
+    "productionMode": {
+      "name": "Production Mode",
+      "description": "Production-ready Docker configuration with optimization",
+      "type": "boolean",
+      "default": true
+    },
+    "nginxReverseProxy": {
+      "name": "Nginx Reverse Proxy",
+      "description": "Nginx configuration for reverse proxy and static file serving",
+      "type": "boolean",
+      "default": true
+    },
+    "sslSupport": {
+      "name": "SSL Support",
+      "description": "SSL/TLS configuration and certificate management",
+      "type": "boolean",
+      "default": false
+    },
+    "healthChecks": {
+      "name": "Health Checks",
+      "description": "Docker health checks and monitoring endpoints",
+      "type": "boolean",
+      "default": true
+    },
+    "environmentConfig": {
+      "name": "Environment Configuration",
+      "description": "Environment-specific configuration management",
+      "type": "boolean",
+      "default": true
+    },
+    "volumeManagement": {
+      "name": "Volume Management",
+      "description": "Docker volumes for persistent data and logs",
+      "type": "boolean",
+      "default": true
+    },
+    "networking": {
+      "name": "Networking",
+      "description": "Docker networking configuration and service discovery",
+      "type": "boolean",
+      "default": true
+    },
+    "monitoring": {
+      "name": "Monitoring",
+      "description": "Docker monitoring with Prometheus and Grafana",
+      "type": "boolean",
+      "default": false
+    },
+    "backupRestore": {
+      "name": "Backup & Restore",
+      "description": "Backup and restore scripts for data persistence",
+      "type": "boolean",
+      "default": false
+    },
+    "securityHardening": {
+      "name": "Security Hardening",
+      "description": "Security hardening and best practices",
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "blueprint": {
+    "id": "docker-nextjs-integration",
+    "name": "Docker Next.js Integration",
+    "description": "Complete Docker containerization for Next.js applications",
+    "version": "1.0.0",
+    "actions": []
+  }
+}

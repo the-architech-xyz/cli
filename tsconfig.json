@@ -1,0 +1,54 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "allowJs": false,
+    "checkJs": false,
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": false,
+    "declaration": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "baseUrl": "./src",
+    "paths": {
+      "@/*": ["./*"]
+    },
+    "sourceMap": true,
+    "removeComments": false,
+    "preserveConstEnums": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true
+  },
+  "include": [
+    "src/index.ts",
+    "src/types/**/*",
+    "src/utils/**/*",
+    "src/agents/**/*",
+    "src/commands/**/*",
+    "src/core/**/*",
+    "src/adapters/**/*",
+    "src/plugins/**/*",
+    "src/integrations/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "bin",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/*.js"
+  ],
+  "ts-node": {
+    "esm": true,
+    "experimentalSpecifierResolution": "node"
+  }
+} 

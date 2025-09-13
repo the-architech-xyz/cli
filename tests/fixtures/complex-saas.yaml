@@ -1,0 +1,61 @@
+version: "1.0"
+project:
+  name: "test-complex-saas"
+  framework: "nextjs"
+  path: "./test-complex-saas"
+  description: "A complex SaaS test project with multiple modules"
+modules:
+  - id: "nextjs"
+    category: "framework"
+    version: "latest"
+    parameters:
+      typescript: true
+      tailwind: true
+      appRouter: true
+      eslint: true
+
+  - id: "drizzle"
+    category: "database"
+    version: "latest"
+    parameters:
+      provider: "postgresql"
+      migrations: true
+
+  - id: "better-auth"
+    category: "auth"
+    version: "latest"
+    parameters:
+      emailVerification: true
+      multiFactor: false
+
+  - id: "shadcn-ui"
+    category: "ui"
+    version: "latest"
+    parameters:
+      components: ["button", "input", "form", "card"]
+
+  - id: "stripe"
+    category: "payment"
+    version: "latest"
+    parameters:
+      subscriptions: true
+      webhooks: true
+
+  - id: "vitest"
+    category: "testing"
+    version: "latest"
+    parameters:
+      coverage: true
+      e2e: true
+
+integrations:
+  - name: "drizzle-nextjs-integration"
+    features: ["api-routes", "middleware"]
+  - name: "better-auth-nextjs-integration"
+    features: ["api-routes", "middleware"]
+  - name: "stripe-nextjs-integration"
+    features: ["api-routes", "webhooks"]
+
+options:
+  skipInstall: true
+  verbose: true

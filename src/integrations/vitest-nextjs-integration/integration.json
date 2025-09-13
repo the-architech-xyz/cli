@@ -1,0 +1,134 @@
+{
+  "id": "vitest-nextjs-integration",
+  "name": "Vitest Next.js Integration",
+  "description": "Complete Vitest testing setup for Next.js applications with unit tests, integration tests, and coverage reporting",
+  "category": "integration",
+  "version": "1.0.0",
+  "tech_stack": {
+    "framework": "nextjs",
+    "adapters": ["vitest"]
+  },
+  "requirements": {
+    "modules": ["vitest", "nextjs"],
+    "dependencies": ["vitest", "@testing-library/react", "@testing-library/jest-dom", "jsdom"]
+  },
+  "provides": {
+    "files": [
+      "vitest.config.ts",
+      "vitest.config.unit.ts",
+      "vitest.config.integration.ts",
+      "vitest.config.e2e.ts",
+      "vitest.setup.ts",
+      "vitest.teardown.ts",
+      "test-utils/test-utils.tsx",
+      "test-utils/mock-next-router.ts",
+      "test-utils/mock-next-auth.ts",
+      "test-utils/mock-fetch.ts",
+      "test-utils/test-db.ts",
+      "test-utils/test-server.ts",
+      "test-utils/test-client.ts",
+      "test-utils/test-helpers.ts",
+      "test-utils/test-fixtures.ts",
+      "test-utils/test-mocks.ts",
+      "test-utils/test-setup.ts",
+      "test-utils/test-teardown.ts",
+      "test-utils/test-constants.ts",
+      "test-utils/test-types.ts",
+      "tests/unit/components/Button.test.tsx",
+      "tests/unit/components/Input.test.tsx",
+      "tests/unit/hooks/useAuth.test.ts",
+      "tests/unit/utils/formatDate.test.ts",
+      "tests/unit/lib/api.test.ts",
+      "tests/integration/pages/home.test.tsx",
+      "tests/integration/pages/about.test.tsx",
+      "tests/integration/api/auth.test.ts",
+      "tests/integration/api/users.test.ts",
+      "tests/e2e/auth.spec.ts",
+      "tests/e2e/navigation.spec.ts",
+      "tests/e2e/forms.spec.ts",
+      "tests/e2e/api.spec.ts",
+      "tests/fixtures/users.json",
+      "tests/fixtures/posts.json",
+      "tests/fixtures/comments.json",
+      "tests/mocks/handlers.ts",
+      "tests/mocks/server.ts",
+      "tests/mocks/responses.ts",
+      "coverage/.gitignore",
+      "coverage/coverage-summary.json",
+      "coverage/coverage-final.json",
+      "coverage/lcov.info",
+      "coverage/index.html"
+    ],
+    "components": [],
+    "pages": []
+  },
+  "sub_features": {
+    "unitTesting": {
+      "name": "Unit Testing",
+      "description": "Unit tests for components, hooks, and utilities",
+      "type": "boolean",
+      "default": true
+    },
+    "integrationTesting": {
+      "name": "Integration Testing",
+      "description": "Integration tests for pages and API routes",
+      "type": "boolean",
+      "default": true
+    },
+    "e2eTesting": {
+      "name": "E2E Testing",
+      "description": "End-to-end tests with Playwright",
+      "type": "boolean",
+      "default": false
+    },
+    "coverageReporting": {
+      "name": "Coverage Reporting",
+      "description": "Code coverage reporting with HTML and LCOV reports",
+      "type": "boolean",
+      "default": true
+    },
+    "watchMode": {
+      "name": "Watch Mode",
+      "description": "Watch mode for development testing",
+      "type": "boolean",
+      "default": true
+    },
+    "uiMode": {
+      "name": "UI Mode",
+      "description": "Vitest UI for interactive testing",
+      "type": "boolean",
+      "default": false
+    },
+    "mocking": {
+      "name": "Mocking",
+      "description": "Mock utilities for Next.js, APIs, and external services",
+      "type": "boolean",
+      "default": true
+    },
+    "snapshots": {
+      "name": "Snapshots",
+      "description": "Snapshot testing for components",
+      "type": "boolean",
+      "default": true
+    },
+    "parallelTesting": {
+      "name": "Parallel Testing",
+      "description": "Parallel test execution for faster runs",
+      "type": "boolean",
+      "default": true
+    },
+    "typescriptSupport": {
+      "name": "TypeScript Support",
+      "description": "Full TypeScript support for tests",
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "blueprint": {
+    "id": "vitest-nextjs-integration",
+    "name": "Vitest Next.js Integration",
+    "description": "Complete Vitest testing setup for Next.js applications",
+    "version": "1.0.0",
+    "actions": []
+  }
+}

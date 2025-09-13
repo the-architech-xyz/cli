@@ -1,0 +1,111 @@
+{
+  "id": "prisma-nextjs-integration",
+  "name": "Prisma Next.js Integration",
+  "description": "Complete Prisma ORM integration for Next.js with API routes, middleware, and database utilities",
+  "category": "integration",
+  "version": "1.0.0",
+  "tech_stack": {
+    "framework": "nextjs",
+    "adapters": ["prisma"]
+  },
+  "requirements": {
+    "modules": ["prisma", "nextjs"],
+    "dependencies": ["@prisma/client", "prisma", "react", "react-dom"]
+  },
+  "provides": {
+    "files": [
+      "src/lib/db/index.ts",
+      "src/lib/db/client.ts",
+      "src/lib/db/schema.prisma",
+      "src/lib/db/migrations.ts",
+      "src/lib/db/queries.ts",
+      "src/lib/db/transactions.ts",
+      "src/lib/db/seed.ts",
+      "src/lib/db/types.ts",
+      "src/lib/db/validators.ts",
+      "src/lib/db/middleware.ts"
+    ],
+    "components": [
+      "DatabaseProvider",
+      "QueryProvider",
+      "DatabaseDebugger"
+    ],
+    "pages": [
+      "src/app/api/db/health/route.ts",
+      "src/app/api/db/migrate/route.ts",
+      "src/app/api/db/seed/route.ts",
+      "src/app/admin/database/page.tsx",
+      "src/app/admin/database/schema/page.tsx",
+      "src/app/admin/database/queries/page.tsx"
+    ]
+  },
+  "sub_features": {
+    "apiRoutes": {
+      "name": "API Routes",
+      "description": "Database API routes for health checks, migrations, and seeding",
+      "type": "boolean",
+      "default": true
+    },
+    "middleware": {
+      "name": "Middleware",
+      "description": "Database connection middleware and error handling",
+      "type": "boolean",
+      "default": true
+    },
+    "queries": {
+      "name": "Query Utilities",
+      "description": "Pre-built query utilities and helpers",
+      "type": "boolean",
+      "default": true
+    },
+    "transactions": {
+      "name": "Transactions",
+      "description": "Transaction management and utilities",
+      "type": "boolean",
+      "default": true
+    },
+    "migrations": {
+      "name": "Migrations",
+      "description": "Database migration management and utilities",
+      "type": "boolean",
+      "default": true
+    },
+    "seeding": {
+      "name": "Seeding",
+      "description": "Database seeding utilities and sample data",
+      "type": "boolean",
+      "default": false
+    },
+    "validators": {
+      "name": "Validators",
+      "description": "Database schema validation utilities",
+      "type": "boolean",
+      "default": true
+    },
+    "adminPanel": {
+      "name": "Admin Panel",
+      "description": "Database administration interface",
+      "type": "boolean",
+      "default": false
+    },
+    "healthChecks": {
+      "name": "Health Checks",
+      "description": "Database health monitoring and status checks",
+      "type": "boolean",
+      "default": true
+    },
+    "connectionPooling": {
+      "name": "Connection Pooling",
+      "description": "Database connection pooling and management",
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "blueprint": {
+    "id": "prisma-nextjs-integration",
+    "name": "Prisma Next.js Integration",
+    "description": "Complete Prisma ORM integration for Next.js applications",
+    "version": "1.0.0",
+    "actions": []
+  }
+}

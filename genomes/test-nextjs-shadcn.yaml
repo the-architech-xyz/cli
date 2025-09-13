@@ -1,0 +1,43 @@
+version: "1.0"
+project:
+  name: "{{projectName}}"
+  framework: "nextjs"
+  path: "./{{projectName}}"
+  description: "Next.js with Shadcn/ui test"
+modules:
+  # Core Framework
+  - id: "nextjs"
+    category: "framework"
+    version: "latest"
+    parameters:
+      typescript: true
+      tailwind: true
+      appRouter: true
+      eslint: true
+      srcDir: true
+      importAlias: "@/*"
+    features:
+      - "api-routes"
+      - "middleware"
+      - "ssr-optimization"
+  
+  # UI Components - Shadcn/ui
+  - id: "shadcn-ui"
+    category: "ui"
+    version: "latest"
+    parameters:
+      components: 
+        - "button"
+        - "input"
+        - "card"
+      style: "new-york"
+      baseColor: "neutral"
+      darkMode: true
+    features:
+      - "accessibility"
+      - "advanced-components"
+      - "theming"
+
+options:
+  skipInstall: false
+  verbose: true

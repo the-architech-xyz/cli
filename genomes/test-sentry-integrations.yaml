@@ -1,0 +1,51 @@
+version: "1.0.0"
+project:
+  name: "test-sentry-project"
+  framework: "nextjs"
+  path: "./test-sentry-project"
+
+modules:
+  - id: "framework/nextjs"
+    category: "framework"
+    version: "1.0.0"
+    parameters:
+      tailwind: true
+      typescript: true
+      eslint: true
+  - id: "observability/sentry"
+    category: "observability"
+    version: "1.0.0"
+    parameters:
+      dsn: "https://test@sentry.io/test"
+      environment: "development"
+      performance: true
+      release: "1.0.0"
+  - id: "database/drizzle"
+    category: "database"
+    version: "1.0.0"
+    parameters:
+      provider: "postgresql"
+      host: "localhost"
+      port: 5432
+      database: "test_db"
+      username: "test_user"
+      password: "test_password"
+
+integrations:
+  - name: "sentry-nextjs-integration"
+    features:
+      errorTracking: true
+      performanceMonitoring: true
+      userFeedback: true
+      middleware: true
+      profiling: false
+      alerts: true
+      releaseTracking: true
+  - name: "sentry-drizzle-integration"
+    features:
+      errorLogging: true
+      performanceTracking: true
+      queryMonitoring: true
+      userFeedback: false
+      migrations: true
+      indexes: true
