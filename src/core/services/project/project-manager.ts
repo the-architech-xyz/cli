@@ -6,22 +6,22 @@
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { PathHandler } from '../path/path-handler.js';
-import { Recipe, ProjectConfig } from '../../../types/recipe.js';
+import { PathService } from '../path/path-service.js';
+import { Recipe, ProjectConfig } from '@thearchitech.xyz/types';
 
 export class ProjectManager {
-  private pathHandler: PathHandler;
+  private pathHandler: PathService;
   private projectConfig: ProjectConfig;
 
   constructor(projectConfig: ProjectConfig) {
     this.projectConfig = projectConfig;
-    this.pathHandler = new PathHandler(projectConfig.path, projectConfig.name);
+    this.pathHandler = new PathService(projectConfig.path, projectConfig.name);
   }
 
   /**
    * Get path handler instance
    */
-  getPathHandler(): PathHandler {
+  getPathHandler(): PathService {
     return this.pathHandler;
   }
 

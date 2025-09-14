@@ -6,9 +6,11 @@
  */
 
 import { Command } from 'commander';
-import { PathHandler } from '../core/services/path/path-handler.js';
+import { PathService } from '../core/services/path/path-service.js';
 import { ProjectManager } from '../core/services/project/project-manager.js';
-import { FeatureManager } from '../core/services/feature/feature-manager.js';
+// import { FeatureManager } from '../core/services/feature/feature-manager.js'; // V2 feature removed
+import { ModuleFetcherService } from '../core/services/module-management/fetcher/module-fetcher.js';
+import { CacheManagerService } from '../core/services/infrastructure/cache/cache-manager.js';
 import { AgentLogger } from '../core/cli/logger.js';
 
 const logger = new AgentLogger();
@@ -35,7 +37,7 @@ export function createAddCommand(): Command {
         
         // Initialize path handler
         const projectPath = options.path || process.cwd();
-        const pathHandler = new PathHandler(projectPath, '');
+        const pathHandler = new PathService(projectPath, '');
         
         // Check if project has architech.json
         const fs = await import('fs/promises');
@@ -54,24 +56,32 @@ export function createAddCommand(): Command {
           process.exit(1);
         }
         
+        // Initialize module fetcher
+        const cacheManager = new CacheManagerService();
+        const moduleFetcher = new ModuleFetcherService(cacheManager);
+        await moduleFetcher.initialize();
+        
         // Initialize feature manager
-        const featureManager = new FeatureManager(pathHandler);
+        // const featureManager = new FeatureManager(pathHandler, moduleFetcher); // V2 feature removed
         
         if (options.dryRun) {
           logger.info('🔍 Dry run mode - showing what would be added:');
-          await featureManager.dryRunAddFeature(featureSpec);
+          // await featureManager.dryRunAddFeature(featureSpec); // V2 feature removed
+          logger.warn('V2 feature addition not yet implemented');
         } else {
           // Add the feature
-          const result = await featureManager.addFeature(featureSpec, {
-            force: options.force
-          });
+          // const result = await featureManager.addFeature(featureSpec, {
+          //   force: options.force
+          // }); // V2 feature removed
+          logger.warn('V2 feature addition not yet implemented');
+          const result = { success: false, filesCreated: [], filesModified: [] };
           
           if (result.success) {
             logger.success(`✅ Feature "${featureArg}" added successfully!`);
             logger.info(`📁 Files created: ${result.filesCreated.length}`);
             logger.info(`📝 Files modified: ${result.filesModified.length}`);
           } else {
-            logger.error(`❌ Failed to add feature: ${result.error}`);
+            logger.error(`❌ Failed to add feature: V2 feature addition not yet implemented`);
             process.exit(1);
           }
         }

@@ -6,12 +6,13 @@
  */
 
 import { SimpleAgent } from '../base/simple-agent.js';
-import { Module, ProjectContext, AgentResult } from '../../types/agent.js';
-import { PathHandler } from '../../core/services/path/path-handler.js';
+import { Module, ProjectContext, AgentResult } from '@thearchitech.xyz/types';
+import { PathService } from '../../core/services/path/path-service.js';
+import { ModuleFetcherService } from '../../core/services/module-management/fetcher/module-fetcher.js';
 
 export class FrameworkAgent extends SimpleAgent {
-  constructor(pathHandler: PathHandler) {
-    super('framework', pathHandler);
+  constructor(pathHandler: PathService, moduleFetcher: ModuleFetcherService) {
+    super('framework', pathHandler, moduleFetcher);
   }
 
   /**

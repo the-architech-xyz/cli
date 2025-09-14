@@ -5,7 +5,7 @@
  * Each adapter is responsible for documenting how to integrate with other modules.
  */
 
-import { AdapterConfig } from '../../../types/adapter.js';
+import { AdapterConfig } from '@thearchitech.xyz/types';
 
 export class IntegrationGuideGenerator {
   /**

@@ -6,7 +6,7 @@
  */
 
 import { AgentLogger } from '../../cli/logger.js';
-import { MarketplaceItem, MarketplaceCategory, MarketplaceSearchResult } from '../../../types/marketplace.js';
+import { MarketplaceItem, MarketplaceCategory, MarketplaceSearchResult } from '@thearchitech.xyz/types';
 
 export class MarketplaceManager {
   private logger: AgentLogger;

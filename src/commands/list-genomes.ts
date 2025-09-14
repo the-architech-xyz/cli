@@ -6,7 +6,7 @@
  */
 
 import { Command } from 'commander';
-import { GenomeRegistry } from '../core/services/genome/genome-registry.js';
+import { GenomeRegistry } from '../core/services/module-management/genome/genome-registry.js';
 import { AgentLogger as Logger } from '../core/cli/logger.js';
 
 export function createListGenomesCommand(): Command {

@@ -6,16 +6,17 @@
  */
 
 import { SimpleAgent } from '../base/simple-agent.js';
-import { ProjectContext, AgentResult } from '../../types/agent.js';
-import { Module } from '../../types/recipe.js';
-import { AdapterLoader } from '../../core/services/adapter/adapter-loader.js';
-import { BlueprintExecutor } from '../../core/services/blueprint/blueprint-executor.js';
+import { ProjectContext, AgentResult, Module } from '@thearchitech.xyz/types';
+import { AdapterLoader } from '../../core/services/module-management/adapter/adapter-loader.js';
+import { BlueprintExecutor } from '../../core/services/execution/blueprint/blueprint-executor.js';
+import { PathService } from '../../core/services/path/path-service.js';
+import { ModuleFetcherService } from '../../core/services/module-management/fetcher/module-fetcher.js';
 
 export class PaymentAgent extends SimpleAgent {
   public category = 'payment';
 
-  constructor(pathHandler: any) {
-    super('payment', pathHandler);
+  constructor(pathHandler: PathService, moduleFetcher: ModuleFetcherService) {
+    super('payment', pathHandler, moduleFetcher);
   }
 
   /**
@@ -26,7 +27,7 @@ export class PaymentAgent extends SimpleAgent {
     
     try {
       // Load adapter - extract adapter ID from module ID
-      const adapterLoader = new AdapterLoader();
+      const adapterLoader = new AdapterLoader(this.moduleFetcher);
       const adapterId = module.id.split('/').pop() || module.id;
       const adapter = await adapterLoader.loadAdapter(this.category, adapterId);
       
@@ -43,7 +44,7 @@ export class PaymentAgent extends SimpleAgent {
       console.log(`  📋 Executing blueprint: ${adapter.blueprint.name}`);
 
       // Execute blueprint
-      const blueprintExecutor = new BlueprintExecutor(context.project.path || '.');
+      const blueprintExecutor = new BlueprintExecutor(context.project.path || '.', this.moduleFetcher);
       const result = await blueprintExecutor.executeBlueprint(adapter.blueprint, context);
 
       if (result.success) {

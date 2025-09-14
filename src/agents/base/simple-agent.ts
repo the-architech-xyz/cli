@@ -5,22 +5,24 @@
  * Provides common functionality for agent execution
  */
 
-import { Agent, Module, ProjectContext, AgentResult } from '../../types/agent.js';
-import { BlueprintContext } from '../../types/blueprint-context.js';
-import { AdapterLoader } from '../../core/services/adapter/adapter-loader.js';
-import { BlueprintExecutor } from '../../core/services/blueprint/blueprint-executor.js';
-import { PathHandler } from '../../core/services/path/path-handler.js';
+import { Agent, Module, ProjectContext, AgentResult, BlueprintContext } from '@thearchitech.xyz/types';
+import { AdapterLoader } from '../../core/services/module-management/adapter/adapter-loader.js';
+import { BlueprintExecutor } from '../../core/services/execution/blueprint/blueprint-executor.js';
+import { PathService } from '../../core/services/path/path-service.js';
+import { ModuleFetcherService } from '../../core/services/module-management/fetcher/module-fetcher.js';
 
 export abstract class SimpleAgent implements Agent {
   public category: string;
   protected adapterLoader: AdapterLoader;
   protected blueprintExecutor?: BlueprintExecutor;
-  protected pathHandler: PathHandler;
+  protected pathHandler: PathService;
+  protected moduleFetcher: ModuleFetcherService;
 
-  constructor(category: string, pathHandler: PathHandler) {
+  constructor(category: string, pathHandler: PathService, moduleFetcher: ModuleFetcherService) {
     this.category = category;
     this.pathHandler = pathHandler;
-    this.adapterLoader = new AdapterLoader();
+    this.moduleFetcher = moduleFetcher;
+    this.adapterLoader = new AdapterLoader(moduleFetcher);
   }
 
   /**
@@ -49,7 +51,7 @@ export abstract class SimpleAgent implements Agent {
       console.log(`  📋 Executing blueprint: ${adapter.blueprint.name}`);
       
       // Create blueprint executor
-      this.blueprintExecutor = new BlueprintExecutor(context.project.path || '.');
+      this.blueprintExecutor = new BlueprintExecutor(context.project.path || '.', this.moduleFetcher);
       
       // Execute the blueprint with blueprint context
       const result = await this.blueprintExecutor!.executeBlueprint(adapter.blueprint, context, blueprintContext);
@@ -121,7 +123,7 @@ export abstract class SimpleAgent implements Agent {
   /**
    * Get path handler
    */
-  protected getPathHandler(): PathHandler {
+  protected getPathHandler(): PathService {
     return this.pathHandler;
   }
 }

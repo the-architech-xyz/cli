@@ -4,10 +4,9 @@
  * Executes integration features that connect adapters with frameworks
  */
 
-import { IntegrationAdapter } from '@/types/integration.js';
-import { ProjectContext } from '@/types/agent.js';
-import { BlueprintExecutor } from '../blueprint/blueprint-executor.js';
-import { VirtualFileSystem } from '../file-engine/virtual-file-system.js';
+import { IntegrationAdapter, ProjectContext } from '@thearchitech.xyz/types';
+import { BlueprintExecutor } from '../execution/blueprint/blueprint-executor.js';
+import { VirtualFileSystem } from '../file-system/file-engine/virtual-file-system.js';
 
 export class IntegrationExecutor {
   private blueprintExecutor: BlueprintExecutor;

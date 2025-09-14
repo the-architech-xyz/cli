@@ -5,16 +5,17 @@
  * Reads YAML recipe and delegates to appropriate agents
  */
 
-import { Recipe, Module, ExecutionResult } from '../types/recipe.js';
+import { Recipe, Module, ExecutionResult } from '@thearchitech.xyz/types';
 import { ProjectManager } from '../core/services/project/project-manager.js';
-import { PathHandler } from '../core/services/path/path-handler.js';
-import { DecentralizedPathHandler } from '../core/services/path/decentralized-path-handler.js';
-import { AdapterConfig } from '../types/adapter.js';
+import { PathService } from '../core/services/path/path-service.js';
+import { AdapterConfig } from '@thearchitech.xyz/types';
 import { IntegrationRegistry } from '../core/services/integration/integration-registry.js';
 import { IntegrationExecutor } from '../core/services/integration/integration-executor.js';
-import { BlueprintExecutor } from '../core/services/blueprint/blueprint-executor.js';
-import { VirtualFileSystem } from '../core/services/file-engine/virtual-file-system.js';
-import { BlueprintAnalyzer } from '../core/services/blueprint-analyzer/index.js';
+import { BlueprintExecutor } from '../core/services/execution/blueprint/blueprint-executor.js';
+import { VirtualFileSystem } from '../core/services/file-system/file-engine/virtual-file-system.js';
+import { BlueprintAnalyzer } from '../core/services/project/blueprint-analyzer/index.js';
+import { ModuleFetcherService } from '../core/services/module-management/fetcher/module-fetcher.js';
+import { CacheManagerService } from '../core/services/infrastructure/cache/cache-manager.js';
 import * as path from 'path';
 import { FrameworkAgent } from './core/framework-agent.js';
 import { DatabaseAgent } from './core/database-agent.js';
@@ -28,28 +29,30 @@ import { EmailAgent } from './core/email-agent.js';
 import { ObservabilityAgent } from './core/observability-agent.js';
 import { ContentAgent } from './core/content-agent.js';
 import { BlockchainAgent } from './core/blockchain-agent.js';
-import { ProjectContext, AgentResult } from '../types/agent.js';
-import { Blueprint } from '../types/adapter.js';
-import { ModuleLoaderService } from '../core/services/module-loader/index.js';
-import { AgentExecutionService } from '../core/services/agent-execution/index.js';
-import { ErrorHandler, ErrorCode } from '../core/services/error/index.js';
-import { Logger, ExecutionTracer, LogLevel } from '../core/services/logging/index.js';
+import { ProjectContext, AgentResult, Blueprint } from '@thearchitech.xyz/types';
+import { ModuleLoaderService } from '../core/services/module-management/module-loader/index.js';
+import { AgentExecutionService } from '../core/services/execution/agent-execution/index.js';
+import { ErrorHandler, ErrorCode } from '../core/services/infrastructure/error/index.js';
+import { Logger, ExecutionTracer, LogLevel } from '../core/services/infrastructure/logging/index.js';
 
 export class OrchestratorAgent {
   private projectManager: ProjectManager;
-  private pathHandler: PathHandler;
-  private decentralizedPathHandler: DecentralizedPathHandler | null = null;
+  private pathHandler: PathService;
   private moduleLoader: ModuleLoaderService;
   private agentExecutor: AgentExecutionService;
   private agents: Map<string, unknown>;
   private integrationRegistry: IntegrationRegistry;
   private integrationExecutor?: IntegrationExecutor;
   private blueprintAnalyzer: BlueprintAnalyzer;
+  private moduleFetcher: ModuleFetcherService;
+  private cacheManager: CacheManagerService;
 
   constructor(projectManager: ProjectManager) {
     this.projectManager = projectManager;
     this.pathHandler = projectManager.getPathHandler();
-    this.moduleLoader = new ModuleLoaderService();
+    this.cacheManager = new CacheManagerService();
+    this.moduleFetcher = new ModuleFetcherService(this.cacheManager);
+    this.moduleLoader = new ModuleLoaderService(this.moduleFetcher);
     this.agents = new Map();
     
     // Initialize integration services
@@ -69,47 +72,57 @@ export class OrchestratorAgent {
    * Initialize all agents
    */
   private initializeAgents(): void {
-    this.agents.set('framework', new FrameworkAgent(this.pathHandler));
-    this.agents.set('database', new DatabaseAgent(this.pathHandler));
-    this.agents.set('auth', new AuthAgent(this.pathHandler));
-    this.agents.set('ui', new UIAgent(this.pathHandler));
-    this.agents.set('testing', new TestingAgent(this.pathHandler));
-    this.agents.set('deployment', new DeploymentAgent(this.pathHandler));
-    this.agents.set('state', new StateAgent(this.pathHandler));
-    this.agents.set('payment', new PaymentAgent(this.pathHandler));
-    this.agents.set('email', new EmailAgent(this.pathHandler));
-    this.agents.set('observability', new ObservabilityAgent(this.pathHandler));
-    this.agents.set('content', new ContentAgent(this.pathHandler));
-    this.agents.set('blockchain', new BlockchainAgent(this.pathHandler));
+    this.agents.set('framework', new FrameworkAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('database', new DatabaseAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('auth', new AuthAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('ui', new UIAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('testing', new TestingAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('deployment', new DeploymentAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('state', new StateAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('payment', new PaymentAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('email', new EmailAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('observability', new ObservabilityAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('content', new ContentAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('blockchain', new BlockchainAgent(this.pathHandler, this.moduleFetcher));
   }
 
   /**
    * Reconfigure all agents with the decentralized path handler
    */
   private reconfigureAgents(): void {
-    if (!this.decentralizedPathHandler) {
-      throw new Error('Decentralized path handler not initialized');
+    if (!this.pathHandler) {
+      throw new Error('Path handler not initialized');
     }
 
-    // Update all agents to use the decentralized path handler
-    this.agents.set('framework', new FrameworkAgent(this.decentralizedPathHandler));
-    this.agents.set('database', new DatabaseAgent(this.decentralizedPathHandler));
-    this.agents.set('auth', new AuthAgent(this.decentralizedPathHandler));
-    this.agents.set('ui', new UIAgent(this.decentralizedPathHandler));
-    this.agents.set('testing', new TestingAgent(this.decentralizedPathHandler));
-    this.agents.set('deployment', new DeploymentAgent(this.decentralizedPathHandler));
-    this.agents.set('state', new StateAgent(this.decentralizedPathHandler));
-    this.agents.set('payment', new PaymentAgent(this.decentralizedPathHandler));
-    this.agents.set('email', new EmailAgent(this.decentralizedPathHandler));
-    this.agents.set('observability', new ObservabilityAgent(this.decentralizedPathHandler));
-    this.agents.set('content', new ContentAgent(this.decentralizedPathHandler));
-    this.agents.set('blockchain', new BlockchainAgent(this.decentralizedPathHandler));
+    // Update all agents to use the path handler
+    this.agents.set('framework', new FrameworkAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('database', new DatabaseAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('auth', new AuthAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('ui', new UIAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('testing', new TestingAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('deployment', new DeploymentAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('state', new StateAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('payment', new PaymentAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('email', new EmailAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('observability', new ObservabilityAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('content', new ContentAgent(this.pathHandler, this.moduleFetcher));
+    this.agents.set('blockchain', new BlockchainAgent(this.pathHandler, this.moduleFetcher));
+  }
+
+  /**
+   * Initialize the orchestrator
+   */
+  async initialize(): Promise<void> {
+    await this.moduleFetcher.initialize();
   }
 
   /**
    * Execute a complete recipe
    */
   async executeRecipe(recipe: Recipe): Promise<ExecutionResult> {
+    // Initialize the orchestrator
+    await this.initialize();
+    
     // Start execution trace
     const traceId = ExecutionTracer.startTrace('recipe_execution', {
       projectName: recipe.project.name,
@@ -135,7 +148,7 @@ export class OrchestratorAgent {
         throw new Error(frameworkSetup.error);
       }
       
-      this.decentralizedPathHandler = frameworkSetup.pathHandler!;
+      this.pathHandler = frameworkSetup.pathHandler!;
       
       // 2. Reconfigure all agents with the new path handler
       ExecutionTracer.logOperation(traceId, 'Reconfiguring agents with new path handler');
@@ -185,7 +198,7 @@ export class OrchestratorAgent {
             recipe,
             module,
             adapterResult.adapter!.config,
-            this.decentralizedPathHandler!
+            this.pathHandler
           );
 
           // NEW ARCHITECTURE: Contextual, Isolated VFS
@@ -232,7 +245,7 @@ export class OrchestratorAgent {
           await this.preloadFilesIntoVFS(vfs, analysis.allRequiredFiles, this.pathHandler.getProjectRoot());
           
           // Step 5: Execute blueprint with pre-populated VFS
-          const blueprintExecutor = new BlueprintExecutor(this.pathHandler.getProjectRoot());
+          const blueprintExecutor = new BlueprintExecutor(this.pathHandler.getProjectRoot(), this.moduleFetcher);
           const blueprintContext = {
             vfs,
             projectRoot: this.pathHandler.getProjectRoot(),
@@ -472,7 +485,7 @@ export class OrchestratorAgent {
   ): Promise<void> {
     try {
       // Initialize integration executor
-      const blueprintExecutor = new BlueprintExecutor(recipe.project.path || '.');
+      const blueprintExecutor = new BlueprintExecutor(recipe.project.path || '.', this.moduleFetcher);
       this.integrationExecutor = new IntegrationExecutor(blueprintExecutor);
       
       // Get available modules for validation (extract adapter IDs)
@@ -518,7 +531,7 @@ export class OrchestratorAgent {
             version: '1.0.0',
             parameters: {}
           },
-          pathHandler: this.decentralizedPathHandler,
+          pathHandler: this.pathHandler,
           adapter: { id: integrationConfig.name },
           framework: recipe.project.framework
         };
@@ -548,7 +561,7 @@ export class OrchestratorAgent {
         await this.preloadFilesIntoVFS(vfs, analysis.allRequiredFiles, this.pathHandler.getProjectRoot());
         
         // Step 5: Execute integration blueprint with pre-populated VFS
-        const blueprintExecutor = new BlueprintExecutor(recipe.project.path || '.');
+        const blueprintExecutor = new BlueprintExecutor(recipe.project.path || '.', this.moduleFetcher);
         const blueprintContext = {
           vfs,
           projectRoot: this.pathHandler.getProjectRoot(),

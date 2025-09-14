@@ -9,12 +9,12 @@ import { Command } from 'commander';
 import { readFileSync } from 'fs';
 import { join } from 'path';
 import * as yaml from 'js-yaml';
-import { Recipe } from '../types/recipe.js';
+import { Recipe } from '@thearchitech.xyz/types';
 import { OrchestratorAgent } from '../agents/orchestrator-agent.js';
 import { ProjectManager } from '../core/services/project/project-manager.js';
-import { PathHandler } from '../core/services/path/path-handler.js';
+import { PathService } from '../core/services/path/path-service.js';
 import { AgentLogger as Logger } from '../core/cli/logger.js';
-import { GenomeRegistry } from '../core/services/genome/genome-registry.js';
+import { GenomeRegistry } from '../core/services/module-management/genome/genome-registry.js';
 
 export function createNewCommand(): Command {
   const command = new Command('new');
