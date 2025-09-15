@@ -10,9 +10,9 @@
 
 import { CacheManagerService } from '../../infrastructure/cache/cache-manager.js';
 import { TypeScriptBlueprintParser } from '../../execution/blueprint/typescript-blueprint-parser.js';
-import * as https from 'https';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { createRequire } from 'module';
 
 export interface ModuleManifest {
   modules: Array<{
@@ -39,13 +39,30 @@ export interface FetchResult {
 
 export class ModuleFetcherService {
   private cacheManager: CacheManagerService;
-  private marketplaceUrl: string;
-  private apiToken: string | undefined;
+  private marketplacePath: string;
+  private localMarketplacePath?: string;
 
   constructor(cacheManager: CacheManagerService) {
     this.cacheManager = cacheManager;
-    this.marketplaceUrl = process.env.ARCHITECH_MARKETPLACE_URL || 'file:///Users/antoine/Documents/Code/Architech/marketplace';
-    this.apiToken = process.env.GITHUB_TOKEN || undefined;
+    
+    // Check for local development fallback
+    const localPath = process.env.LOCAL_MARKETPLACE_PATH;
+    if (localPath) {
+      this.localMarketplacePath = localPath;
+      console.log(`🔧 Using local marketplace: ${this.localMarketplacePath}`);
+      this.marketplacePath = this.localMarketplacePath;
+    } else {
+      // Use NPM package
+      try {
+        const require = createRequire(import.meta.url);
+        const packagePath = require.resolve('@thearchitech/marketplace');
+        // Get the directory containing the package, not the main file
+        this.marketplacePath = path.dirname(packagePath);
+        console.log(`📦 Using NPM marketplace: ${this.marketplacePath}`);
+      } catch (error) {
+        throw new Error('@thearchitech/marketplace package not found. Please install it or set LOCAL_MARKETPLACE_PATH for development.');
+      }
+    }
   }
 
   /**
@@ -53,6 +70,7 @@ export class ModuleFetcherService {
    */
   async initialize(): Promise<void> {
     await this.cacheManager.initialize();
+    // No need to initialize Git repository anymore
   }
 
   /**
@@ -96,8 +114,8 @@ export class ModuleFetcherService {
    */
   async fetchManifest(): Promise<ModuleManifest | null> {
     try {
-      const manifestUrl = `${this.marketplaceUrl}/manifest.json`;
-      const content = await this.fetchFromUrl(manifestUrl);
+      const manifestPath = path.join(this.marketplacePath, 'manifest.json');
+      const content = await fs.readFile(manifestPath, 'utf-8');
       return JSON.parse(content);
     } catch (error) {
       console.warn(`Failed to fetch manifest: ${error}`);
@@ -194,8 +212,8 @@ export class ModuleFetcherService {
       }
 
       // Fetch the adapter.json file
-      const adapterUrl = `${this.marketplaceUrl}/${module.path}`;
-      const adapterContent = await this.fetchFromUrl(adapterUrl);
+      const adapterPath = path.join(this.marketplacePath, module.path);
+      const adapterContent = await fs.readFile(adapterPath, 'utf-8');
       const adapterConfig = JSON.parse(adapterContent);
       
       return {
@@ -249,8 +267,8 @@ export class ModuleFetcherService {
 
     // Fetch the blueprint file (look for blueprint.ts instead of adapter.json)
     const blueprintPath = module.path.replace('adapter.json', 'blueprint.ts');
-    const blueprintUrl = `${this.marketplaceUrl}/${blueprintPath}`;
-    const blueprintContent = await this.fetchFromUrl(blueprintUrl);
+    const fullBlueprintPath = path.join(this.marketplacePath, blueprintPath);
+    const blueprintContent = await fs.readFile(fullBlueprintPath, 'utf-8');
     
     // Parse the TypeScript blueprint using proper AST parsing
     const blueprint = TypeScriptBlueprintParser.parseBlueprint(blueprintContent);
@@ -267,44 +285,6 @@ export class ModuleFetcherService {
     };
   }
 
-  /**
-   * Fetch content from URL
-   */
-  private async fetchFromUrl(url: string): Promise<string> {
-    // Handle local file URLs
-    if (url.startsWith('file://')) {
-      const filePath = url.replace('file://', '');
-      return await fs.readFile(filePath, 'utf-8');
-    }
-
-    // Handle remote URLs
-    return new Promise((resolve, reject) => {
-      const options: https.RequestOptions = {
-        headers: {
-          'User-Agent': 'The-Architech-CLI/1.0.0',
-          ...(this.apiToken && { 'Authorization': `token ${this.apiToken}` })
-        }
-      };
-
-      https.get(url, options, (res) => {
-        if (res.statusCode !== 200) {
-          reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
-          return;
-        }
-
-        let data = '';
-        res.on('data', (chunk) => {
-          data += chunk;
-        });
-
-        res.on('end', () => {
-          resolve(data);
-        });
-      }).on('error', (error) => {
-        reject(error);
-      });
-    });
-  }
 
   /**
    * Check if module exists in marketplace

@@ -6,13 +6,58 @@
  */
 
 import { IntegrationAdapter } from '@thearchitech.xyz/types';
+import { IntegrationLoaderService } from '../module-management/integration/integration-loader.js';
+import { createRequire } from 'module';
+import * as path from 'path';
 
 export class IntegrationRegistry {
   private integrations: Map<string, IntegrationAdapter> = new Map();
+  private integrationLoader: IntegrationLoaderService;
+  private isInitialized: boolean = false;
 
   constructor() {
-    // V2: Integrations are now loaded dynamically from the marketplace
-    // No need for hardcoded integrations
+    // Get marketplace path (same logic as ModuleFetcherService)
+    const localMarketplacePath = process.env.LOCAL_MARKETPLACE_PATH;
+    
+    let marketplacePath: string;
+    if (localMarketplacePath) {
+      marketplacePath = localMarketplacePath;
+    } else {
+      try {
+        const require = createRequire(import.meta.url);
+        const packagePath = require.resolve('@thearchitech/marketplace');
+        // Get the directory containing the package, not the main file
+        marketplacePath = path.dirname(packagePath);
+      } catch (error) {
+        throw new Error('@thearchitech/marketplace package not found. Please install it or set LOCAL_MARKETPLACE_PATH for development.');
+      }
+    }
+    
+    this.integrationLoader = new IntegrationLoaderService(marketplacePath);
+  }
+
+  /**
+   * Initialize the registry by loading all integrations from marketplace
+   */
+  async initialize(): Promise<void> {
+    if (this.isInitialized) {
+      return;
+    }
+
+    try {
+      console.log('🔗 Loading integrations from marketplace...');
+      const integrations = await this.integrationLoader.loadAllIntegrations();
+      
+      for (const integration of integrations) {
+        this.integrations.set(integration.id, integration);
+      }
+      
+      console.log(`✅ Loaded ${integrations.length} integrations`);
+      this.isInitialized = true;
+    } catch (error) {
+      console.error(`❌ Failed to initialize integration registry: ${error}`);
+      throw error;
+    }
   }
 
   /**
@@ -26,6 +71,11 @@ export class IntegrationRegistry {
    * Get integration adapter by ID
    */
   async get(id: string): Promise<IntegrationAdapter | undefined> {
+    // Ensure registry is initialized
+    if (!this.isInitialized) {
+      await this.initialize();
+    }
+    
     return this.integrations.get(id);
   }
 

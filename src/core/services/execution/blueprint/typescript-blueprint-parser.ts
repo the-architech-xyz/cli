@@ -33,7 +33,7 @@ export class TypeScriptBlueprintParser {
       }
 
       // Convert the AST node to a Blueprint object
-      return this.astNodeToBlueprint(blueprintExport);
+      return this.astNodeToBlueprint(blueprintExport, ast);
     } catch (error) {
       console.error('Failed to parse TypeScript blueprint:', error);
       return null;
@@ -50,7 +50,7 @@ export class TypeScriptBlueprintParser {
         if (declaration.type === 'VariableDeclaration') {
           for (const declarator of declaration.declarations) {
             if (declarator.id.type === 'Identifier' && 
-                declarator.id.name.endsWith('Blueprint') &&
+                (declarator.id.name.endsWith('Blueprint') || declarator.id.name === 'blueprint') &&
                 declarator.init) {
               return declarator.init;
             }
@@ -64,22 +64,55 @@ export class TypeScriptBlueprintParser {
   /**
    * Convert an AST node to a Blueprint object
    */
-  private static astNodeToBlueprint(node: any): Blueprint {
-    if (node.type !== 'ObjectExpression') {
-      throw new Error('Expected object expression for blueprint');
+  private static astNodeToBlueprint(node: any, ast: any): Blueprint {
+    if (node.type === 'ObjectExpression') {
+      const blueprint: any = {};
+
+      for (const property of node.properties) {
+        if (property.type === 'Property' && property.key.type === 'Identifier') {
+          const key = property.key.name;
+          const value = this.astValueToJavaScript(property.value);
+          blueprint[key] = value;
+        }
+      }
+
+      return blueprint as Blueprint;
+    } else if (node.type === 'Identifier') {
+      // Handle case where blueprint is exported as a reference to another variable
+      const variableName = node.name;
+      const variableDeclaration = this.findVariableDeclaration(ast, variableName);
+      
+      if (variableDeclaration) {
+        return this.astNodeToBlueprint(variableDeclaration, ast);
+      } else {
+        console.warn(`Could not resolve variable reference: ${variableName}. Using fallback structure.`);
+        return {
+          id: 'fallback',
+          name: 'Fallback Blueprint',
+          description: 'Blueprint exported as variable reference',
+          version: '1.0.0',
+          actions: []
+        };
+      }
+    } else {
+      throw new Error(`Expected object expression or identifier for blueprint, got ${node.type}`);
     }
+  }
 
-    const blueprint: any = {};
-
-    for (const property of node.properties) {
-      if (property.type === 'Property' && property.key.type === 'Identifier') {
-        const key = property.key.name;
-        const value = this.astValueToJavaScript(property.value);
-        blueprint[key] = value;
+  /**
+   * Find a variable declaration by name in the AST
+   */
+  private static findVariableDeclaration(ast: any, variableName: string): any {
+    for (const node of ast.body) {
+      if (node.type === 'VariableDeclaration') {
+        for (const declarator of node.declarations) {
+          if (declarator.id.type === 'Identifier' && declarator.id.name === variableName) {
+            return declarator.init;
+          }
+        }
       }
     }
-
-    return blueprint as Blueprint;
+    return null;
   }
 
   /**

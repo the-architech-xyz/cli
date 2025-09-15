@@ -69,6 +69,24 @@ export class OrchestratorAgent {
   }
 
   /**
+   * Initialize the orchestrator and all its services
+   */
+  async initialize(): Promise<void> {
+    try {
+      // Initialize module fetcher (this will clone/update the marketplace repo)
+      await this.moduleFetcher.initialize();
+      
+      // Initialize integration registry (this will load all integrations)
+      await this.integrationRegistry.initialize();
+      
+      console.log('✅ Orchestrator initialized successfully');
+    } catch (error) {
+      console.error(`❌ Failed to initialize orchestrator: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
    * Initialize all agents
    */
   private initializeAgents(): void {
@@ -109,12 +127,6 @@ export class OrchestratorAgent {
     this.agents.set('blockchain', new BlockchainAgent(this.pathHandler, this.moduleFetcher));
   }
 
-  /**
-   * Initialize the orchestrator
-   */
-  async initialize(): Promise<void> {
-    await this.moduleFetcher.initialize();
-  }
 
   /**
    * Execute a complete recipe

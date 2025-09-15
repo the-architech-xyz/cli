@@ -98,6 +98,9 @@ export function createNewCommand(): Command {
         const projectManager = new ProjectManager(recipe.project);
         const orchestrator = new OrchestratorAgent(projectManager);
         
+        // Initialize orchestrator (this will clone marketplace and load integrations)
+        await orchestrator.initialize();
+        
         // Execute the recipe
         logger.info('🎯 Starting project creation...');
         const result = await orchestrator.executeRecipe(recipe);
