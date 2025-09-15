@@ -73,6 +73,10 @@ export class OrchestratorAgent {
    */
   async initialize(): Promise<void> {
     try {
+      // Initialize modifiers first
+      const { initializeModifiers } = await import('../core/services/file-system/modifiers/modifier-registration.js');
+      initializeModifiers();
+      
       // Initialize module fetcher (this will clone/update the marketplace repo)
       await this.moduleFetcher.initialize();
       

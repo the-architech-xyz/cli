@@ -151,7 +151,17 @@ export class VirtualFileSystem {
       try {
         const fullPath = path.join(this.projectRoot, filePath);
         await fs.mkdir(path.dirname(fullPath), { recursive: true });
-        await fs.writeFile(fullPath, content, 'utf-8');
+        
+        // Ensure content ends with newline and remove any trailing % characters
+        let cleanContent = content;
+        if (cleanContent.endsWith('%')) {
+          cleanContent = cleanContent.slice(0, -1);
+        }
+        if (!cleanContent.endsWith('\n')) {
+          cleanContent += '\n';
+        }
+        
+        await fs.writeFile(fullPath, cleanContent, 'utf-8');
         console.log(`✅ Flushed: ${filePath}`);
       } catch (error) {
         console.error(`❌ Failed to flush ${filePath}:`, error);

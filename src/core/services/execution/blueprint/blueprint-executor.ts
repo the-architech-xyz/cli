@@ -14,6 +14,7 @@ import { VirtualFileSystem } from '../../file-system/file-engine/virtual-file-sy
 import { FileModificationEngine } from '../../file-system/file-engine/file-modification-engine.js';
 import { TemplateService } from '../../file-system/template/index.js';
 import { ModuleFetcherService } from '../../module-management/fetcher/module-fetcher.js';
+import * as path from 'path';
 
 export class BlueprintExecutor {
   private commandRunner: CommandRunner;
@@ -118,7 +119,42 @@ export class BlueprintExecutor {
    * Process template variables in content
    */
   private processTemplate(template: string, context: ProjectContext): string {
-    return TemplateService.processTemplate(template, context);
+    console.log(`🔍 BlueprintExecutor.processTemplate called with: ${template}`);
+    console.log(`🔍 Context pathHandler:`, !!context.pathHandler);
+    const result = TemplateService.processTemplate(template, context);
+    console.log(`🔍 BlueprintExecutor.processTemplate result: ${result}`);
+    return result;
+  }
+
+  /**
+   * Check for config file conflicts (TypeScript vs JavaScript)
+   */
+  private checkConfigFileConflict(filePath: string, vfs: any): { success: boolean; error?: string } {
+    // Check if this is a config file
+    const configFiles = ['next.config', 'drizzle.config', 'tailwind.config', 'vitest.config', 'tsconfig'];
+    const isConfigFile = configFiles.some(config => filePath.includes(config));
+    
+    if (!isConfigFile) {
+      return { success: true };
+    }
+    
+    // Check for conflicting extensions
+    const pathWithoutExt = filePath.replace(/\.(js|ts|mjs|json)$/, '');
+    const extensions = ['.js', '.ts', '.mjs', '.json'];
+    
+    for (const ext of extensions) {
+      if (ext !== path.extname(filePath)) {
+        const conflictPath = pathWithoutExt + ext;
+        if (vfs.fileExists(conflictPath)) {
+          return {
+            success: false,
+            error: `Conflict: ${conflictPath} already exists. The blueprint tried to create a conflicting ${path.extname(filePath)} version. Please use TypeScript (.ts) extensions for config files.`
+          };
+        }
+      }
+    }
+    
+    return { success: true };
   }
 
   /**
@@ -139,6 +175,12 @@ export class BlueprintExecutor {
           // Process template path and content
           const processedPath = this.processTemplate(action.path, context);
           const processedContent = this.processTemplate(action.content, context);
+          
+          // Check for config file conflicts (TypeScript vs JavaScript)
+          const conflictCheck = this.checkConfigFileConflict(processedPath, blueprintContext.vfs);
+          if (!conflictCheck.success) {
+            return { success: false, error: conflictCheck.error || 'Config file conflict detected' };
+          }
           
           // Create file in VFS
           blueprintContext.vfs.createFile(processedPath, processedContent);
@@ -201,6 +243,55 @@ export class BlueprintExecutor {
           // TODO: Implement actual env var addition
           
           return { success: true };
+          
+        case 'ENHANCE_FILE':
+          if (!action.path || !action.modifier) {
+            return { success: false, error: 'ENHANCE_FILE action missing path or modifier' };
+          }
+          
+          // Process template path
+          const enhancedPath = this.processTemplate(action.path, context);
+          console.log(`  🔧 Enhancing file: ${enhancedPath} with modifier: ${action.modifier}`);
+          
+          // Get the modifier registry
+          const { getModifierRegistry } = await import('../../file-system/modifiers/modifier-registry.js');
+          const modifierRegistry = getModifierRegistry();
+          
+          // Debug logging
+          console.log(`  🔍 Modifier registry size: ${modifierRegistry.size()}`);
+          console.log(`  🔍 Available modifiers: ${modifierRegistry.list().join(', ')}`);
+          console.log(`  🔍 Looking for modifier: ${action.modifier}`);
+          
+          // Get the modifier
+          const modifier = modifierRegistry.get(action.modifier);
+          if (!modifier) {
+            return { success: false, error: `Modifier '${action.modifier}' not found. Available modifiers: ${modifierRegistry.list().join(', ')}` };
+          }
+          
+          console.log(`  ✅ Found modifier: ${action.modifier}`);
+          
+          // Read the file from VFS
+          const fileContent = await blueprintContext.vfs.readFile(enhancedPath);
+          if (!fileContent) {
+            return { success: false, error: `File not found in VFS: ${enhancedPath}` };
+          }
+          
+          console.log(`  📖 Read file content (${fileContent.length} chars)`);
+          
+          // Execute the modifier
+          try {
+            const result = await modifier.handler(fileContent, action.params || {}, context);
+            if (result.success) {
+              // Write the enhanced content back to VFS
+              blueprintContext.vfs.writeFile(enhancedPath, result.content);
+              console.log(`  ✅ Enhanced file: ${enhancedPath}`);
+              return { success: true, files: [enhancedPath] };
+            } else {
+              return { success: false, error: `Modifier execution failed: ${result.error}` };
+            }
+          } catch (error) {
+            return { success: false, error: `Modifier execution error: ${error instanceof Error ? error.message : 'Unknown error'}` };
+          }
           
         default:
           return { success: false, error: `Unsupported action type: ${action.type}` };

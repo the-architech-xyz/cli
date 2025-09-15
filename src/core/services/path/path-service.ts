@@ -196,15 +196,24 @@ export class PathService {
    * Resolve template variables in a string (for {{paths.key}} patterns)
    */
   resolveTemplate(template: string): string {
+    console.log(`🔍 PathService.resolveTemplate called with: ${template}`);
+    console.log(`🔍 Available paths:`, this.getAvailablePaths());
+    
     // Replace {{paths.key}} patterns with actual resolved paths
-    return template.replace(/\{\{paths\.([^}]+)\}\}/g, (match, key) => {
+    const result = template.replace(/\{\{paths\.([^}]+)\}\}/g, (match, key) => {
+      console.log(`🔍 Processing path variable: ${key}`);
       try {
-        return this.getPath(key);
+        const resolvedPath = this.getPath(key);
+        console.log(`✅ Resolved ${key} to: ${resolvedPath}`);
+        return resolvedPath;
       } catch (error) {
         // If path not found, return the original template variable
         console.warn(`⚠️ Path '${key}' not found in framework paths, keeping template variable`);
         return match;
       }
     });
+    
+    console.log(`🔍 Final resolved template: ${result}`);
+    return result;
   }
 }

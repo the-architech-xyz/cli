@@ -61,7 +61,11 @@ export class TemplateService {
     
     // 1. Process path variables first (from decentralized path handler)
     if (opts.processPathVariables && context.pathHandler?.resolveTemplate) {
+      console.log(`🔍 TemplateService: Processing path variables for: ${template}`);
       processed = context.pathHandler.resolveTemplate(processed);
+      console.log(`🔍 TemplateService: After path processing: ${processed}`);
+    } else {
+      console.log(`⚠️ TemplateService: Path processing skipped - pathHandler:`, !!context.pathHandler, 'resolveTemplate:', !!context.pathHandler?.resolveTemplate);
     }
     
     // 2. Process Handlebars-like conditionals {{#if condition}}...{{/if}}

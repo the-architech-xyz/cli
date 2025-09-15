@@ -34,7 +34,7 @@ export class ModuleLoaderService {
   }
 
   /**
-   * Setup framework and create decentralized path handler
+   * Setup framework and create path handler
    */
   async setupFramework(
     recipe: Recipe,
@@ -62,7 +62,7 @@ export class ModuleLoaderService {
         adapterId
       );
 
-      // 3. Create path service with framework configuration
+      // 3. Create new PathService with framework adapter paths
       const pathService = new PathService(
         pathHandler.getProjectRoot(),
         pathHandler.getProjectName(),
