@@ -5,7 +5,7 @@
  * Reads YAML recipe and delegates to appropriate agents
  */
 
-import { Recipe, Module, ExecutionResult } from '@thearchitech.xyz/types';
+import { Recipe, Module, ExecutionResult, GlobalContext, LegacyProjectContext } from '@thearchitech.xyz/types';
 import { ProjectManager } from '../core/services/project/project-manager.js';
 import { PathService } from '../core/services/path/path-service.js';
 import { AdapterConfig } from '@thearchitech.xyz/types';
@@ -16,6 +16,7 @@ import { VirtualFileSystem } from '../core/services/file-system/file-engine/virt
 import { BlueprintAnalyzer } from '../core/services/project/blueprint-analyzer/index.js';
 import { ModuleFetcherService } from '../core/services/module-management/fetcher/module-fetcher.js';
 import { CacheManagerService } from '../core/services/infrastructure/cache/cache-manager.js';
+import { GlobalContextManager } from '../core/services/context/global-context-manager.js';
 import * as path from 'path';
 import { FrameworkAgent } from './core/framework-agent.js';
 import { DatabaseAgent } from './core/database-agent.js';
@@ -29,11 +30,12 @@ import { EmailAgent } from './core/email-agent.js';
 import { ObservabilityAgent } from './core/observability-agent.js';
 import { ContentAgent } from './core/content-agent.js';
 import { BlockchainAgent } from './core/blockchain-agent.js';
-import { ProjectContext, AgentResult, Blueprint } from '@thearchitech.xyz/types';
+import { AgentResult, Blueprint } from '@thearchitech.xyz/types';
 import { ModuleLoaderService } from '../core/services/module-management/module-loader/index.js';
 import { AgentExecutionService } from '../core/services/execution/agent-execution/index.js';
 import { ErrorHandler, ErrorCode } from '../core/services/infrastructure/error/index.js';
 import { Logger, ExecutionTracer, LogLevel } from '../core/services/infrastructure/logging/index.js';
+import * as fs from 'fs/promises';
 
 export class OrchestratorAgent {
   private projectManager: ProjectManager;
@@ -46,6 +48,7 @@ export class OrchestratorAgent {
   private blueprintAnalyzer: BlueprintAnalyzer;
   private moduleFetcher: ModuleFetcherService;
   private cacheManager: CacheManagerService;
+  private contextManager: GlobalContextManager;
 
   constructor(projectManager: ProjectManager) {
     this.projectManager = projectManager;
@@ -54,6 +57,34 @@ export class OrchestratorAgent {
     this.moduleFetcher = new ModuleFetcherService(this.cacheManager);
     this.moduleLoader = new ModuleLoaderService(this.moduleFetcher);
     this.agents = new Map();
+    
+    // Initialize global context manager
+    this.contextManager = new GlobalContextManager({
+      project: {
+        name: projectManager.getProjectConfig().name,
+        description: projectManager.getProjectConfig().description || '',
+        version: projectManager.getProjectConfig().version || '1.0.0',
+        path: projectManager.getProjectConfig().path,
+        framework: { type: '', version: '', configuration: {} },
+        structure: { srcDir: 'src', publicDir: 'public', configDir: '.', libDir: 'src/lib' },
+        files: { created: [], modified: [], deleted: [] }
+      },
+      environment: {
+        variables: new Map(),
+        cliOptions: {},
+        runtime: {
+          nodeVersion: process.version,
+          platform: process.platform,
+          arch: process.arch
+        },
+        paths: {
+          projectRoot: projectManager.getProjectConfig().path,
+          sourceRoot: path.join(projectManager.getProjectConfig().path, 'src'),
+          configRoot: projectManager.getProjectConfig().path,
+          libRoot: path.join(projectManager.getProjectConfig().path, 'src/lib')
+        }
+      }
+    });
     
     // Initialize integration services
     this.integrationRegistry = new IntegrationRegistry();
@@ -133,17 +164,29 @@ export class OrchestratorAgent {
 
 
   /**
-   * Execute a complete recipe
+   * Execute a complete recipe using Global Context Management
    */
   async executeRecipe(recipe: Recipe): Promise<ExecutionResult> {
     // Initialize the orchestrator
     await this.initialize();
     
+    // Update global context with recipe information
+    this.contextManager.updateProjectState({
+      name: recipe.project.name,
+      description: recipe.project.description || '',
+      version: recipe.project.version || '1.0.0',
+      framework: {
+        type: recipe.project.framework,
+        version: '1.0.0',
+        configuration: {}
+      }
+    });
+
     // Start execution trace
-    const traceId = ExecutionTracer.startTrace('recipe_execution', {
-      projectName: recipe.project.name,
-      moduleCount: recipe.modules.length,
-      hasIntegrations: !!(recipe.integrations && recipe.integrations.length > 0)
+    const traceId = this.contextManager.getExecutionState().traceId;
+    this.contextManager.updateExecutionState({
+      status: 'running',
+      currentPhase: 'initialization'
     });
 
     Logger.info(`🎯 Orchestrator Agent executing recipe: ${recipe.project.name}`, {
@@ -183,7 +226,12 @@ export class OrchestratorAgent {
       ExecutionTracer.logOperation(traceId, 'Sorting modules by execution order');
       const sortedModules = this.moduleLoader.sortModulesByExecutionOrder(recipe.modules);
       
-      // 5. Execute modules using the NEW Contextual, Isolated VFS architecture
+      // Update context with module execution order
+      this.contextManager.updateExecutionState({
+        currentPhase: 'modules'
+      });
+      
+      // 5. Execute modules using Global Context Management
       const moduleResults = [];
       
       for (let i = 0; i < sortedModules.length; i++) {
@@ -193,6 +241,20 @@ export class OrchestratorAgent {
           errors.push(`Module at index ${i} is undefined`);
           break;
         }
+        
+        // Update context with current module
+        this.contextManager.updateExecutionState({
+          currentModule: module.id
+        });
+        
+        // Add module configuration to context
+        this.contextManager.addModuleConfiguration(module.id, {
+          id: module.id,
+          category: module.category,
+          version: module.version,
+          parameters: module.parameters || {},
+          features: {}
+        });
         
         Logger.info(`🚀 [${i + 1}/${sortedModules.length}] Executing module: ${module.id} (${module.category})`, {
           traceId,
@@ -209,13 +271,8 @@ export class OrchestratorAgent {
             break;
           }
           
-          // Create project context
-          const context = this.moduleLoader.createProjectContext(
-            recipe,
-            module,
-            adapterResult.adapter!.config,
-            this.pathHandler
-          );
+          // Create legacy context for backward compatibility
+          const context = this.createLegacyContext(recipe, module, adapterResult.adapter!.config);
 
           // NEW ARCHITECTURE: Contextual, Isolated VFS
           const blueprint = adapterResult.adapter!.blueprint;
@@ -294,6 +351,16 @@ export class OrchestratorAgent {
             }
           };
           
+          // Add module result to global context
+          this.contextManager.addModuleResult(module.id, {
+            success: moduleResult.success,
+            files: moduleResult.files,
+            errors: moduleResult.errors,
+            warnings: moduleResult.warnings,
+            dependencies: [], // Will be populated by BlueprintExecutor
+            environmentVariables: [] // Will be populated by BlueprintExecutor
+          });
+          
           moduleResults.push(moduleResult);
           
           if (moduleResult.success) {
@@ -361,6 +428,10 @@ export class OrchestratorAgent {
         
         // Execute integration adapters if any are specified
         if (recipe.integrations && recipe.integrations.length > 0) {
+          this.contextManager.updateExecutionState({
+            currentPhase: 'integrations'
+          });
+          
           Logger.info(`🔗 Executing ${recipe.integrations.length} integration adapters...`, {
             traceId,
             operation: 'integration_execution',
@@ -369,10 +440,17 @@ export class OrchestratorAgent {
           await this.executeIntegrationAdapters(recipe, results, errors, warnings);
         }
         
+        // 7. Finalize package.json and .env.example
+        this.contextManager.updateExecutionState({
+          currentPhase: 'finalization'
+        });
+        
+        await this.finalizePackageJson();
+        await this.generateEnvExample();
+        
         // Create architech.json file
         ExecutionTracer.logOperation(traceId, 'Creating architech.json configuration file');
         await this.createArchitechConfig(recipe);
-        
         
         // Final step: Install all dependencies
         if (!recipe.options?.skipInstall) {
@@ -390,6 +468,12 @@ export class OrchestratorAgent {
         });
       }
       
+      // Update final execution state
+      this.contextManager.updateExecutionState({
+        status: success ? 'completed' : 'failed',
+        endTime: new Date()
+      });
+      
       // End execution trace
       ExecutionTracer.endTrace(traceId, success);
       
@@ -406,6 +490,12 @@ export class OrchestratorAgent {
         traceId,
         operation: 'recipe_execution'
       }, error instanceof Error ? error : undefined);
+      
+      // Update context with failure
+      this.contextManager.updateExecutionState({
+        status: 'failed',
+        endTime: new Date()
+      });
       
       // End execution trace with failure
       ExecutionTracer.endTrace(traceId, false, error instanceof Error ? error : undefined);
@@ -627,6 +717,110 @@ export class OrchestratorAgent {
     } catch (error) {
       console.warn('⚠️ Failed to install dependencies automatically. Please run "npm install" manually.');
       console.warn(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Create legacy context for backward compatibility
+   */
+  private createLegacyContext(recipe: Recipe, module: any, adapter: any): LegacyProjectContext {
+    const allModules = recipe.modules.reduce((acc, mod) => {
+      acc[mod.id] = mod;
+      return acc;
+    }, {} as Record<string, any>);
+
+    return {
+      project: {
+        name: recipe.project.name,
+        path: this.pathHandler.getProjectRoot(),
+        framework: recipe.project.framework,
+        description: recipe.project.description || '',
+        author: recipe.project.author || '',
+        version: recipe.project.version || '1.0.0',
+        license: recipe.project.license || 'MIT'
+      },
+      module: module,
+      pathHandler: this.pathHandler,
+      adapter: adapter,
+      framework: recipe.project.framework,
+      cliArgs: {},
+      projectRoot: this.pathHandler.getProjectRoot(),
+      modules: allModules,
+      databaseModule: recipe.modules.find(m => m.category === 'database'),
+      paymentModule: recipe.modules.find(m => m.category === 'payment'),
+      authModule: recipe.modules.find(m => m.category === 'auth'),
+      emailModule: recipe.modules.find(m => m.category === 'email'),
+      observabilityModule: recipe.modules.find(m => m.category === 'observability'),
+      stateModule: recipe.modules.find(m => m.category === 'state'),
+      uiModule: recipe.modules.find(m => m.category === 'ui'),
+      testingModule: recipe.modules.find(m => m.category === 'testing'),
+      deploymentModule: recipe.modules.find(m => m.category === 'deployment'),
+      contentModule: recipe.modules.find(m => m.category === 'content'),
+      blockchainModule: recipe.modules.find(m => m.category === 'blockchain')
+    };
+  }
+
+  /**
+   * Finalize package.json with all collected dependencies
+   */
+  private async finalizePackageJson(): Promise<void> {
+    try {
+      const dependencyState = this.contextManager.getDependencyState();
+      const packageJsonPath = path.join(this.contextManager.getContext().environment.paths.projectRoot, 'package.json');
+      
+      // Read existing package.json
+      const existingPackage = await fs.readFile(packageJsonPath, 'utf-8');
+      const packageJson = JSON.parse(existingPackage);
+      
+      // Merge all collected dependencies
+      packageJson.dependencies = { 
+        ...packageJson.dependencies, 
+        ...Object.fromEntries(dependencyState.packages.dependencies) 
+      };
+      packageJson.devDependencies = { 
+        ...packageJson.devDependencies, 
+        ...Object.fromEntries(dependencyState.packages.devDependencies) 
+      };
+      packageJson.scripts = { 
+        ...packageJson.scripts, 
+        ...Object.fromEntries(dependencyState.scripts) 
+      };
+      
+      // Update metadata
+      const projectState = this.contextManager.getProjectState();
+      packageJson.name = projectState.name || 'test-full-app';
+      packageJson.description = projectState.description || '';
+      packageJson.version = projectState.version || '1.0.0';
+      
+      // Write back
+      await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
+      
+      console.log('✅ Package.json finalized with all dependencies');
+    } catch (error) {
+      console.error(`❌ Failed to finalize package.json: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Generate .env.example file with all collected environment variables
+   */
+  private async generateEnvExample(): Promise<void> {
+    try {
+      const envVars = this.contextManager.getContext().environment.variables;
+      const envExamplePath = path.join(this.contextManager.getContext().environment.paths.projectRoot, '.env.example');
+      
+      let envExample = '# Environment Variables\n# Copy this file to .env.local and fill in your values\n\n';
+      
+      for (const [key, variable] of envVars) {
+        envExample += `# ${variable.description}\n`;
+        envExample += `${key}=${variable.value}\n\n`;
+      }
+      
+      await fs.writeFile(envExamplePath, envExample);
+      
+      console.log('✅ .env.example generated with all environment variables');
+    } catch (error) {
+      console.error(`❌ Failed to generate .env.example: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 }

@@ -131,6 +131,7 @@ export class BlueprintAnalyzer {
   
   /**
    * Pre-validate that all required files exist on disk
+   * Excludes files that will be created by the blueprint itself
    */
   async validateRequiredFiles(analysis: BlueprintAnalysis, projectRoot: string): Promise<{
     valid: boolean;
@@ -143,7 +144,12 @@ export class BlueprintAnalyzer {
     const missingFiles: string[] = [];
     const existingFiles: string[] = [];
     
-    for (const filePath of analysis.allRequiredFiles) {
+    // Only validate files that are NOT being created by this blueprint
+    const filesToValidate = analysis.allRequiredFiles.filter(filePath => 
+      !analysis.filesToCreate.includes(filePath)
+    );
+    
+    for (const filePath of filesToValidate) {
       const fullPath = path.join(projectRoot, filePath);
       try {
         await fs.access(fullPath);

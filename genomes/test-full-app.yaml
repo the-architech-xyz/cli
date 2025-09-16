@@ -1,7 +1,7 @@
 version: "1.0.0"
 
 project:
-  name: "Full Stack Test App"
+  name: "full-stack-test-app"
   description: "Complete test application with all adapters and integrations"
   version: "1.0.0"
   framework: "nextjs"
@@ -86,6 +86,10 @@ modules:
       theme: "default"
       components: ["button", "input", "card", "dialog", "form"]
       darkMode: true
+    features:
+      advanced-components: true
+      theming: true
+      accessibility: true
 
   # Testing
   - id: "testing/vitest"
@@ -123,6 +127,11 @@ modules:
       networks: ["goerli", "polygon"]
       walletConnect: true
       contracts: []
+    features:
+      wallet-integration: true
+      smart-contracts: true
+      defi-protocols: false
+      nft-support: false
 
 integrations:
   # Database Integrations
@@ -170,12 +179,23 @@ integrations:
 
   - name: "stripe-shadcn-integration"
     features:
-      paymentForms: true
-      subscriptionCards: true
-      invoiceTables: false
-      paymentButtons: true
-      adminPanels: false
-      pricingCards: true
+      basicPayments: true
+      subscriptions: true
+      invoicing: true
+      pricing: true
+      paymentMethods: true
+      billingHistory: true
+      subscriptionManagement: true
+      webhooks: true
+      coupons: false
+      taxes: false
+      refunds: false
+      analytics: false
+      testing: false
+      multiCurrency: false
+      mobilePayments: false
+      accessibility: true
+      theming: true
 
   - name: "stripe-drizzle-integration"
     features:
@@ -199,12 +219,25 @@ integrations:
 
   - name: "resend-shadcn-integration"
     features:
-      emailForm: true
+      basicEmail: true
       emailTemplates: true
-      emailCampaigns: false
-      emailList: false
       emailComposer: true
       emailSettings: true
+      emailCampaigns: true
+      emailList: true
+      emailAnalytics: true
+      emailScheduling: false
+      emailAutomation: false
+      emailSegmentation: false
+      emailPersonalization: false
+      emailTesting: false
+      emailCompliance: false
+      emailWebhooks: false
+      emailBatching: false
+      emailAttachments: false
+      emailTracking: false
+      accessibility: true
+      theming: true
 
   # Observability Integrations
   - name: "sentry-nextjs-integration"
@@ -214,8 +247,21 @@ integrations:
       userFeedback: true
       middleware: true
       profiling: false
-      alerts: false
+      alerts: true
       releaseTracking: true
+      sessionReplay: false
+      customMetrics: false
+      errorGrouping: false
+      crashReporting: true
+      breadcrumbs: true
+      sourceMaps: false
+      integrations: false
+      customTags: false
+      sampling: false
+      privacy: false
+      webhooks: false
+      analytics: false
+      testing: false
 
   - name: "sentry-drizzle-integration"
     features:
@@ -266,6 +312,11 @@ integrations:
       icons: true
       forms: true
       dataDisplay: true
+      nextjsOptimizations: true
+      seoComponents: true
+      formValidation: true
+      imageOptimization: true
+      linkOptimization: true
 
   # Testing Integrations
   - name: "vitest-nextjs-integration"
@@ -342,29 +393,48 @@ integrations:
   # Web3 Integrations
   - name: "web3-nextjs-integration"
     features:
+      viemIntegration: true
+      reactQuery: true
+      typeScript: true
       walletConnection: true
       smartContracts: true
       transactions: true
       networkSwitching: true
-      eventListening: true
       apiRoutes: true
       middleware: true
-      uiComponents: true
-      typeScript: true
       errorHandling: true
+      validation: true
 
   - name: "web3-shadcn-integration"
     features:
+      viemIntegration: true
       walletComponents: true
       transactionComponents: true
-      contractComponents: true
       networkComponents: true
-      tokenComponents: true
-      nftComponents: false
-      dashboardComponents: false
-      chartComponents: false
-      alertComponents: true
-      settingsComponents: true
+      balanceComponents: true
+      dashboardComponents: true
+      reactQuery: true
+      typeScript: true
+      accessibility: true
+      theming: true
+
+  - name: "web3-shadcn-nextjs-integration"
+    features:
+      viemIntegration: true
+      reactQuery: true
+      typeScript: true
+      shadcnComponents: true
+      transactionManagement: true
+      networkSwitching: true
+      balanceTracking: true
+      web3Dashboard: true
+      nextjsOptimizations: true
+      seoComponents: true
+      formValidation: true
+      imageOptimization: true
+      linkOptimization: true
+      theming: true
+      accessibility: true
 
 options:
   skipInstall: true

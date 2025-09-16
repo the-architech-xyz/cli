@@ -5,7 +5,7 @@
  * Handles variable substitution, conditional blocks, and path resolution.
  */
 
-import { ProjectContext } from '@thearchitech.xyz/types';
+import { GlobalContext, LegacyProjectContext } from '@thearchitech.xyz/types';
 
 export interface TemplateProcessingOptions {
   /**
@@ -53,19 +53,22 @@ export class TemplateService {
    */
   static processTemplate(
     template: string, 
-    context: ProjectContext, 
+    context: GlobalContext | LegacyProjectContext, 
     options: TemplateProcessingOptions = {}
   ): string {
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
     let processed = template;
     
     // 1. Process path variables first (from decentralized path handler)
-    if (opts.processPathVariables && context.pathHandler?.resolveTemplate) {
+    if (opts.processPathVariables && 'pathHandler' in context && context.pathHandler?.resolveTemplate) {
       console.log(`🔍 TemplateService: Processing path variables for: ${template}`);
       processed = context.pathHandler.resolveTemplate(processed);
       console.log(`🔍 TemplateService: After path processing: ${processed}`);
+    } else if (opts.processPathVariables && 'environment' in context) {
+      // Use GlobalContext path resolution
+      processed = this.resolvePathVariables(processed, context);
     } else {
-      console.log(`⚠️ TemplateService: Path processing skipped - pathHandler:`, !!context.pathHandler, 'resolveTemplate:', !!context.pathHandler?.resolveTemplate);
+      console.log(`⚠️ TemplateService: Path processing skipped - pathHandler:`, 'pathHandler' in context ? !!context.pathHandler : 'N/A', 'resolveTemplate:', 'pathHandler' in context ? !!context.pathHandler?.resolveTemplate : 'N/A');
     }
     
     // 2. Process Handlebars-like conditionals {{#if condition}}...{{/if}}
@@ -82,11 +85,27 @@ export class TemplateService {
   }
 
   /**
+   * Resolve path variables using GlobalContext
+   */
+  private static resolvePathVariables(template: string, context: GlobalContext): string {
+    return template.replace(/\{\{paths\.([^}]+)\}\}/g, (match, key) => {
+      const paths = context.environment.paths;
+      switch (key) {
+        case 'projectRoot': return paths.projectRoot;
+        case 'sourceRoot': return paths.sourceRoot;
+        case 'configRoot': return paths.configRoot;
+        case 'libRoot': return paths.libRoot;
+        default: return match;
+      }
+    });
+  }
+
+  /**
    * Process Handlebars-like conditionals {{#if condition}}...{{/if}}
    */
   private static processConditionals(
     template: string, 
-    context: ProjectContext, 
+    context: GlobalContext | LegacyProjectContext, 
     options: Required<TemplateProcessingOptions>
   ): string {
     const conditionalRegex = new RegExp(
@@ -105,7 +124,7 @@ export class TemplateService {
    */
   private static processVariables(
     template: string, 
-    context: ProjectContext, 
+    context: GlobalContext | LegacyProjectContext, 
     options: Required<TemplateProcessingOptions>
   ): string {
     const variableRegex = new RegExp(
@@ -129,44 +148,65 @@ export class TemplateService {
   /**
    * Resolve cross-module parameters for common template variables
    */
-  private static resolveCrossModuleParameter(context: ProjectContext, variable: string): unknown {
+  private static resolveCrossModuleParameter(context: GlobalContext | LegacyProjectContext, variable: string): unknown {
+    // Handle GlobalContext
+    if ('environment' in context) {
+      const globalContext = context as GlobalContext;
+      
+      // Handle module parameters
+      if (variable.startsWith('module.parameters.')) {
+        const paramPath = variable.substring(18);
+        const currentModule = globalContext.execution.currentModule;
+        if (currentModule) {
+          const moduleConfig = globalContext.modules.configurations.get(currentModule);
+          return this.getNestedValueFromObject(moduleConfig?.parameters || {}, paramPath);
+        }
+        return undefined;
+      }
+      
+      return undefined;
+    }
+    
+    // Handle LegacyProjectContext
+    const legacyContext = context as LegacyProjectContext;
+    
     // Handle common cross-module parameter patterns
     if (variable === 'module.parameters.databaseType') {
-      return context.databaseModule?.parameters?.databaseType || 
-             context.databaseModule?.parameters?.provider ||
+      return legacyContext.databaseModule?.parameters?.databaseType || 
+             legacyContext.databaseModule?.parameters?.provider ||
              'postgresql';
     }
     
     if (variable === 'module.parameters.currency') {
-      const currencies = context.paymentModule?.parameters?.currencies;
+      const currencies = legacyContext.paymentModule?.parameters?.currencies;
       if (Array.isArray(currencies) && currencies.length > 0) {
         return currencies[0]; // Return first currency
       }
-      return context.paymentModule?.parameters?.currency || 'usd';
+      return legacyContext.paymentModule?.parameters?.currency || 'usd';
     }
     
     if (variable === 'module.parameters.provider') {
-      return context.databaseModule?.parameters?.provider || 'postgresql';
+      return legacyContext.databaseModule?.parameters?.provider || 'postgresql';
     }
     
     if (variable === 'module.parameters.mode') {
-      return context.paymentModule?.parameters?.mode || 'test';
+      return legacyContext.paymentModule?.parameters?.mode || 'test';
     }
     
     // Handle other common patterns
     if (variable.startsWith('databaseModule.parameters.')) {
       const param = variable.replace('databaseModule.parameters.', '');
-      return context.databaseModule?.parameters?.[param];
+      return legacyContext.databaseModule?.parameters?.[param];
     }
     
     if (variable.startsWith('paymentModule.parameters.')) {
       const param = variable.replace('paymentModule.parameters.', '');
-      return context.paymentModule?.parameters?.[param];
+      return legacyContext.paymentModule?.parameters?.[param];
     }
     
     if (variable.startsWith('authModule.parameters.')) {
       const param = variable.replace('authModule.parameters.', '');
-      return context.authModule?.parameters?.[param];
+      return legacyContext.authModule?.parameters?.[param];
     }
     
     return undefined;
@@ -175,7 +215,52 @@ export class TemplateService {
   /**
    * Get nested value from object using dot notation
    */
-  private static getNestedValue(obj: unknown, path: string): unknown {
+  private static getNestedValue(obj: GlobalContext | LegacyProjectContext, path: string): unknown {
+    if (!path) return undefined;
+    
+    // Handle GlobalContext specific paths
+    if ('environment' in obj) {
+      const globalContext = obj as GlobalContext;
+      
+      // Handle environment variables
+      if (path.startsWith('env.')) {
+        const key = path.substring(4);
+        const variable = globalContext.environment.variables.get(key);
+        return variable ? variable.value : undefined;
+      }
+      
+      // Handle module parameters
+      if (path.startsWith('module.parameters.')) {
+        const paramPath = path.substring(18);
+        const currentModule = globalContext.execution.currentModule;
+        if (currentModule) {
+          const moduleConfig = globalContext.modules.configurations.get(currentModule);
+          return this.getNestedValueFromObject(moduleConfig?.parameters || {}, paramPath);
+        }
+        return undefined;
+      }
+      
+      // Handle project variables
+      if (path.startsWith('project.')) {
+        const propPath = path.substring(8);
+        return this.getNestedValueFromObject(globalContext.project, propPath);
+      }
+      
+      // Handle execution variables
+      if (path.startsWith('execution.')) {
+        const propPath = path.substring(10);
+        return this.getNestedValueFromObject(globalContext.execution, propPath);
+      }
+    }
+    
+    // Fallback to standard nested value resolution
+    return this.getNestedValueFromObject(obj, path);
+  }
+
+  /**
+   * Get nested value from object using dot notation (helper method)
+   */
+  private static getNestedValueFromObject(obj: unknown, path: string): unknown {
     if (!path) return undefined;
     
     return path.split('.').reduce((current, key) => {

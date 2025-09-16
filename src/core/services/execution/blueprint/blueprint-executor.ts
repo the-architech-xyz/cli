@@ -7,7 +7,7 @@
  * Layer 3: Blueprint Executor (orchestration)
  */
 
-import { Blueprint, BlueprintAction, BlueprintExecutionResult, ProjectContext, BlueprintContext } from '@thearchitech.xyz/types';
+import { Blueprint, BlueprintAction, BlueprintExecutionResult, GlobalContext, LegacyProjectContext, BlueprintContext } from '@thearchitech.xyz/types';
 import { CommandRunner } from '../../../cli/command-runner.js';
 import { logger } from '../../../utils/logger.js';
 import { VirtualFileSystem } from '../../file-system/file-engine/virtual-file-system.js';
@@ -15,6 +15,7 @@ import { FileModificationEngine } from '../../file-system/file-engine/file-modif
 import { TemplateService } from '../../file-system/template/index.js';
 import { ModuleFetcherService } from '../../module-management/fetcher/module-fetcher.js';
 import * as path from 'path';
+import * as fs from 'fs/promises';
 
 export class BlueprintExecutor {
   private commandRunner: CommandRunner;
@@ -27,7 +28,7 @@ export class BlueprintExecutor {
   /**
    * Execute a blueprint
    */
-  async executeBlueprint(blueprint: Blueprint, context: ProjectContext, blueprintContext?: BlueprintContext): Promise<BlueprintExecutionResult> {
+  async executeBlueprint(blueprint: Blueprint, context: GlobalContext | LegacyProjectContext, blueprintContext?: BlueprintContext): Promise<BlueprintExecutionResult> {
     console.log(`🎯 Executing blueprint: ${blueprint.name}`);
     
     const files: string[] = [];
@@ -41,7 +42,8 @@ export class BlueprintExecutor {
     if (blueprintContext) {
       vfs = blueprintContext.vfs;
     } else {
-      vfs = new (await import('../../file-system/file-engine/virtual-file-system.js')).VirtualFileSystem(`blueprint-${blueprint.id}`, context.project.path || '.');
+      const projectPath = 'project' in context ? context.project.path : (('projectRoot' in context) ? (context as any).projectRoot || '.' : '.');
+      vfs = new (await import('../../file-system/file-engine/virtual-file-system.js')).VirtualFileSystem(`blueprint-${blueprint.id}`, projectPath);
       shouldFlushVFS = true;
     }
     
@@ -118,9 +120,9 @@ export class BlueprintExecutor {
   /**
    * Process template variables in content
    */
-  private processTemplate(template: string, context: ProjectContext): string {
+  private processTemplate(template: string, context: GlobalContext | LegacyProjectContext): string {
     console.log(`🔍 BlueprintExecutor.processTemplate called with: ${template}`);
-    console.log(`🔍 Context pathHandler:`, !!context.pathHandler);
+    console.log(`🔍 Context pathHandler:`, 'pathHandler' in context ? !!context.pathHandler : 'N/A');
     const result = TemplateService.processTemplate(template, context);
     console.log(`🔍 BlueprintExecutor.processTemplate result: ${result}`);
     return result;
@@ -162,7 +164,7 @@ export class BlueprintExecutor {
    */
   private async executeSemanticAction(
     action: BlueprintAction, 
-    context: ProjectContext, 
+    context: GlobalContext | LegacyProjectContext, 
     blueprintContext: BlueprintContext
   ): Promise<{ success: boolean; files?: string[]; error?: string }> {
     try {
@@ -197,10 +199,34 @@ export class BlueprintExecutor {
           const runCommand = this.processTemplate(action.command, context);
           console.log(`  ⚡ Executing command: ${runCommand}`);
           
-          // For now, just log the command (in a real implementation, this would execute it)
-          // TODO: Implement actual command execution
-          
-          return { success: true };
+          // Actually execute the command
+          try {
+            const { exec } = await import('child_process');
+            const { promisify } = await import('util');
+            const execAsync = promisify(exec);
+            
+            // Execute command in the project directory
+            const projectRoot = 'pathHandler' in context && context.pathHandler ? context.pathHandler.getProjectRoot() : '.';
+            const { stdout, stderr } = await execAsync(runCommand, { 
+              cwd: projectRoot,
+              timeout: (action as any).timeout || 30000 // 30 second timeout by default
+            });
+            
+            if (stdout) {
+              console.log(`  📤 Output: ${stdout}`);
+            }
+            if (stderr) {
+              console.log(`  ⚠️  Stderr: ${stderr}`);
+            }
+            
+            console.log(`  ✅ Command executed successfully`);
+            return { success: true };
+            
+          } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.log(`  ❌ Command failed: ${errorMessage}`);
+            return { success: false, error: `Command execution failed: ${errorMessage}` };
+          }
           
         case 'INSTALL_PACKAGES':
           if (!action.packages) {
@@ -211,10 +237,53 @@ export class BlueprintExecutor {
           const processedPackages = action.packages.map(pkg => this.processTemplate(pkg, context));
           console.log(`  📦 Installing packages: ${processedPackages.join(' ')}`);
           
-          // For now, just log the packages (in a real implementation, this would install them)
-          // TODO: Implement actual package installation
-          
-          return { success: true };
+          // Actually add packages to package.json using the package-json-merger
+          try {
+            const packageJsonPath = 'pathHandler' in context && context.pathHandler ? context.pathHandler.getPackageJsonPath() : 'package.json';
+            
+            // Convert packages array to dependencies object
+            const dependencies: Record<string, string> = {};
+            const devDependencies: Record<string, string> = {};
+            
+            for (const pkg of processedPackages) {
+              // Check if it's a dev dependency (starts with @types/ or common dev packages)
+              const isDevDep = pkg.startsWith('@types/') || 
+                              pkg.startsWith('@typescript-eslint/') ||
+                              pkg.startsWith('eslint-') ||
+                              pkg.startsWith('prettier') ||
+                              pkg.startsWith('vitest') ||
+                              pkg.startsWith('@vitejs/') ||
+                              pkg.startsWith('typescript') ||
+                              action.isDev === true;
+              
+              if (isDevDep) {
+                devDependencies[pkg] = 'latest';
+              } else {
+                dependencies[pkg] = 'latest';
+              }
+            }
+            
+            // Use the package-json-merger to add dependencies
+            const { PackageJsonMerger } = await import('../../file-system/modifiers/modifier-service.js');
+            const { FileModificationEngine } = await import('../../file-system/file-engine/file-modification-engine.js');
+            const engine = new FileModificationEngine(blueprintContext.vfs, context.project.path || '.');
+            const merger = new PackageJsonMerger(engine);
+            
+            const result = await merger.execute(packageJsonPath, {
+              dependencies: Object.keys(dependencies).length > 0 ? dependencies : undefined,
+              devDependencies: Object.keys(devDependencies).length > 0 ? devDependencies : undefined
+            }, this.createProjectContext(context));
+            
+            if (!result.success) {
+              return { success: false, error: `Failed to add packages: ${result.error}` };
+            }
+            
+            console.log(`  ✅ Successfully added packages to package.json`);
+            return { success: true };
+            
+          } catch (error) {
+            return { success: false, error: `Failed to install packages: ${error instanceof Error ? error.message : 'Unknown error'}` };
+          }
           
         case 'ADD_SCRIPT':
           if (!action.command || !action.name) {
@@ -225,10 +294,32 @@ export class BlueprintExecutor {
           const scriptCommand = this.processTemplate(action.command, context);
           console.log(`  📝 Adding script '${action.name}': ${scriptCommand}`);
           
-          // For now, just log the script (in a real implementation, this would add to package.json)
-          // TODO: Implement actual script addition
-          
-          return { success: true };
+          // Actually add script to package.json using the package-json-merger
+          try {
+            const packageJsonPath = 'pathHandler' in context && context.pathHandler ? context.pathHandler.getPackageJsonPath() : 'package.json';
+            
+            // Use the package-json-merger to add script
+            const { PackageJsonMerger } = await import('../../file-system/modifiers/modifier-service.js');
+            const { FileModificationEngine } = await import('../../file-system/file-engine/file-modification-engine.js');
+            const engine = new FileModificationEngine(blueprintContext.vfs, context.project.path || '.');
+            const merger = new PackageJsonMerger(engine);
+            
+            const result = await merger.execute(packageJsonPath, {
+              scripts: {
+                [action.name]: scriptCommand
+              }
+            }, this.createProjectContext(context));
+            
+            if (!result.success) {
+              return { success: false, error: `Failed to add script: ${result.error}` };
+            }
+            
+            console.log(`  ✅ Successfully added script '${action.name}' to package.json`);
+            return { success: true };
+            
+          } catch (error) {
+            return { success: false, error: `Failed to add script: ${error instanceof Error ? error.message : 'Unknown error'}` };
+          }
           
         case 'ADD_ENV_VAR':
           if (!action.key || !action.value) {
@@ -239,10 +330,39 @@ export class BlueprintExecutor {
           const processedValue = this.processTemplate(action.value, context);
           console.log(`  🔧 Adding env var '${action.key}': ${processedValue}`);
           
-          // For now, just log the env var (in a real implementation, this would add to .env)
-          // TODO: Implement actual env var addition
-          
-          return { success: true };
+          // Actually add environment variable to .env file
+          try {
+            const envPath = 'pathHandler' in context && context.pathHandler ? context.pathHandler.resolvePath('.env') : '.env';
+            
+            // Read existing .env file or create new one
+            let envContent = '';
+            try {
+              envContent = await fs.readFile(envPath, 'utf-8');
+            } catch (error) {
+              // File doesn't exist, create new one
+              envContent = '';
+            }
+            
+            // Check if key already exists
+            const keyRegex = new RegExp(`^${action.key}=.*$`, 'm');
+            if (keyRegex.test(envContent)) {
+              // Update existing key
+              envContent = envContent.replace(keyRegex, `${action.key}=${processedValue}`);
+            } else {
+              // Add new key
+              envContent += envContent.endsWith('\n') ? '' : '\n';
+              envContent += `${action.key}=${processedValue}\n`;
+            }
+            
+            // Write back to .env file
+            await fs.writeFile(envPath, envContent);
+            
+            console.log(`  ✅ Successfully added environment variable '${action.key}' to .env`);
+            return { success: true };
+            
+          } catch (error) {
+            return { success: false, error: `Failed to add environment variable: ${error instanceof Error ? error.message : 'Unknown error'}` };
+          }
           
         case 'ENHANCE_FILE':
           if (!action.path || !action.modifier) {
@@ -305,9 +425,40 @@ export class BlueprintExecutor {
   }
 
   /**
+   * Create ProjectContext from GlobalContext or LegacyProjectContext
+   */
+  private createProjectContext(context: GlobalContext | LegacyProjectContext): any {
+    if ('environment' in context) {
+      // GlobalContext - create a minimal ProjectContext
+      const globalContext = context as GlobalContext;
+      return {
+        project: {
+          name: globalContext.project.name,
+          path: globalContext.environment.paths.projectRoot,
+          framework: globalContext.project.framework.type,
+          description: globalContext.project.description,
+          version: globalContext.project.version,
+          author: '',
+          license: 'MIT'
+        },
+        module: { id: '', category: '', version: '', parameters: {} },
+        pathHandler: null,
+        adapter: null,
+        framework: globalContext.project.framework.type,
+        cliArgs: {},
+        projectRoot: globalContext.environment.paths.projectRoot,
+        modules: {}
+      };
+    } else {
+      // LegacyProjectContext - return as is
+      return context;
+    }
+  }
+
+  /**
    * Evaluate condition for conditional actions
    */
-  private evaluateCondition(condition: string, context: ProjectContext): boolean {
+  private evaluateCondition(condition: string, context: GlobalContext | LegacyProjectContext): boolean {
     try {
       // Process template for condition evaluation
       const templateService = new TemplateService();
