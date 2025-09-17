@@ -50,7 +50,7 @@
   "dependencies": {
     "@better-auth/utils": "^0.2.6",
     "@neondatabase/serverless": "^1.0.1",
-    "@thearchitech.xyz/types": "^1.0.0",
+    "@thearchitech.xyz/types": "^1.0.4",
     "@thearchitech/marketplace": "file:../marketplace",
     "@types/ejs": "^3.1.5",
     "@types/js-yaml": "^4.0.9",

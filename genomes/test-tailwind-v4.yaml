@@ -1,0 +1,63 @@
+version: "1.0.0"
+
+project:
+  name: "test-tailwind-v4"
+  description: "Test application for Tailwind v4 + Shadcn/UI compatibility"
+  version: "1.0.0"
+  framework: "nextjs"
+  path: "./test-tailwind-v4"
+
+modules:
+  # Framework
+  - id: "framework/nextjs"
+    category: "framework"
+    version: "15.0.0"
+    parameters:
+      typescript: true
+      tailwind: true
+      eslint: true
+      appRouter: true
+      srcDir: true
+      importAlias: "@/*"
+    features:
+      performance: true
+      security: true
+      server-actions: true
+
+  # UI Components
+  - id: "ui/shadcn-ui"
+    category: "ui"
+    version: "1.0.0"
+    parameters:
+      theme: "default"
+      components: ["button", "input", "card", "dialog", "form"]
+      darkMode: true
+    features:
+      theming: true
+      accessibility: true
+
+integrations:
+  # UI Integrations
+  - name: "shadcn-nextjs-integration"
+    parameters:
+      theming: true
+    features:
+      coreComponents: true
+      advancedComponents: true
+      layoutComponents: true
+      themeSystem: true
+      accessibility: true
+      responsiveDesign: true
+      animations: true
+      icons: true
+      forms: true
+      dataDisplay: true
+      nextjsOptimizations: true
+      seoComponents: true
+      formValidation: true
+      imageOptimization: true
+      linkOptimization: true
+
+options:
+  skipInstall: true
+  verbose: true

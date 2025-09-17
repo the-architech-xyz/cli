@@ -11,7 +11,7 @@ modules:
   # Framework
   - id: "framework/nextjs"
     category: "framework"
-    version: "14.0.0"
+    version: "15.0.0"
     parameters:
       typescript: true
       tailwind: true
@@ -19,6 +19,10 @@ modules:
       appRouter: true
       srcDir: true
       importAlias: "@/*"
+    features:
+      performance: true
+      security: true
+      server-actions: true
 
   # Database
   - id: "database/drizzle"
@@ -78,18 +82,37 @@ modules:
       persistence: true
       middleware: true
 
+  # Forms
+  - id: "ui/forms"
+    category: "ui"
+    version: "1.0.0"
+    parameters:
+      zod: true
+      reactHookForm: true
+      resolvers: true
+
   # UI Components
   - id: "ui/shadcn-ui"
     category: "ui"
     version: "1.0.0"
     parameters:
       theme: "default"
-      components: ["button", "input", "card", "dialog", "form"]
+      components: ["button", "input", "card", "dialog", "form", "table", "badge", "avatar", "dropdown-menu", "toast", "sheet", "tabs", "accordion", "carousel", "calendar", "date-picker", "alert-dialog", "checkbox", "collapsible", "context-menu", "hover-card", "menubar", "navigation-menu", "popover", "progress", "radio-group", "scroll-area", "slider", "toggle", "toggle-group"]
       darkMode: true
     features:
-      advanced-components: true
       theming: true
       accessibility: true
+
+  # Development Tools
+  - id: "tooling/dev-tools"
+    category: "tooling"
+    version: "1.0.0"
+    parameters:
+      prettier: true
+      husky: true
+      lintStaged: true
+      commitlint: true
+      eslint: true
 
   # Testing
   - id: "testing/vitest"
@@ -124,14 +147,14 @@ modules:
     category: "blockchain"
     version: "1.0.0"
     parameters:
-      networks: ["goerli", "polygon"]
+      networks: ["ethereum", "polygon"]
       walletConnect: true
       contracts: []
     features:
       wallet-integration: true
       smart-contracts: true
-      defi-protocols: false
-      nft-support: false
+      nft-management: true
+      defi-integration: true
 
 integrations:
   # Database Integrations
@@ -301,6 +324,8 @@ integrations:
 
   # UI Integrations
   - name: "shadcn-nextjs-integration"
+    parameters:
+      theming: true
     features:
       coreComponents: true
       advancedComponents: true

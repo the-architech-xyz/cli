@@ -35,6 +35,7 @@ import { ModuleLoaderService } from '../core/services/module-management/module-l
 import { AgentExecutionService } from '../core/services/execution/agent-execution/index.js';
 import { ErrorHandler, ErrorCode } from '../core/services/infrastructure/error/index.js';
 import { Logger, ExecutionTracer, LogLevel } from '../core/services/infrastructure/logging/index.js';
+import { PrerequisiteValidator } from '../core/services/validation/prerequisite-validator.js';
 import * as fs from 'fs/promises';
 
 export class OrchestratorAgent {
@@ -49,6 +50,7 @@ export class OrchestratorAgent {
   private moduleFetcher: ModuleFetcherService;
   private cacheManager: CacheManagerService;
   private contextManager: GlobalContextManager;
+  private prerequisiteValidator: PrerequisiteValidator;
 
   constructor(projectManager: ProjectManager) {
     this.projectManager = projectManager;
@@ -56,6 +58,7 @@ export class OrchestratorAgent {
     this.cacheManager = new CacheManagerService();
     this.moduleFetcher = new ModuleFetcherService(this.cacheManager);
     this.moduleLoader = new ModuleLoaderService(this.moduleFetcher);
+    this.prerequisiteValidator = new PrerequisiteValidator(this.moduleFetcher);
     this.agents = new Map();
     
     // Initialize global context manager
@@ -169,6 +172,32 @@ export class OrchestratorAgent {
   async executeRecipe(recipe: Recipe): Promise<ExecutionResult> {
     // Initialize the orchestrator
     await this.initialize();
+    
+    // CRITICAL: Validate prerequisites BEFORE any file generation
+    Logger.info('🔍 Validating module prerequisites and capabilities...', {
+      operation: 'prerequisite_validation',
+      moduleCount: recipe.modules.length
+    });
+    
+    const validation = await this.prerequisiteValidator.validate(recipe);
+    if (!validation.isValid) {
+      Logger.error(`❌ Prerequisite validation failed: ${validation.error}`, {
+        operation: 'prerequisite_validation',
+        error: validation.error
+      });
+      
+      return {
+        success: false,
+        modulesExecuted: 0,
+        errors: [validation.error!],
+        warnings: validation.warnings || []
+      };
+    }
+    
+    Logger.info('✅ Prerequisite validation passed', {
+      operation: 'prerequisite_validation',
+      providedCapabilities: validation.details?.providedCapabilities.length || 0
+    });
     
     // Update global context with recipe information
     this.contextManager.updateProjectState({
