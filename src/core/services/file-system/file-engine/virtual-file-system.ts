@@ -53,15 +53,24 @@ export class VirtualFileSystem {
   async writeFile(filePath: string, content: string): Promise<void> {
     const normalizedPath = this.normalizePath(filePath);
     
+    console.log(`🔍 [VFS.writeFile] Writing to: ${normalizedPath}`);
+    console.log(`🔍 [VFS.writeFile] Content:`, content);
+    console.log(`🔍 [VFS.writeFile] File already exists: ${this.files.has(normalizedPath)}`);
+    
     if (this.files.has(normalizedPath) && normalizedPath.endsWith('.json')) {
+      console.log(`🔍 [VFS.writeFile] Performing JSON merge for: ${normalizedPath}`);
       // Smart JSON merge
       try {
         const existing = JSON.parse(this.files.get(normalizedPath)!);
         const newContent = JSON.parse(content);
+        console.log(`🔍 [VFS.writeFile] Existing content:`, JSON.stringify(existing, null, 2));
+        console.log(`🔍 [VFS.writeFile] New content:`, JSON.stringify(newContent, null, 2));
         const merged = { ...existing, ...newContent };
+        console.log(`🔍 [VFS.writeFile] Merged result:`, JSON.stringify(merged, null, 2));
         this.files.set(normalizedPath, JSON.stringify(merged, null, 2));
         console.log(`🔄 VFS: Merged JSON ${normalizedPath}`);
       } catch (error) {
+        console.error(`❌ [VFS.writeFile] JSON merge failed:`, error);
         // If JSON merge fails, overwrite
         this.files.set(normalizedPath, content);
         console.log(`⚠️ VFS: JSON merge failed, overwrote ${normalizedPath}`);
@@ -71,6 +80,10 @@ export class VirtualFileSystem {
       this.files.set(normalizedPath, content);
       console.log(`✏️ VFS: Wrote ${normalizedPath}`);
     }
+    
+    // Verify the write
+    const verifyContent = this.files.get(normalizedPath);
+    console.log(`🔍 [VFS.writeFile] Verification - content in VFS after write:`, verifyContent);
   }
 
   /**

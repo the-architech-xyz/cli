@@ -1,0 +1,40 @@
+{
+  "content": {
+    "id": "nextjs-base-setup",
+    "name": "Next.js 15+ Base Setup",
+    "description": "Modern Next.js 15+ foundation with React 19, App Router, TypeScript, and Tailwind CSS v4",
+    "actions": [
+      {
+        "type": "RUN_COMMAND",
+        "command": "npx create-next-app@latest . --typescript{{#if module.parameters.tailwind}} --tailwind{{/if}}{{#if module.parameters.eslint}} --eslint{{/if}} --app --src-dir --import-alias \"{{module.parameters.importAlias}}\" --yes"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "tailwind.config.js",
+        "content": "/** @type {import('tailwindcss').Config} */\nmodule.exports = {\n  darkMode: [\"class\"],\n  content: [\n    './pages/**/*.{ts,tsx}',\n    './components/**/*.{ts,tsx}',\n    './app/**/*.{ts,tsx}',\n    './src/**/*.{ts,tsx}',\n  ],\n  prefix: \"\",\n  theme: {\n    container: {\n      center: true,\n      padding: \"2rem\",\n      screens: {\n        \"2xl\": \"1400px\",\n      },\n    },\n    extend: {\n      colors: {\n        border: \"hsl(var(--border))\",\n        input: \"hsl(var(--input))\",\n        ring: \"hsl(var(--ring))\",\n        background: \"hsl(var(--background))\",\n        foreground: \"hsl(var(--foreground))\",\n        primary: {\n          DEFAULT: \"hsl(var(--primary))\",\n          foreground: \"hsl(var(--primary-foreground))\",\n        },\n        secondary: {\n          DEFAULT: \"hsl(var(--secondary))\",\n          foreground: \"hsl(var(--secondary-foreground))\",\n        },\n        destructive: {\n          DEFAULT: \"hsl(var(--destructive))\",\n          foreground: \"hsl(var(--destructive-foreground))\",\n        },\n        muted: {\n          DEFAULT: \"hsl(var(--muted))\",\n          foreground: \"hsl(var(--muted-foreground))\",\n        },\n        accent: {\n          DEFAULT: \"hsl(var(--accent))\",\n          foreground: \"hsl(var(--accent-foreground))\",\n        },\n        popover: {\n          DEFAULT: \"hsl(var(--popover))\",\n          foreground: \"hsl(var(--popover-foreground))\",\n        },\n        card: {\n          DEFAULT: \"hsl(var(--card))\",\n          foreground: \"hsl(var(--card-foreground))\",\n        },\n      },\n      borderRadius: {\n        lg: \"var(--radius)\",\n        md: \"calc(var(--radius) - 2px)\",\n        sm: \"calc(var(--radius) - 4px)\",\n      },\n      keyframes: {\n        \"accordion-down\": {\n          from: { height: \"0\" },\n          to: { height: \"var(--radix-accordion-content-height)\" },\n        },\n        \"accordion-up\": {\n          from: { height: \"var(--radix-accordion-content-height)\" },\n          to: { height: \"0\" },\n        },\n      },\n      animation: {\n        \"accordion-down\": \"accordion-down 0.2s ease-out\",\n        \"accordion-up\": \"accordion-up 0.2s ease-out\",\n      },\n    },\n  },\n  plugins: [require(\"tailwindcss-animate\")],\n}"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "components.json",
+        "content": "{\n  \"$schema\": \"https://ui.shadcn.com/schema.json\",\n  \"style\": \"new-york\",\n  \"rsc\": true,\n  \"tsx\": true,\n  \"tailwind\": {\n    \"config\": \"tailwind.config.js\",\n    \"css\": \"src/app/globals.css\",\n    \"baseColor\": \"slate\",\n    \"cssVariables\": true,\n    \"prefix\": \"\"\n  },\n  \"aliases\": {\n    \"components\": \"src/components\",\n    \"utils\": \"src/lib/utils\"\n  }\n}"
+      },
+      {
+        "type": "ENHANCE_FILE",
+        "path": "src/app/globals.css",
+        "modifier": "css-enhancer",
+        "fallback": "create",
+        "params": {
+          "content": "@import \"tailwindcss\";\n\n@layer base {\n  :root {\n    --background: 0 0% 100%;\n    --foreground: 0 0% 3.9%;\n    --card: 0 0% 100%;\n    --card-foreground: 0 0% 3.9%;\n    --popover: 0 0% 100%;\n    --popover-foreground: 0 0% 3.9%;\n    --primary: 0 0% 9%;\n    --primary-foreground: 0 0% 98%;\n    --secondary: 0 0% 96.1%;\n    --secondary-foreground: 0 0% 9%;\n    --muted: 0 0% 96.1%;\n    --muted-foreground: 0 0% 45.1%;\n    --accent: 0 0% 96.1%;\n    --accent-foreground: 0 0% 9%;\n    --destructive: 0 84.2% 60.2%;\n    --destructive-foreground: 0 0% 98%;\n    --border: 0 0% 89.8%;\n    --input: 0 0% 89.8%;\n    --ring: 0 0% 3.9%;\n    --radius: 0.5rem;\n  }\n\n  .dark {\n    --background: 0 0% 3.9%;\n    --foreground: 0 0% 98%;\n    --card: 0 0% 3.9%;\n    --card-foreground: 0 0% 98%;\n    --popover: 0 0% 3.9%;\n    --popover-foreground: 0 0% 98%;\n    --primary: 0 0% 98%;\n    --primary-foreground: 0 0% 9%;\n    --secondary: 0 0% 14.9%;\n    --secondary-foreground: 0 0% 98%;\n    --muted: 0 0% 14.9%;\n    --muted-foreground: 0 0% 63.9%;\n    --accent: 0 0% 14.9%;\n    --accent-foreground: 0 0% 98%;\n    --destructive: 0 62.8% 30.6%;\n    --destructive-foreground: 0 0% 98%;\n    --border: 0 0% 14.9%;\n    --input: 0 0% 14.9%;\n    --ring: 0 0% 83.1%;\n  }\n}\n\n@layer base {\n  * {\n    @apply border-border;\n  }\n  body {\n    @apply bg-background text-foreground;\n  }\n}\n\n@layer components {\n  button {\n    cursor: pointer;\n  }\n  [class*=\"border\"] {\n    @apply border-border;\n  }\n}"
+        }
+      }
+    ]
+  },
+  "version": "latest",
+  "lastModified": "2025-09-22T15:50:23.849Z",
+  "checksum": "50d38d3ae0376af06123dd6397f966a70ce68a814c8712a2376f20eda7ab3974",
+  "metadata": {
+    "moduleId": "framework/nextjs",
+    "fetchedAt": "2025-09-22T15:50:23.849Z",
+    "size": 4902
+  }
+}

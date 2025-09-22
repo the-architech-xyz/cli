@@ -1,0 +1,41 @@
+version: "1.0.0"
+
+project:
+  name: "test-shadcn-only"
+  description: "Minimal shadcn test to debug component installation"
+  version: "1.0.0"
+  framework: "nextjs"
+  path: "./test-shadcn-only"
+
+modules:
+  # Framework
+  - id: "framework/nextjs"
+    category: "framework"
+    version: "15.0.0"
+    parameters:
+      typescript: true
+      tailwind: true
+      eslint: true
+      appRouter: true
+      srcDir: true
+      importAlias: "@/*"
+    features:
+      performance: true
+      security: true
+      server-actions: true
+
+  # Shadcn UI
+  - id: "ui/shadcn-ui"
+    category: "ui"
+    version: "1.0.0"
+    parameters:
+      theme: "default"
+      components: ["button", "input", "card", "dialog"]
+      darkMode: true
+    features:
+      theming: true
+      accessibility: true
+
+options:
+  skipInstall: true
+  verbose: true

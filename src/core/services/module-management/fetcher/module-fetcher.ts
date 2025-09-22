@@ -270,12 +270,14 @@ export class ModuleFetcherService {
     const fullBlueprintPath = path.join(this.marketplacePath, blueprintPath);
     const blueprintContent = await fs.readFile(fullBlueprintPath, 'utf-8');
     
-    // Parse the TypeScript blueprint using proper AST parsing
-    const blueprint = TypeScriptBlueprintParser.parseBlueprint(blueprintContent);
-    
-    if (blueprint) {
-      return blueprint;
-    }
+  // Parse the TypeScript blueprint using proper AST parsing
+  console.log(`🔍 ModuleFetcher: Loading blueprint for ${moduleId}, content preview:`, blueprintContent.substring(0, 500));
+  const blueprint = TypeScriptBlueprintParser.parseBlueprint(blueprintContent);
+  
+  if (blueprint) {
+    console.log(`🔍 ModuleFetcher: Parsed blueprint actions:`, blueprint.actions?.slice(0, 3).map(a => a.command || a.type));
+    return blueprint;
+  }
     
     // Fallback: return a minimal blueprint structure
     return {

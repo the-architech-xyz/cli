@@ -15,7 +15,7 @@ import { BlueprintExecutor } from '../core/services/execution/blueprint/blueprin
 import { VirtualFileSystem } from '../core/services/file-system/file-engine/virtual-file-system.js';
 import { BlueprintAnalyzer } from '../core/services/project/blueprint-analyzer/index.js';
 import { ModuleFetcherService } from '../core/services/module-management/fetcher/module-fetcher.js';
-import { CacheManagerService } from '../core/services/infrastructure/cache/cache-manager.js';
+import { CacheManagerService, UpdateChecker } from '../core/services/infrastructure/cache/index.js';
 import { GlobalContextManager } from '../core/services/context/global-context-manager.js';
 import * as path from 'path';
 import { FrameworkAgent } from './core/framework-agent.js';
@@ -35,7 +35,7 @@ import { ModuleLoaderService } from '../core/services/module-management/module-l
 import { AgentExecutionService } from '../core/services/execution/agent-execution/index.js';
 import { ErrorHandler, ErrorCode } from '../core/services/infrastructure/error/index.js';
 import { Logger, ExecutionTracer, LogLevel } from '../core/services/infrastructure/logging/index.js';
-import { PrerequisiteValidator } from '../core/services/validation/prerequisite-validator.js';
+import { PrerequisiteValidator, ExecutionPlan } from '../core/services/validation/prerequisite-validator.js';
 import * as fs from 'fs/promises';
 
 export class OrchestratorAgent {
@@ -49,6 +49,7 @@ export class OrchestratorAgent {
   private blueprintAnalyzer: BlueprintAnalyzer;
   private moduleFetcher: ModuleFetcherService;
   private cacheManager: CacheManagerService;
+  private updateChecker: UpdateChecker;
   private contextManager: GlobalContextManager;
   private prerequisiteValidator: PrerequisiteValidator;
 
@@ -57,6 +58,7 @@ export class OrchestratorAgent {
     this.pathHandler = projectManager.getPathHandler();
     this.cacheManager = new CacheManagerService();
     this.moduleFetcher = new ModuleFetcherService(this.cacheManager);
+    this.updateChecker = new UpdateChecker(this.cacheManager, this.moduleFetcher);
     this.moduleLoader = new ModuleLoaderService(this.moduleFetcher);
     this.prerequisiteValidator = new PrerequisiteValidator(this.moduleFetcher);
     this.agents = new Map();
@@ -110,6 +112,9 @@ export class OrchestratorAgent {
       // Initialize modifiers first
       const { initializeModifiers } = await import('../core/services/file-system/modifiers/modifier-registration.js');
       initializeModifiers();
+      
+      // Initialize cache manager
+      await this.cacheManager.initialize();
       
       // Initialize module fetcher (this will clone/update the marketplace repo)
       await this.moduleFetcher.initialize();
@@ -167,50 +172,12 @@ export class OrchestratorAgent {
 
 
   /**
-   * Execute a complete recipe using Global Context Management
+   * Execute a complete recipe using Topological Dependency Ordering
    */
   async executeRecipe(recipe: Recipe): Promise<ExecutionResult> {
     // Initialize the orchestrator
     await this.initialize();
     
-    // CRITICAL: Validate prerequisites BEFORE any file generation
-    Logger.info('🔍 Validating module prerequisites and capabilities...', {
-      operation: 'prerequisite_validation',
-      moduleCount: recipe.modules.length
-    });
-    
-    const validation = await this.prerequisiteValidator.validate(recipe);
-    if (!validation.isValid) {
-      Logger.error(`❌ Prerequisite validation failed: ${validation.error}`, {
-        operation: 'prerequisite_validation',
-        error: validation.error
-      });
-      
-      return {
-        success: false,
-        modulesExecuted: 0,
-        errors: [validation.error!],
-        warnings: validation.warnings || []
-      };
-    }
-    
-    Logger.info('✅ Prerequisite validation passed', {
-      operation: 'prerequisite_validation',
-      providedCapabilities: validation.details?.providedCapabilities.length || 0
-    });
-    
-    // Update global context with recipe information
-    this.contextManager.updateProjectState({
-      name: recipe.project.name,
-      description: recipe.project.description || '',
-      version: recipe.project.version || '1.0.0',
-      framework: {
-        type: recipe.project.framework,
-        version: '1.0.0',
-        configuration: {}
-      }
-    });
-
     // Start execution trace
     const traceId = this.contextManager.getExecutionState().traceId;
     this.contextManager.updateExecutionState({
@@ -229,6 +196,74 @@ export class OrchestratorAgent {
     const warnings: string[] = [];
 
     try {
+      // ============================================================================
+      // STEP 1: BUILD EXECUTION PLAN (Topological Sort)
+      // ============================================================================
+      
+      Logger.info('🔍 Building execution plan using topological dependency ordering...', {
+        operation: 'execution_planning',
+      moduleCount: recipe.modules.length
+    });
+    
+      const executionPlan = await this.prerequisiteValidator.buildExecutionPlan(recipe);
+      if (executionPlan.error) {
+        Logger.error(`❌ Execution plan failed: ${executionPlan.error}`, {
+          operation: 'execution_planning',
+          error: executionPlan.error
+      });
+      
+      return {
+        success: false,
+        modulesExecuted: 0,
+          errors: [executionPlan.error],
+          warnings: []
+        };
+      }
+      
+      Logger.info(`✅ Execution plan created: ${executionPlan.plan.join(' → ')}`, {
+        operation: 'execution_planning',
+        executionOrder: executionPlan.plan
+      });
+      
+      // Check for module updates before generation
+      Logger.info('🔍 Checking for module updates...', {
+        operation: 'update_check',
+        moduleCount: recipe.modules.length
+      });
+      
+      const updateResult = await this.updateChecker.checkAndHandleUpdates(executionPlan.plan, {
+        forceCheck: false,
+        autoUpdate: false,
+        silent: true
+      });
+      
+      if (updateResult.updated) {
+        Logger.info(`✅ Updated ${updateResult.updatedModules.length} modules`, {
+          operation: 'update_check',
+          updatedModules: updateResult.updatedModules
+        });
+      } else {
+        Logger.info('✅ All modules are up to date', {
+          operation: 'update_check'
+        });
+      }
+    
+    // Update global context with recipe information
+    this.contextManager.updateProjectState({
+      name: recipe.project.name,
+      description: recipe.project.description || '',
+      version: recipe.project.version || '1.0.0',
+      framework: {
+        type: recipe.project.framework,
+        version: '1.0.0',
+        configuration: {}
+      }
+    });
+
+      // ============================================================================
+      // STEP 2: SETUP FRAMEWORK AND PROJECT
+      // ============================================================================
+      
       // 1. Setup framework and create decentralized path handler
       ExecutionTracer.logOperation(traceId, 'Setting up framework and path handler');
       const frameworkSetup = await this.moduleLoader.setupFramework(recipe, this.pathHandler);
@@ -245,29 +280,34 @@ export class OrchestratorAgent {
       // 3. Initialize project directory
       ExecutionTracer.logOperation(traceId, 'Initializing project directory');
       await this.projectManager.initializeProject();
-      Logger.info('📋 Project directory created - framework modules will handle setup', {
+      Logger.info('📋 Project directory created - modules will handle setup', {
         traceId,
         operation: 'project_initialization'
       });
       
+      // ============================================================================
+      // STEP 3: EXECUTE MODULES IN TOPOLOGICAL ORDER
+      // ============================================================================
       
-      // 4. Sort modules by execution order
-      ExecutionTracer.logOperation(traceId, 'Sorting modules by execution order');
-      const sortedModules = this.moduleLoader.sortModulesByExecutionOrder(recipe.modules);
-      
-      // Update context with module execution order
       this.contextManager.updateExecutionState({
         currentPhase: 'modules'
       });
       
-      // 5. Execute modules using Global Context Management
+      Logger.info(`🚀 Executing ${executionPlan.plan.length} modules in dependency order...`, {
+        traceId,
+        operation: 'topological_execution',
+        executionOrder: executionPlan.plan
+      });
+      
       const moduleResults = [];
       
-      for (let i = 0; i < sortedModules.length; i++) {
-        const module = sortedModules[i];
+      for (let i = 0; i < executionPlan.plan.length; i++) {
+        const moduleId = executionPlan.plan[i];
         
+        // Find the module configuration
+        const module = recipe.modules.find(m => m.id === moduleId);
         if (!module) {
-          errors.push(`Module at index ${i} is undefined`);
+          errors.push(`Module ${moduleId} not found in recipe`);
           break;
         }
         
@@ -285,7 +325,7 @@ export class OrchestratorAgent {
           features: {}
         });
         
-        Logger.info(`🚀 [${i + 1}/${sortedModules.length}] Executing module: ${module.id} (${module.category})`, {
+        Logger.info(`🚀 [${i + 1}/${executionPlan.plan.length}] Executing module: ${module.id} (${module.category})`, {
           traceId,
           operation: 'module_execution',
           moduleId: module.id,
@@ -294,91 +334,157 @@ export class OrchestratorAgent {
         
         try {
           // Load adapter for this module
+          console.log(`🔍 Loading adapter for module: ${module.id} (${module.category})`);
           const adapterResult = await this.moduleLoader.loadModuleAdapter(module);
           if (!adapterResult.success) {
+            console.error(`❌ Failed to load adapter for module ${module.id}: ${adapterResult.error}`);
             errors.push(adapterResult.error!);
             break;
           }
+          console.log(`✅ Successfully loaded adapter for module: ${module.id}`);
           
           // Create legacy context for backward compatibility
           const context = this.createLegacyContext(recipe, module, adapterResult.adapter!.config);
 
-          // NEW ARCHITECTURE: Contextual, Isolated VFS
+          // ============================================================================
+          // EXECUTION STRATEGY
+          // ============================================================================
+          
           const blueprint = adapterResult.adapter!.blueprint;
           
-          // Step 1: Analyze blueprint to determine required files
-          Logger.info(`🔍 Analyzing blueprint: ${blueprint.name}`, {
+          // Step 1: Analyze blueprint to determine execution strategy
+          const analysis = this.blueprintAnalyzer.analyzeBlueprint(blueprint);
+          const needsVFS = analysis.allRequiredFiles.length > 0;
+          
+          Logger.info(`🔍 Blueprint analysis: ${needsVFS ? 'VFS needed' : 'Direct execution'} (${analysis.allRequiredFiles.length} required files)`, {
             traceId,
             operation: 'blueprint_analysis',
             moduleId: module.id
           });
           
-          const analysis = this.blueprintAnalyzer.analyzeBlueprint(blueprint);
+          let moduleResult;
           
-          // Step 2: Validate required files exist on disk
-          const validation = await this.blueprintAnalyzer.validateRequiredFiles(analysis, this.pathHandler.getProjectRoot());
-          if (!validation.valid) {
-            const error = `Missing required files for ${module.id}: ${validation.missingFiles.join(', ')}`;
-            errors.push(error);
-            Logger.error(`❌ ${error}`, {
+          if (needsVFS) {
+            // Complex blueprint - use VFS with file pre-loading
+            Logger.info(`📂 Complex blueprint detected - using VFS with file pre-loading`, {
               traceId,
-              operation: 'blueprint_validation',
-              moduleId: module.id
+              operation: 'vfs_strategy',
+              moduleId: module.id,
+              fileCount: analysis.allRequiredFiles.length
             });
-            break;
-          }
-          
-          // Step 3: Create new VFS instance for this blueprint
-          const vfs = new VirtualFileSystem(`blueprint-${blueprint.id}`, this.pathHandler.getProjectRoot());
-          Logger.info(`🗂️ Created VFS for blueprint: ${blueprint.id}`, {
-            traceId,
-            operation: 'vfs_creation',
-            moduleId: module.id
-          });
-          
-          // Step 4: Pre-populate VFS with required files
-          Logger.info(`📂 Pre-loading ${analysis.allRequiredFiles.length} files into VFS`, {
-            traceId,
-            operation: 'vfs_preload',
-            moduleId: module.id,
-            fileCount: analysis.allRequiredFiles.length
-          });
-          
-          await this.preloadFilesIntoVFS(vfs, analysis.allRequiredFiles, this.pathHandler.getProjectRoot());
-          
-          // Step 5: Execute blueprint with pre-populated VFS
-          const blueprintExecutor = new BlueprintExecutor(this.pathHandler.getProjectRoot(), this.moduleFetcher);
-          const blueprintContext = {
-            vfs,
-            projectRoot: this.pathHandler.getProjectRoot(),
-            externalFiles: []
-          };
-          
-          const blueprintResult = await blueprintExecutor.executeBlueprint(blueprint, context, blueprintContext);
-          
-          // Step 6: Flush VFS to disk (atomic commit)
-          if (blueprintResult.success) {
-            await vfs.flushToDisk();
-            Logger.info(`💾 VFS flushed to disk for blueprint: ${blueprint.id}`, {
-              traceId,
-              operation: 'vfs_flush',
-              moduleId: module.id
-            });
-          }
-          
-          // Create module result from blueprint result
-          const moduleResult = {
-            success: blueprintResult.success,
-            files: blueprintResult.files,
-            errors: blueprintResult.errors,
-            warnings: blueprintResult.warnings,
-            executionTime: 0, // TODO: Add timing
-            strategy: {
-              needsVFS: true,
-              complexity: 'complex' as const,
-              reasons: ['Uses Contextual, Isolated VFS architecture']
+            
+            // Validate required files exist on disk (created by previous modules)
+            const validation = await this.blueprintAnalyzer.validateRequiredFiles(analysis, this.pathHandler.getProjectRoot());
+            if (!validation.valid) {
+              const error = `Missing required files for ${module.id}: ${validation.missingFiles.join(', ')}`;
+              errors.push(error);
+              Logger.error(`❌ ${error}`, {
+                traceId,
+                operation: 'blueprint_validation',
+                moduleId: module.id
+              });
+              break;
             }
-          };
+            
+            // Create VFS and pre-load files
+            const vfs = new VirtualFileSystem(`blueprint-${blueprint.id}`, this.pathHandler.getProjectRoot());
+            Logger.info(`🗂️ Created VFS for blueprint: ${blueprint.id}`, {
+              traceId,
+              operation: 'vfs_creation',
+              moduleId: module.id
+            });
+            
+            // Pre-populate VFS with required files
+            Logger.info(`📂 Pre-loading ${analysis.allRequiredFiles.length} files into VFS`, {
+              traceId,
+              operation: 'vfs_preload',
+              moduleId: module.id,
+              fileCount: analysis.allRequiredFiles.length
+            });
+            
+            await this.preloadFilesIntoVFS(vfs, analysis.allRequiredFiles, this.pathHandler.getProjectRoot());
+            
+            // Execute blueprint with VFS
+            const blueprintExecutor = new BlueprintExecutor(this.pathHandler.getProjectRoot(), this.moduleFetcher);
+            const blueprintContext = {
+              vfs,
+              projectRoot: this.pathHandler.getProjectRoot(),
+              externalFiles: []
+            };
+            
+            const blueprintResult = await blueprintExecutor.executeBlueprint(blueprint, context, blueprintContext);
+            
+            // Flush VFS to disk (atomic commit)
+            if (blueprintResult.success) {
+              await vfs.flushToDisk();
+              Logger.info(`💾 VFS flushed to disk for blueprint: ${blueprint.id}`, {
+                traceId,
+                operation: 'vfs_flush',
+                moduleId: module.id
+              });
+            }
+            
+            moduleResult = {
+              success: blueprintResult.success,
+              files: blueprintResult.files,
+              errors: blueprintResult.errors,
+              warnings: blueprintResult.warnings,
+              executionTime: 0,
+              strategy: {
+                needsVFS: true,
+                complexity: analysis.allRequiredFiles.length > 5 ? 'complex' as const : analysis.allRequiredFiles.length > 2 ? 'moderate' as const : 'simple' as const,
+                reasons: [`Requires ${analysis.allRequiredFiles.length} files`]
+              }
+            };
+            
+          } else {
+            // Simple blueprint - execute directly on disk
+            Logger.info(`🏗️ Simple blueprint detected - executing directly on disk`, {
+              traceId,
+              operation: 'direct_execution',
+              moduleId: module.id
+            });
+            
+            // Debug: Log package.json before blueprint execution
+            try {
+              const packageJsonPath = path.join(this.pathHandler.getProjectRoot(), 'package.json');
+              const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
+              console.log(`🔍 [Orchestrator] package.json BEFORE blueprint execution:`, packageJsonContent);
+            } catch (error) {
+              console.log(`🔍 [Orchestrator] package.json not found before blueprint execution`);
+            }
+            
+            // Execute blueprint directly on disk with null VFS context
+            const blueprintExecutor = new BlueprintExecutor(this.pathHandler.getProjectRoot(), this.moduleFetcher);
+            const blueprintContext = {
+              vfs: null, // No VFS for direct execution
+              projectRoot: this.pathHandler.getProjectRoot(),
+              externalFiles: []
+            };
+            const blueprintResult = await blueprintExecutor.executeBlueprint(blueprint, context, blueprintContext);
+            
+            // Debug: Log package.json after blueprint execution
+            try {
+              const packageJsonPath = path.join(this.pathHandler.getProjectRoot(), 'package.json');
+              const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
+              console.log(`🔍 [Orchestrator] package.json AFTER blueprint execution:`, packageJsonContent);
+            } catch (error) {
+              console.log(`🔍 [Orchestrator] package.json not found after blueprint execution`);
+            }
+            
+            moduleResult = {
+              success: blueprintResult.success,
+              files: blueprintResult.files,
+              errors: blueprintResult.errors,
+              warnings: blueprintResult.warnings,
+              executionTime: 0,
+              strategy: {
+                needsVFS: false,
+                complexity: 'simple' as const,
+                reasons: ['Simple blueprint - no file dependencies']
+              }
+            };
+          }
           
           // Add module result to global context
           this.contextManager.addModuleResult(module.id, {
@@ -386,8 +492,8 @@ export class OrchestratorAgent {
             files: moduleResult.files,
             errors: moduleResult.errors,
             warnings: moduleResult.warnings,
-            dependencies: [], // Will be populated by BlueprintExecutor
-            environmentVariables: [] // Will be populated by BlueprintExecutor
+            dependencies: [],
+            environmentVariables: []
           });
           
           moduleResults.push(moduleResult);
@@ -401,7 +507,10 @@ export class OrchestratorAgent {
               moduleId: module.id,
               agentCategory: module.category,
               duration: moduleResult.executionTime,
-              metadata: { filesCreated: moduleResult.files.length }
+              metadata: { 
+                filesCreated: moduleResult.files.length,
+                strategy: moduleResult.strategy.complexity
+              }
             });
           } else {
             errors.push(...moduleResult.errors);
@@ -411,7 +520,7 @@ export class OrchestratorAgent {
               moduleId: module.id,
               agentCategory: module.category
             });
-            // Stop on first failure
+            // Stop on first failure (Fail-Fast strategy)
             break;
           }
           
@@ -424,7 +533,7 @@ export class OrchestratorAgent {
             moduleId: module.id,
             agentCategory: module.category
           }, error instanceof Error ? error : undefined);
-          // Stop on first failure
+          // Stop on first failure (Fail-Fast strategy)
           break;
         }
       }
@@ -437,7 +546,7 @@ export class OrchestratorAgent {
           operation: 'recipe_execution',
           metadata: { 
             filesCreated: results.length,
-            modulesExecuted: sortedModules.length
+            modulesExecuted: executionPlan.plan.length
           }
         });
         
@@ -469,7 +578,7 @@ export class OrchestratorAgent {
           await this.executeIntegrationAdapters(recipe, results, errors, warnings);
         }
         
-        // 7. Finalize package.json and .env.example
+        // Finalize package.json and .env.example
         this.contextManager.updateExecutionState({
           currentPhase: 'finalization'
         });
@@ -508,7 +617,7 @@ export class OrchestratorAgent {
       
       return {
         success,
-        modulesExecuted: success ? sortedModules.length : 0,
+        modulesExecuted: success ? executionPlan.plan.length : 0,
         errors,
         warnings
       };

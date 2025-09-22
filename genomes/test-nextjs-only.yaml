@@ -1,0 +1,29 @@
+version: "1.0.0"
+
+project:
+  name: "test-nextjs-only"
+  description: "Minimal Next.js test to isolate create-next-app issue"
+  version: "1.0.0"
+  framework: "nextjs"
+  path: "./test-nextjs-only"
+
+modules:
+  # Framework only
+  - id: "framework/nextjs"
+    category: "framework"
+    version: "15.0.0"
+    parameters:
+      typescript: true
+      tailwind: true
+      eslint: true
+      appRouter: true
+      srcDir: true
+      importAlias: "@/*"
+    features:
+      performance: true
+      security: true
+      server-actions: true
+
+options:
+  skipInstall: true
+  verbose: true

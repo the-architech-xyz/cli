@@ -10,6 +10,7 @@ import { jsExportWrapperModifier } from './js-export-wrapper.js';
 import { jsxWrapperModifier } from './jsx-wrapper.js';
 import { jsConfigMergerModifier } from './js-config-merger.js';
 import { jsonObjectMergerModifier } from './json-object-merger.js';
+import { cssEnhancerModifier } from './css-enhancer.js';
 
 /**
  * Register all modifiers in the global registry
@@ -23,6 +24,7 @@ export function registerAllModifiers(): void {
   registry.register('jsx-wrapper', jsxWrapperModifier);
   registry.register('js-config-merger', jsConfigMergerModifier);
   registry.register('json-object-merger', jsonObjectMergerModifier);
+  registry.register('css-enhancer', cssEnhancerModifier);
   
   console.log(`✅ Registered ${registry.size()} modifiers: ${registry.list().join(', ')}`);
 }

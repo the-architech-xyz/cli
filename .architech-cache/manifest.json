@@ -1,0 +1,24 @@
+{
+  "version": "1.0.0",
+  "created": "2025-09-22T15:50:23.771Z",
+  "modules": {
+    "framework/nextjs": {
+      "versions": [
+        "latest"
+      ],
+      "lastChecked": "2025-09-22T15:50:23.850Z",
+      "lastModified": "2025-09-22T15:50:23.849Z",
+      "totalSize": 4902,
+      "needsUpdate": false
+    },
+    "ui/shadcn-ui": {
+      "versions": [
+        "latest"
+      ],
+      "lastChecked": "2025-09-22T15:50:45.805Z",
+      "lastModified": "2025-09-22T15:50:45.804Z",
+      "totalSize": 1727,
+      "needsUpdate": false
+    }
+  }
+}

@@ -45,6 +45,7 @@ export class TypeScriptBlueprintParser {
    */
   private static findBlueprintExport(ast: any): any {
     for (const node of ast.body) {
+      // Handle named exports
       if (node.type === 'ExportNamedDeclaration' && node.declaration) {
         const declaration = node.declaration;
         if (declaration.type === 'VariableDeclaration') {
@@ -53,6 +54,31 @@ export class TypeScriptBlueprintParser {
                 (declarator.id.name.endsWith('Blueprint') || declarator.id.name === 'blueprint') &&
                 declarator.init) {
               return declarator.init;
+            }
+          }
+        }
+      }
+      
+      // Handle default exports
+      if (node.type === 'ExportDefaultDeclaration') {
+        if (node.declaration) {
+          // Direct default export: export default { ... }
+          if (node.declaration.type === 'ObjectExpression') {
+            return node.declaration;
+          }
+          // Default export of variable: export default someVariable
+          if (node.declaration.type === 'Identifier') {
+            // Find the variable declaration
+            for (const bodyNode of ast.body) {
+              if (bodyNode.type === 'VariableDeclaration') {
+                for (const declarator of bodyNode.declarations) {
+                  if (declarator.id.type === 'Identifier' && 
+                      declarator.id.name === node.declaration.name &&
+                      declarator.init) {
+                    return declarator.init;
+                  }
+                }
+              }
             }
           }
         }
@@ -73,9 +99,23 @@ export class TypeScriptBlueprintParser {
           const key = property.key.name;
           const value = this.astValueToJavaScript(property.value);
           blueprint[key] = value;
+          console.log(`🔍 Parsed blueprint property: ${key} =`, value);
+          
+          // Special debug for actions array
+          if (key === 'actions' && Array.isArray(value)) {
+            console.log(`🔍 Actions array length: ${value.length}`);
+            value.forEach((action, index) => {
+              console.log(`🔍 Action ${index}:`, { type: action.type, forEach: action.forEach });
+              // Special debug for shadcn-ui blueprint
+              if (action.type === 'RUN_COMMAND' && action.command && action.command.includes('shadcn')) {
+                console.log(`🔍 SHADCN ACTION FOUND:`, action);
+              }
+            });
+          }
         }
       }
 
+      console.log(`🔍 Final parsed blueprint:`, blueprint);
       return blueprint as Blueprint;
     } else if (node.type === 'Identifier') {
       // Handle case where blueprint is exported as a reference to another variable
@@ -135,6 +175,7 @@ export class TypeScriptBlueprintParser {
             const key = property.key.name;
             const value = this.astValueToJavaScript(property.value);
             obj[key] = value;
+            console.log(`🔍 Object property: ${key} =`, value);
           }
         }
         return obj;

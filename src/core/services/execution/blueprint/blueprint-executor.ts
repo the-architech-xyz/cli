@@ -30,13 +30,14 @@ export class BlueprintExecutor {
    */
   async executeBlueprint(blueprint: Blueprint, context: GlobalContext | LegacyProjectContext, blueprintContext?: BlueprintContext): Promise<BlueprintExecutionResult> {
     console.log(`🎯 Executing blueprint: ${blueprint.name}`);
+    console.log(`🔍 Blueprint has ${blueprint.actions.length} actions:`, blueprint.actions.map(a => a.type));
     
     const files: string[] = [];
     const errors: string[] = [];
     const warnings: string[] = [];
     
     // Create a new VFS for each blueprint execution (VFS per blueprint)
-    let vfs: VirtualFileSystem;
+    let vfs: VirtualFileSystem | null;
     let shouldFlushVFS = false;
     
     if (blueprintContext) {
@@ -47,15 +48,20 @@ export class BlueprintExecutor {
       shouldFlushVFS = true;
     }
     
-    for (let i = 0; i < blueprint.actions.length; i++) {
-      const action = blueprint.actions[i];
+    // Process actions and expand dynamic ones
+    console.log(`🔍 Original blueprint actions:`, blueprint.actions.map(a => ({ type: a.type, forEach: (a as any).forEach })));
+    const processedActions = await this.processDynamicActions(blueprint.actions, context);
+    console.log(`🔍 Processed ${processedActions.length} actions (${blueprint.actions.length} original + ${processedActions.length - blueprint.actions.length} dynamic)`);
+    
+    for (let i = 0; i < processedActions.length; i++) {
+      const action = processedActions[i];
       
       if (!action) {
         errors.push(`Action at index ${i} is undefined`);
         continue;
       }
       
-      console.log(`  📋 [${i + 1}/${blueprint.actions.length}] ${action.type}`);
+      console.log(`  📋 [${i + 1}/${processedActions.length}] ${action.type}`);
       console.log(`  🔍 Action path: ${action.path}`);
       console.log(`  🔍 Action condition: ${action.condition}`);
       
@@ -96,7 +102,7 @@ export class BlueprintExecutor {
     }
     
     // Flush VFS to disk if we created it (VFS per blueprint)
-    if (shouldFlushVFS) {
+    if (shouldFlushVFS && vfs) {
       try {
         await vfs.flushToDisk();
         console.log(`✅ Blueprint VFS flushed to disk`);
@@ -118,6 +124,158 @@ export class BlueprintExecutor {
 
 
   /**
+   * Process dynamic actions that need to be expanded based on context
+   */
+  private async processDynamicActions(actions: BlueprintAction[], context: GlobalContext | LegacyProjectContext): Promise<BlueprintAction[]> {
+    const processedActions: BlueprintAction[] = [];
+    
+    console.log(`🔍 Processing ${actions.length} actions for dynamic expansion`);
+    
+    for (let i = 0; i < actions.length; i++) {
+      const action = actions[i];
+      
+      if (!action) {
+        console.log(`🔍 Action ${i + 1}: undefined, skipping`);
+        continue;
+      }
+      
+      console.log(`🔍 Action ${i + 1}: type=${action.type}, forEach=${(action as any).forEach || 'none'}`);
+      
+      // Check if this action has a forEach property for dynamic expansion
+      if ((action as any).forEach) {
+        console.log(`🔍 Detected forEach action: ${(action as any).forEach}`);
+        
+        // Extract array of items from context using the forEach path
+        const items = this.extractArrayFromContext((action as any).forEach, context);
+        
+        if (items.length === 0) {
+          console.log(`  ⚠️ No items found for forEach: ${(action as any).forEach}, skipping`);
+          continue;
+        }
+        
+        console.log(`  🔄 Generating ${items.length} dynamic actions for: ${items.join(', ')}`);
+        
+        // Generate individual actions for each item
+        for (const item of items) {
+          const dynamicAction = this.createDynamicAction(action, item);
+          processedActions.push(dynamicAction);
+        }
+      } else {
+        // Regular action, add as-is
+        processedActions.push(action);
+      }
+    }
+    
+    return processedActions;
+  }
+
+  /**
+   * Create a dynamic action by replacing placeholders with the current item
+   */
+  private createDynamicAction(originalAction: BlueprintAction, item: string): BlueprintAction {
+    const dynamicAction: BlueprintAction = {
+      type: originalAction.type
+    };
+    
+    // Copy all properties from the original action
+    Object.keys(originalAction).forEach(key => {
+      if (key !== 'forEach') {
+        (dynamicAction as any)[key] = (originalAction as any)[key];
+      }
+    });
+    
+    // Replace placeholders in string properties
+    if (dynamicAction.command) {
+      dynamicAction.command = dynamicAction.command.replace(/\{\{item\}\}/g, item);
+    }
+    if (dynamicAction.path) {
+      dynamicAction.path = dynamicAction.path.replace(/\{\{item\}\}/g, item);
+    }
+    if (dynamicAction.content) {
+      dynamicAction.content = dynamicAction.content.replace(/\{\{item\}\}/g, item);
+    }
+    
+    return dynamicAction;
+  }
+
+  /**
+   * Extract array from context using dot notation path
+   */
+  private extractArrayFromContext(path: string, context: GlobalContext | LegacyProjectContext): string[] {
+    try {
+      console.log(`🔍 Extracting array from context: ${path}`);
+      if ('environment' in context) {
+        const globalContext = context as GlobalContext;
+        
+        // Handle module parameters
+        if (path.startsWith('module.parameters.')) {
+          const paramPath = path.substring(18);
+          console.log(`🔍 Looking for parameter: ${paramPath}`);
+          console.log(`🔍 Full execution context:`, globalContext.execution);
+          const currentModule = globalContext.execution.currentModule;
+          console.log(`🔍 Current module: ${currentModule}`);
+          console.log(`🔍 Available modules:`, Array.from(globalContext.modules.configurations.keys()));
+          if (currentModule) {
+            const moduleConfig = globalContext.modules.configurations.get(currentModule);
+            console.log(`🔍 Module config:`, moduleConfig);
+            const value = this.getNestedValueFromObject(moduleConfig?.parameters || {}, paramPath);
+            console.log(`🔍 Parameter value:`, value);
+            if (Array.isArray(value)) {
+              console.log(`🔍 Found array with ${value.length} items:`, value);
+              return value;
+            }
+          } else {
+            console.log(`🔍 No current module set, trying to find module by ID`);
+            // Try to find the module by looking for the shadcn-ui module
+            for (const [moduleId, moduleConfig] of globalContext.modules.configurations.entries()) {
+              if (moduleId.includes('shadcn-ui')) {
+                console.log(`🔍 Found shadcn-ui module: ${moduleId}`, moduleConfig);
+                const value = this.getNestedValueFromObject(moduleConfig?.parameters || {}, paramPath);
+                console.log(`🔍 Parameter value from ${moduleId}:`, value);
+                if (Array.isArray(value)) {
+                  console.log(`🔍 Found array with ${value.length} items:`, value);
+                  return value;
+                }
+              }
+            }
+          }
+        }
+        
+        // Handle other context paths
+        const value = this.getNestedValueFromObject(globalContext, path);
+        if (Array.isArray(value)) {
+          return value;
+        }
+      } else {
+        // Legacy context fallback
+        const legacyContext = context as LegacyProjectContext;
+        const value = this.getNestedValueFromObject(legacyContext, path);
+        if (Array.isArray(value)) {
+          return value;
+        }
+      }
+    } catch (error) {
+      console.warn(`Failed to extract array from context path '${path}': ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+    
+    return [];
+  }
+
+  /**
+   * Get nested value from object using dot notation (helper method)
+   */
+  private getNestedValueFromObject(obj: unknown, path: string): unknown {
+    if (!path) return undefined;
+    
+    return path.split('.').reduce((current, key) => {
+      if (current && typeof current === 'object' && current !== null && key in current) {
+        return (current as Record<string, unknown>)[key];
+      }
+      return undefined;
+    }, obj);
+  }
+
+  /**
    * Process template variables in content
    */
   private processTemplate(template: string, context: GlobalContext | LegacyProjectContext): string {
@@ -128,10 +286,10 @@ export class BlueprintExecutor {
     return result;
   }
 
+
   /**
-   * Check for config file conflicts (TypeScript vs JavaScript)
-   */
-  private checkConfigFileConflict(filePath: string, vfs: any): { success: boolean; error?: string } {
+   * Check for config file conflicts (TypeScript vs JavaScript)   */
+  private async checkConfigFileConflict(filePath: string, vfs: any, projectRoot: string): Promise<{ success: boolean; error?: string }> {
     // Check if this is a config file
     const configFiles = ['next.config', 'drizzle.config', 'tailwind.config', 'vitest.config', 'tsconfig'];
     const isConfigFile = configFiles.some(config => filePath.includes(config));
@@ -147,7 +305,23 @@ export class BlueprintExecutor {
     for (const ext of extensions) {
       if (ext !== path.extname(filePath)) {
         const conflictPath = pathWithoutExt + ext;
-        if (vfs.fileExists(conflictPath)) {
+        let fileExists = false;
+        
+        if (vfs) {
+          // VFS mode
+          fileExists = vfs.fileExists(conflictPath);
+        } else {
+          // Direct mode - check file system
+          try {
+            const fullPath = path.join(projectRoot, conflictPath);
+            await fs.access(fullPath);
+            fileExists = true;
+          } catch {
+            fileExists = false;
+          }
+        }
+        
+        if (fileExists) {
           return {
             success: false,
             error: `Conflict: ${conflictPath} already exists. The blueprint tried to create a conflicting ${path.extname(filePath)} version. Please use TypeScript (.ts) extensions for config files.`
@@ -179,14 +353,21 @@ export class BlueprintExecutor {
           const processedContent = this.processTemplate(action.content, context);
           
           // Check for config file conflicts (TypeScript vs JavaScript)
-          const conflictCheck = this.checkConfigFileConflict(processedPath, blueprintContext.vfs);
+          const conflictCheck = await this.checkConfigFileConflict(processedPath, blueprintContext.vfs, blueprintContext.projectRoot);
           if (!conflictCheck.success) {
             return { success: false, error: conflictCheck.error || 'Config file conflict detected' };
           }
           
-          // Create file in VFS
-          blueprintContext.vfs.createFile(processedPath, processedContent);
-          console.log(`  📝 Created file: ${processedPath}`);
+          if (blueprintContext.vfs) {
+            // Create file in VFS
+            blueprintContext.vfs.createFile(processedPath, processedContent);
+            console.log(`  📝 VFS: Created ${processedPath}`);
+          } else {
+            // Direct file creation for simple blueprints
+            const fullPath = path.join(blueprintContext.projectRoot, processedPath);
+            await fs.writeFile(fullPath, processedContent, 'utf-8');
+            console.log(`  📝 Created file: ${processedPath}`);
+          }
           
           return { success: true, files: [processedPath] };
           
@@ -194,6 +375,9 @@ export class BlueprintExecutor {
           if (!action.command) {
             return { success: false, error: 'RUN_COMMAND action missing command' };
           }
+          
+          // VFS should NOT be flushed during blueprint execution
+          // VFS is flushed by the orchestrator between blueprints
           
           // Process template command
           const runCommand = this.processTemplate(action.command, context);
@@ -206,7 +390,7 @@ export class BlueprintExecutor {
             const execAsync = promisify(exec);
             
             // Execute command in the project directory
-            const projectRoot = 'pathHandler' in context && context.pathHandler ? context.pathHandler.getProjectRoot() : '.';
+            const projectRoot = blueprintContext.projectRoot;
             const { stdout, stderr } = await execAsync(runCommand, { 
               cwd: projectRoot,
               timeout: (action as any).timeout || 30000 // 30 second timeout by default
@@ -246,20 +430,28 @@ export class BlueprintExecutor {
             const devDependencies: Record<string, string> = {};
             
             for (const pkg of processedPackages) {
+              // Parse package name and version from "package@version" format
+              const match = pkg.match(/^(.+?)@(.+)$/);
+              const packageName = match ? match[1] : pkg;
+              const packageVersion = match ? match[2] : 'latest';
+              
+              // Skip if packageName is undefined (shouldn't happen, but safety check)
+              if (!packageName || !packageVersion) continue;
+              
               // Check if it's a dev dependency (starts with @types/ or common dev packages)
-              const isDevDep = pkg.startsWith('@types/') || 
-                              pkg.startsWith('@typescript-eslint/') ||
-                              pkg.startsWith('eslint-') ||
-                              pkg.startsWith('prettier') ||
-                              pkg.startsWith('vitest') ||
-                              pkg.startsWith('@vitejs/') ||
-                              pkg.startsWith('typescript') ||
+              const isDevDep = packageName.startsWith('@types/') || 
+                              packageName.startsWith('@typescript-eslint/') ||
+                              packageName.startsWith('eslint-') ||
+                              packageName.startsWith('prettier') ||
+                              packageName.startsWith('vitest') ||
+                              packageName.startsWith('@vitejs/') ||
+                              packageName.startsWith('typescript') ||
                               action.isDev === true;
               
               if (isDevDep) {
-                devDependencies[pkg] = 'latest';
+                devDependencies[packageName] = packageVersion;
               } else {
-                dependencies[pkg] = 'latest';
+                dependencies[packageName] = packageVersion;
               }
             }
             
@@ -390,20 +582,39 @@ export class BlueprintExecutor {
           
           console.log(`  ✅ Found modifier: ${action.modifier}`);
           
-          // Read the file from VFS
-          const fileContent = await blueprintContext.vfs.readFile(enhancedPath);
-          if (!fileContent) {
-            return { success: false, error: `File not found in VFS: ${enhancedPath}` };
+          // Read the file from VFS or disk
+          let fileContent: string;
+          if (blueprintContext.vfs) {
+            fileContent = await blueprintContext.vfs.readFile(enhancedPath);
+            if (!fileContent) {
+              return { success: false, error: `File not found in VFS: ${enhancedPath}` };
+            }
+            console.log(`  📖 VFS: Read file content (${fileContent.length} chars)`);
+          } else {
+            // Direct file read for simple blueprints
+            const fullPath = path.join(blueprintContext.projectRoot, enhancedPath);
+            try {
+              fileContent = await fs.readFile(fullPath, 'utf-8');
+              console.log(`  📖 Read file content (${fileContent.length} chars)`);
+            } catch (error) {
+              return { success: false, error: `File not found: ${enhancedPath}` };
+            }
           }
-          
-          console.log(`  📖 Read file content (${fileContent.length} chars)`);
           
           // Execute the modifier
           try {
             const result = await modifier.handler(fileContent, action.params || {}, context);
             if (result.success) {
-              // Write the enhanced content back to VFS
-              blueprintContext.vfs.writeFile(enhancedPath, result.content);
+              if (blueprintContext.vfs) {
+                // Write the enhanced content back to VFS
+                blueprintContext.vfs.writeFile(enhancedPath, result.content);
+                console.log(`  ✏️ VFS: Wrote ${enhancedPath}`);
+              } else {
+                // Direct file write for simple blueprints
+                const fullPath = path.join(blueprintContext.projectRoot, enhancedPath);
+                await fs.writeFile(fullPath, result.content, 'utf-8');
+                console.log(`  ✏️ Wrote ${enhancedPath}`);
+              }
               console.log(`  ✅ Enhanced file: ${enhancedPath}`);
               return { success: true, files: [enhancedPath] };
             } else {

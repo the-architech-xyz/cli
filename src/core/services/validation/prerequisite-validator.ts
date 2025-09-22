@@ -17,11 +17,138 @@ import {
 import { ModuleFetcherService } from '../module-management/fetcher/module-fetcher.js';
 import { AdapterConfig } from '@thearchitech.xyz/types';
 
+export interface ExecutionPlan {
+  plan: string[];
+  error?: string;
+  details?: {
+    providedCapabilities: CapabilityDeclaration[];
+    missingCapabilities: CapabilityRequirement[];
+    conflictingCapabilities: CapabilityConflict[];
+    versionMismatches: VersionMismatch[];
+    dependencyGraph: Map<string, string[]>;
+  };
+}
+
 export class PrerequisiteValidator {
   private moduleFetcher: ModuleFetcherService;
 
   constructor(moduleFetcher: ModuleFetcherService) {
     this.moduleFetcher = moduleFetcher;
+  }
+
+  /**
+   * Builds an execution plan using topological sorting of dependencies
+   * 
+   * @param recipe - The recipe containing the modules to plan
+   * @returns Execution plan with ordered module IDs or error
+   */
+  async buildExecutionPlan(recipe: Recipe): Promise<ExecutionPlan> {
+    try {
+      // Step 1: Load all adapter configurations from the modules
+      const adapterConfigs = await this.loadAdapterConfigs(recipe.modules);
+      
+      // Step 2: Collect all provided capabilities
+      const providedCapabilities = this.collectProvidedCapabilities(adapterConfigs);
+      
+      // Step 3: Check for conflicts (same capability provided by multiple adapters)
+      const conflicts = this.detectConflicts(providedCapabilities);
+      if (conflicts.length > 0) {
+        return {
+          plan: [],
+          error: this.formatConflictError(conflicts),
+          details: {
+            providedCapabilities,
+            missingCapabilities: [],
+            conflictingCapabilities: conflicts,
+            versionMismatches: [],
+            dependencyGraph: new Map()
+          }
+        };
+      }
+      
+      // Step 4: Build dependency graph
+      const dependencyGraph = this.buildDependencyGraph(adapterConfigs, providedCapabilities);
+      
+      // Step 5: Check for missing capabilities
+      const missingCapabilities: CapabilityRequirement[] = [];
+      const versionMismatches: VersionMismatch[] = [];
+      
+      for (const adapterConfig of adapterConfigs) {
+        if (adapterConfig.prerequisites?.capabilities) {
+          for (const requirement of adapterConfig.prerequisites.capabilities) {
+            const validation = this.validateCapabilityRequirement(
+              requirement, 
+              providedCapabilities, 
+              adapterConfig.id
+            );
+            
+            if (!validation.isValid) {
+              if (validation.isMissing) {
+                missingCapabilities.push(requirement);
+              } else if (validation.versionMismatch) {
+                versionMismatches.push(validation.versionMismatch);
+              }
+            }
+          }
+        }
+      }
+      
+      // Step 6: Return error if prerequisites are missing
+      if (missingCapabilities.length > 0 || versionMismatches.length > 0) {
+        return {
+          plan: [],
+          error: this.formatPrerequisiteError(missingCapabilities, versionMismatches),
+          details: {
+            providedCapabilities,
+            missingCapabilities,
+            conflictingCapabilities: conflicts,
+            versionMismatches,
+            dependencyGraph
+          }
+        };
+      }
+      
+      // Step 7: Perform topological sort
+      const sortedPlan = this.topologicalSort(dependencyGraph, recipe.modules.map(m => m.id));
+      
+      if (sortedPlan.error) {
+        return {
+          plan: [],
+          error: sortedPlan.error,
+          details: {
+            providedCapabilities,
+            missingCapabilities: [],
+            conflictingCapabilities: conflicts,
+            versionMismatches: [],
+            dependencyGraph
+          }
+        };
+      }
+      
+      return {
+        plan: sortedPlan.plan,
+        details: {
+          providedCapabilities,
+          missingCapabilities: [],
+          conflictingCapabilities: conflicts,
+          versionMismatches: [],
+          dependencyGraph
+        }
+      };
+      
+    } catch (error) {
+      return {
+        plan: [],
+        error: `Execution plan failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        details: {
+          providedCapabilities: [],
+          missingCapabilities: [],
+          conflictingCapabilities: [],
+          versionMismatches: [],
+          dependencyGraph: new Map()
+        }
+      };
+    }
   }
 
   /**
@@ -347,5 +474,158 @@ export class PrerequisiteValidator {
     }
     
     return errors.join('\n\n') + '\n\nPlease add the required adapters or update versions to resolve these issues.';
+  }
+
+  /**
+   * Builds a dependency graph from adapter configurations
+   * 
+   * @param adapterConfigs - Array of adapter configurations
+   * @param providedCapabilities - Array of provided capabilities
+   * @returns Map where keys are module IDs and values are arrays of dependent module IDs
+   */
+  private buildDependencyGraph(
+    adapterConfigs: AdapterConfig[], 
+    providedCapabilities: CapabilityDeclaration[]
+  ): Map<string, string[]> {
+    const graph = new Map<string, string[]>();
+    
+    // Initialize graph with all modules
+    for (const config of adapterConfigs) {
+      graph.set(config.id, []);
+    }
+    
+    // Build dependency edges based on prerequisites
+    for (const config of adapterConfigs) {
+      if (config.prerequisites?.capabilities) {
+        for (const requirement of config.prerequisites.capabilities) {
+          // Find which module provides this capability
+          const provider = providedCapabilities.find(cap => cap.name === requirement.name);
+          if (provider && provider.description) {
+            // Extract module ID from description (format: "Provided by module-id")
+            const moduleId = provider.description.replace('Provided by ', '');
+            if (moduleId !== config.id) { // Don't add self-dependency
+              const dependencies = graph.get(config.id) || [];
+              if (!dependencies.includes(moduleId)) {
+                dependencies.push(moduleId);
+                graph.set(config.id, dependencies);
+              }
+            }
+          }
+        }
+      }
+    }
+    
+    return graph;
+  }
+
+  /**
+   * Performs topological sort on the dependency graph
+   * 
+   * @param graph - Dependency graph
+   * @param allModules - Array of all module IDs
+   * @returns Sorted execution plan or error
+   */
+  private topologicalSort(
+    graph: Map<string, string[]>, 
+    allModules: string[]
+  ): { plan: string[]; error?: string } {
+    const result: string[] = [];
+    const visited = new Set<string>();
+    const visiting = new Set<string>();
+    
+    // Helper function to visit a node
+    const visit = (moduleId: string): boolean => {
+      if (visiting.has(moduleId)) {
+        // Circular dependency detected
+        return false;
+      }
+      
+      if (visited.has(moduleId)) {
+        return true;
+      }
+      
+      visiting.add(moduleId);
+      
+      // Visit all dependencies first
+      const dependencies = graph.get(moduleId) || [];
+      for (const dep of dependencies) {
+        if (!visit(dep)) {
+          return false;
+        }
+      }
+      
+      visiting.delete(moduleId);
+      visited.add(moduleId);
+      result.push(moduleId);
+      
+      return true;
+    };
+    
+    // Visit all modules
+    for (const moduleId of allModules) {
+      if (!visited.has(moduleId)) {
+        if (!visit(moduleId)) {
+          // Find the cycle for better error reporting
+          const cycle = this.findCycle(graph, allModules);
+          return {
+            plan: [],
+            error: `Circular dependency detected: ${cycle.join(' → ')}. Please fix the prerequisites in the blueprints.`
+          };
+        }
+      }
+    }
+    
+    return { plan: result };
+  }
+
+  /**
+   * Finds a cycle in the dependency graph for error reporting
+   * 
+   * @param graph - Dependency graph
+   * @param allModules - Array of all module IDs
+   * @returns Array representing the cycle
+   */
+  private findCycle(graph: Map<string, string[]>, allModules: string[]): string[] {
+    const visited = new Set<string>();
+    const recStack = new Set<string>();
+    const path: string[] = [];
+    
+    const hasCycle = (moduleId: string): boolean => {
+      if (recStack.has(moduleId)) {
+        // Found a cycle, extract the cycle path
+        const cycleStart = path.indexOf(moduleId);
+        return true;
+      }
+      
+      if (visited.has(moduleId)) {
+        return false;
+      }
+      
+      visited.add(moduleId);
+      recStack.add(moduleId);
+      path.push(moduleId);
+      
+      const dependencies = graph.get(moduleId) || [];
+      for (const dep of dependencies) {
+        if (hasCycle(dep)) {
+          return true;
+        }
+      }
+      
+      recStack.delete(moduleId);
+      path.pop();
+      return false;
+    };
+    
+    for (const moduleId of allModules) {
+      if (!visited.has(moduleId)) {
+        if (hasCycle(moduleId)) {
+          // Return a simplified cycle representation
+          return ['circular dependency detected'];
+        }
+      }
+    }
+    
+    return ['no cycle found'];
   }
 }

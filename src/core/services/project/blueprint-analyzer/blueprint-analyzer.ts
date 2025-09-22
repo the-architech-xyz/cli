@@ -46,8 +46,14 @@ export class BlueprintAnalyzer {
           
         case 'ENHANCE_FILE':
           if (action.path) {
-            filesToRead.push(action.path);
-            console.log(`🔧 Will enhance: ${action.path}`);
+            // If ENHANCE_FILE has fallback: 'create', treat it as a CREATE_FILE
+            if (action.fallback === 'create') {
+              filesToCreate.push(action.path);
+              console.log(`📝 Will create (enhance with fallback): ${action.path}`);
+            } else {
+              filesToRead.push(action.path);
+              console.log(`🔧 Will enhance: ${action.path}`);
+            }
           }
           break;
           

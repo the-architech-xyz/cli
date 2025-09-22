@@ -51,4 +51,4 @@ export * from './marketplace/marketplace-manager.js';
 export * from './module-management/fetcher/module-fetcher.js';
 
 // Cache
-export * from './infrastructure/cache/cache-manager.js';
+export * from './infrastructure/cache/index.js';

@@ -135,35 +135,55 @@ export class FileModificationEngine {
     try {
       const fullPath = this.resolvePath(filePath);
       
+      console.log(`🔍 [FileModificationEngine.mergeJsonFile] Starting merge for: ${filePath}`);
+      console.log(`🔍 [FileModificationEngine.mergeJsonFile] Full path: ${fullPath}`);
+      console.log(`🔍 [FileModificationEngine.mergeJsonFile] Content to merge:`, JSON.stringify(contentToMerge, null, 2));
+      
       // Read existing content - first from VFS, then from disk if not in VFS
       let existingContent = {};
       if (this.vfs.fileExists(fullPath)) {
+        console.log(`🔍 [FileModificationEngine.mergeJsonFile] File exists in VFS, reading from VFS`);
         const content = this.vfs.readFile(fullPath);
         existingContent = JSON.parse(await content);
+        console.log(`🔍 [FileModificationEngine.mergeJsonFile] Existing content from VFS:`, JSON.stringify(existingContent, null, 2));
       } else {
+        console.log(`🔍 [FileModificationEngine.mergeJsonFile] File not in VFS, trying disk`);
         // File not in VFS, try to read from disk and load into VFS
         try {
           const diskContent = await fs.readFile(fullPath, 'utf-8');
           existingContent = JSON.parse(diskContent);
+          console.log(`🔍 [FileModificationEngine.mergeJsonFile] Existing content from disk:`, JSON.stringify(existingContent, null, 2));
           // Load the file into VFS so future operations can work with it
           await this.vfs.writeFile(fullPath, diskContent);
+          console.log(`🔍 [FileModificationEngine.mergeJsonFile] Loaded disk content into VFS`);
         } catch (diskError) {
+          console.log(`🔍 [FileModificationEngine.mergeJsonFile] File doesn't exist on disk, starting with empty object`);
           // File doesn't exist on disk either, start with empty object
           existingContent = {};
         }
       }
       
       // Deep merge
+      console.log(`🔍 [FileModificationEngine.mergeJsonFile] Performing deep merge...`);
       const mergedContent = merge(existingContent, contentToMerge);
+      console.log(`🔍 [FileModificationEngine.mergeJsonFile] Merged content:`, JSON.stringify(mergedContent, null, 2));
       
       // Write back to VFS
-      await this.vfs.writeFile(fullPath, JSON.stringify(mergedContent, null, 2));
+      const jsonString = JSON.stringify(mergedContent, null, 2);
+      console.log(`🔍 [FileModificationEngine.mergeJsonFile] Writing to VFS:`, jsonString);
+      await this.vfs.writeFile(fullPath, jsonString);
+      console.log(`🔍 [FileModificationEngine.mergeJsonFile] Successfully wrote to VFS`);
+      
+      // Verify the write by reading back from VFS
+      const verifyContent = await this.vfs.readFile(fullPath);
+      console.log(`🔍 [FileModificationEngine.mergeJsonFile] Verification - content in VFS after write:`, verifyContent);
       
       return {
         success: true,
         filePath: fullPath
       };
     } catch (error) {
+      console.error(`❌ [FileModificationEngine.mergeJsonFile] Error:`, error);
       return {
         success: false,
         filePath: filePath,

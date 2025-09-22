@@ -199,6 +199,11 @@ export class PathService {
     console.log(`🔍 PathService.resolveTemplate called with: ${template}`);
     console.log(`🔍 Available paths:`, this.getAvailablePaths());
     
+    // DEBUGGING: Check if template contains shadcn
+    if (template.includes('shadcn')) {
+      console.log(`🚨 DEBUGGING: Template contains shadcn, input template: ${template}`);
+    }
+    
     // Replace {{paths.key}} patterns with actual resolved paths
     const result = template.replace(/\{\{paths\.([^}]+)\}\}/g, (match, key) => {
       console.log(`🔍 Processing path variable: ${key}`);
@@ -212,6 +217,13 @@ export class PathService {
         return match;
       }
     });
+    
+    // DEBUGGING: Check if result is different from input
+    if (result !== template) {
+      console.log(`🚨 DEBUGGING: PathService changed template!`);
+      console.log(`🚨 DEBUGGING: Input: ${template}`);
+      console.log(`🚨 DEBUGGING: Output: ${result}`);
+    }
     
     console.log(`🔍 Final resolved template: ${result}`);
     return result;
