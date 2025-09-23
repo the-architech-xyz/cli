@@ -20,7 +20,6 @@ export class BlueprintAnalyzer {
    * Analyze a blueprint to determine all files that need to be pre-loaded
    */
   analyzeBlueprint(blueprint: Blueprint): BlueprintAnalysis {
-    console.log(`🔍 Analyzing blueprint: ${blueprint.name}`);
     
     const filesToRead: string[] = [];
     const filesToCreate: string[] = [];
@@ -29,7 +28,6 @@ export class BlueprintAnalyzer {
     // 1. Extract contextualFiles from blueprint definition
     if (blueprint.contextualFiles && Array.isArray(blueprint.contextualFiles)) {
       contextualFiles.push(...blueprint.contextualFiles);
-      console.log(`📋 Found ${contextualFiles.length} contextual files:`, contextualFiles);
     }
     
     // 2. Analyze all actions to determine file dependencies
@@ -40,7 +38,6 @@ export class BlueprintAnalyzer {
         case 'CREATE_FILE':
           if (action.path) {
             filesToCreate.push(action.path);
-            console.log(`📝 Will create: ${action.path}`);
           }
           break;
           
@@ -49,10 +46,8 @@ export class BlueprintAnalyzer {
             // If ENHANCE_FILE has fallback: 'create', treat it as a CREATE_FILE
             if (action.fallback === 'create') {
               filesToCreate.push(action.path);
-              console.log(`📝 Will create (enhance with fallback): ${action.path}`);
             } else {
               filesToRead.push(action.path);
-              console.log(`🔧 Will enhance: ${action.path}`);
             }
           }
           break;
@@ -61,7 +56,6 @@ export class BlueprintAnalyzer {
         case 'MERGE_CONFIG':
           if (action.path) {
             filesToRead.push(action.path);
-            console.log(`🔄 Will merge: ${action.path}`);
           }
           break;
           
@@ -69,28 +63,24 @@ export class BlueprintAnalyzer {
         case 'PREPEND_TO_FILE':
           if (action.path) {
             filesToRead.push(action.path);
-            console.log(`➕ Will append/prepend to: ${action.path}`);
           }
           break;
           
         case 'ADD_TS_IMPORT':
           if (action.path) {
             filesToRead.push(action.path);
-            console.log(`📦 Will add imports to: ${action.path}`);
           }
           break;
           
         case 'EXTEND_SCHEMA':
           if (action.path) {
             filesToRead.push(action.path);
-            console.log(`🗄️ Will extend schema: ${action.path}`);
           }
           break;
           
         case 'WRAP_CONFIG':
           if (action.path) {
             filesToRead.push(action.path);
-            console.log(`📦 Will wrap config: ${action.path}`);
           }
           break;
           
@@ -98,13 +88,11 @@ export class BlueprintAnalyzer {
         case 'INSTALL_PACKAGES':
         case 'ADD_SCRIPT':
           filesToRead.push('package.json');
-          console.log(`📦 Action ${action.type} requires package.json access`);
           break;
           
         // Actions that don't require file access
         case 'ADD_ENV_VAR':
         case 'RUN_COMMAND':
-          console.log(`⚡ Action ${action.type} doesn't require file access`);
           break;
           
         default:
@@ -124,13 +112,6 @@ export class BlueprintAnalyzer {
       contextualFiles,
       allRequiredFiles
     };
-    
-    console.log(`✅ Blueprint analysis complete:`, {
-      filesToRead: analysis.filesToRead.length,
-      filesToCreate: analysis.filesToCreate.length,
-      contextualFiles: analysis.contextualFiles.length,
-      totalRequiredFiles: analysis.allRequiredFiles.length
-    });
     
     return analysis;
   }
@@ -170,7 +151,6 @@ export class BlueprintAnalyzer {
     if (!valid) {
       console.warn(`⚠️ Missing required files:`, missingFiles);
     } else {
-      console.log(`✅ All required files exist on disk`);
     }
     
     return {

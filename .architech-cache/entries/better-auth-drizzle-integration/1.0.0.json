@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "better-auth-drizzle-integration",
+    "name": "better-auth-drizzle-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.461Z",
+  "checksum": "6f867f841dd73670a6d32b50ce173ea021e0413c9615d6a96f495fa73b54b805",
+  "metadata": {
+    "moduleId": "better-auth-drizzle-integration",
+    "fetchedAt": "2025-09-23T16:22:53.461Z",
+    "size": 94
+  }
+}

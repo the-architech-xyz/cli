@@ -42,7 +42,6 @@ export class UpdateChecker {
    * Check all modules for updates
    */
   async checkAllModules(moduleIds: string[]): Promise<ModuleUpdateInfo[]> {
-    console.log('🔍 Checking for module updates...');
     
     const updateInfos: ModuleUpdateInfo[] = [];
     
@@ -74,13 +73,11 @@ export class UpdateChecker {
   async promptUserForUpdates(updates: ModuleUpdateInfo[], options: UpdatePromptOptions = {}): Promise<boolean> {
     if (updates.length === 0) {
       if (!options.silent) {
-        console.log('✅ All modules are up to date');
       }
       return false;
     }
 
     if (options.autoUpdate) {
-      console.log(`🔄 Auto-updating ${updates.length} modules...`);
       return true;
     }
 
@@ -88,15 +85,10 @@ export class UpdateChecker {
       return false;
     }
 
-    console.log(chalk.yellow(`\n🔄 ${updates.length} module(s) have updates available:`));
     
     updates.forEach((update, index) => {
-      console.log(chalk.gray(`  ${index + 1}. ${update.moduleId}`));
-      console.log(chalk.gray(`     Current: ${update.currentVersion} → Latest: ${update.latestVersion}`));
       if (update.description) {
-        console.log(chalk.gray(`     ${update.description}`));
       }
-      console.log('');
     });
 
     const { shouldUpdate } = await inquirer.prompt([
@@ -115,11 +107,9 @@ export class UpdateChecker {
    * Update specific modules
    */
   async updateModules(moduleIds: string[]): Promise<void> {
-    console.log(`🔄 Updating ${moduleIds.length} module(s)...`);
     
     for (const moduleId of moduleIds) {
       try {
-        console.log(`  📦 Updating ${moduleId}...`);
         
         // Invalidate cache for this module
         await this.cacheManager.invalidateModule(moduleId);
@@ -128,7 +118,6 @@ export class UpdateChecker {
         const result = await this.moduleFetcher.fetch(moduleId, 'latest');
         
         if (result.success) {
-          console.log(`  ✅ Updated ${moduleId}`);
         } else {
           console.warn(`  ⚠️  Failed to update ${moduleId}: ${result.error}`);
         }
@@ -137,7 +126,6 @@ export class UpdateChecker {
       }
     }
     
-    console.log('✅ Module updates completed');
   }
 
   /**
@@ -159,7 +147,6 @@ export class UpdateChecker {
       const shouldUpdate = await this.promptUserForUpdates(updates, options);
       
       if (!shouldUpdate) {
-        console.log('ℹ️  Continuing with cached modules...');
         return { updated: false, updatedModules: [] };
       }
 
@@ -178,7 +165,6 @@ export class UpdateChecker {
    * Force refresh all modules (clear cache and re-fetch)
    */
   async forceRefreshAll(moduleIds: string[]): Promise<void> {
-    console.log('🔄 Force refreshing all modules...');
     
     for (const moduleId of moduleIds) {
       await this.cacheManager.invalidateModule(moduleId);

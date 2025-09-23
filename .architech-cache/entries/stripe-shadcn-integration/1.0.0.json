@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "stripe-shadcn-integration",
+    "name": "stripe-shadcn-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.489Z",
+  "checksum": "29f7ad5e511e24e83e96e7c605b519910b6d050dbddd10e6311b3448f2874186",
+  "metadata": {
+    "moduleId": "stripe-shadcn-integration",
+    "fetchedAt": "2025-09-23T16:22:53.489Z",
+    "size": 82
+  }
+}

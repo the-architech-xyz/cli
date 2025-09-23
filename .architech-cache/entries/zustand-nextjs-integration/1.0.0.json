@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "zustand-nextjs-integration",
+    "name": "zustand-nextjs-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.495Z",
+  "checksum": "55f2f9da9872fa39e3317d85f3bfa43f5948969286b4d6eebdddd15c566d9e3b",
+  "metadata": {
+    "moduleId": "zustand-nextjs-integration",
+    "fetchedAt": "2025-09-23T16:22:53.495Z",
+    "size": 84
+  }
+}

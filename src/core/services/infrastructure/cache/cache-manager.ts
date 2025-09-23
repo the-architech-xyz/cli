@@ -65,7 +65,6 @@ export class CacheManagerService {
         await this.createManifest();
       }
       
-      console.log(`📁 Cache initialized: ${this.cacheDir}`);
     } catch (error) {
       throw new Error(`Failed to initialize cache: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -132,7 +131,6 @@ export class CacheManagerService {
       // Update manifest
       await this.updateManifest(moduleId, version, entry);
       
-      console.log(`💾 Cached: ${moduleId}@${version}`);
     } catch (error) {
       throw new Error(`Failed to cache ${moduleId}@${version}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -160,7 +158,6 @@ export class CacheManagerService {
     try {
       await fs.rm(this.cacheDir, { recursive: true, force: true });
       await this.initialize();
-      console.log('🗑️  Cache cleared');
     } catch (error) {
       throw new Error(`Failed to clear cache: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -252,7 +249,6 @@ export class CacheManagerService {
       if (manifest.modules[moduleId]) {
         manifest.modules[moduleId].lastChecked = new Date(0).toISOString();
         await this.saveManifest(manifest);
-        console.log(`🔄 Invalidated cache for ${moduleId}`);
       }
     } catch (error) {
       console.warn(`⚠️  Failed to invalidate ${moduleId}:`, error);

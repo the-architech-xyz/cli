@@ -1,0 +1,77 @@
+{
+  "content": {
+    "id": "web3-base-setup",
+    "name": "Viem Base Setup",
+    "description": "Core Web3 utilities and configuration using viem",
+    "actions": [
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "viem@^2.0.0",
+          "@tanstack/react-query@^5.0.0",
+          "zod@^3.22.0"
+        ]
+      },
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "@types/node@^20.0.0"
+        ],
+        "isDev": true
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "src/lib/web3/config.ts",
+        "template": "adapters/blockchain/web3/templates/config.ts.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "src/lib/web3/core.ts",
+        "template": "adapters/blockchain/web3/templates/core.ts.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "src/hooks/useWeb3.ts",
+        "template": "adapters/blockchain/web3/templates/useWeb3.ts.tpl"
+      },
+      {
+        "type": "ADD_ENV_VAR",
+        "key": "CHAIN_ID",
+        "value": "1",
+        "description": "Default blockchain chain ID"
+      },
+      {
+        "type": "ADD_ENV_VAR",
+        "key": "MAINNET_RPC_URL",
+        "value": "https://mainnet.infura.io/v3/YOUR_PROJECT_ID",
+        "description": "Ethereum mainnet RPC URL"
+      },
+      {
+        "type": "ADD_ENV_VAR",
+        "key": "SEPOLIA_RPC_URL",
+        "value": "https://sepolia.infura.io/v3/YOUR_PROJECT_ID",
+        "description": "Sepolia testnet RPC URL"
+      },
+      {
+        "type": "ADD_ENV_VAR",
+        "key": "POLYGON_RPC_URL",
+        "value": "https://polygon-rpc.com",
+        "description": "Polygon network RPC URL"
+      },
+      {
+        "type": "ADD_ENV_VAR",
+        "key": "ARBITRUM_RPC_URL",
+        "value": "https://arb1.arbitrum.io/rpc",
+        "description": "Arbitrum One RPC URL"
+      }
+    ]
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.412Z",
+  "checksum": "a215172f27e20c95175b86571d01f1c784583ee97959f3f8e069931fedd8e953",
+  "metadata": {
+    "moduleId": "blockchain/web3",
+    "fetchedAt": "2025-09-23T16:22:53.412Z",
+    "size": 1274
+  }
+}

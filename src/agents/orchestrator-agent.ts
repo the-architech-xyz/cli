@@ -2,7 +2,7 @@
  * Orchestrator Agent
  * 
  * Main orchestrator that coordinates all agents
- * Reads YAML recipe and delegates to appropriate agents
+ * Reads TypeScript genome and delegates to appropriate agents
  */
 
 import { Recipe, Module, ExecutionResult, GlobalContext, LegacyProjectContext } from '@thearchitech.xyz/types';
@@ -122,7 +122,6 @@ export class OrchestratorAgent {
       // Initialize integration registry (this will load all integrations)
       await this.integrationRegistry.initialize();
       
-      console.log('✅ Orchestrator initialized successfully');
     } catch (error) {
       console.error(`❌ Failed to initialize orchestrator: ${error}`);
       throw error;
@@ -334,14 +333,12 @@ export class OrchestratorAgent {
         
         try {
           // Load adapter for this module
-          console.log(`🔍 Loading adapter for module: ${module.id} (${module.category})`);
           const adapterResult = await this.moduleLoader.loadModuleAdapter(module);
           if (!adapterResult.success) {
             console.error(`❌ Failed to load adapter for module ${module.id}: ${adapterResult.error}`);
             errors.push(adapterResult.error!);
             break;
           }
-          console.log(`✅ Successfully loaded adapter for module: ${module.id}`);
           
           // Create legacy context for backward compatibility
           const context = this.createLegacyContext(recipe, module, adapterResult.adapter!.config);
@@ -449,9 +446,7 @@ export class OrchestratorAgent {
             try {
               const packageJsonPath = path.join(this.pathHandler.getProjectRoot(), 'package.json');
               const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
-              console.log(`🔍 [Orchestrator] package.json BEFORE blueprint execution:`, packageJsonContent);
             } catch (error) {
-              console.log(`🔍 [Orchestrator] package.json not found before blueprint execution`);
             }
             
             // Execute blueprint directly on disk with null VFS context
@@ -467,9 +462,7 @@ export class OrchestratorAgent {
             try {
               const packageJsonPath = path.join(this.pathHandler.getProjectRoot(), 'package.json');
               const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
-              console.log(`🔍 [Orchestrator] package.json AFTER blueprint execution:`, packageJsonContent);
             } catch (error) {
-              console.log(`🔍 [Orchestrator] package.json not found after blueprint execution`);
             }
             
             moduleResult = {
@@ -652,7 +645,6 @@ export class OrchestratorAgent {
    * Pre-populate VFS with required files from disk
    */
   private async preloadFilesIntoVFS(vfs: VirtualFileSystem, filePaths: string[], projectRoot: string): Promise<void> {
-    console.log(`📂 Pre-loading ${filePaths.length} files into VFS...`);
     
     const fs = await import('fs/promises');
     const path = await import('path');
@@ -662,14 +654,12 @@ export class OrchestratorAgent {
         const fullPath = path.join(projectRoot, filePath);
         const content = await fs.readFile(fullPath, 'utf-8');
         await vfs.writeFile(filePath, content);
-        console.log(`✅ Pre-loaded: ${filePath}`);
       } catch (error) {
         console.warn(`⚠️ Failed to pre-load ${filePath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
         // Continue with other files - some might not exist yet
       }
     }
     
-    console.log(`✅ VFS pre-population complete`);
   }
 
   /**
@@ -712,7 +702,6 @@ export class OrchestratorAgent {
       const configPath = path.join(this.pathHandler.getProjectRoot(), 'architech.json');
       const fs = await import('fs/promises');
       await fs.writeFile(configPath, JSON.stringify(config, null, 2));
-      console.log('📋 Created architech.json configuration file');
     } catch (error) {
       console.error('❌ Failed to create architech.json:', error);
     }
@@ -736,7 +725,6 @@ export class OrchestratorAgent {
       const availableModules = recipe.modules.map(m => m.id.split('/').pop() || m.id);
 
       for (const integrationConfig of recipe.integrations!) {
-        console.log(`🔗 Executing integration adapter: ${integrationConfig.name}`);
 
         // Load integration adapter
         const integration = await this.integrationRegistry.get(integrationConfig.name);
@@ -784,7 +772,6 @@ export class OrchestratorAgent {
         const blueprint = integration.blueprint;
         
         // Step 1: Analyze integration blueprint to determine required files
-        console.log(`🔍 Analyzing integration blueprint: ${blueprint.name}`);
         const analysis = this.blueprintAnalyzer.analyzeBlueprint(blueprint);
         
         // Step 2: Validate required files exist on disk
@@ -798,10 +785,8 @@ export class OrchestratorAgent {
         
         // Step 3: Create new VFS instance for this integration blueprint
         const vfs = new VirtualFileSystem(`integration-${blueprint.id}`, this.pathHandler.getProjectRoot());
-        console.log(`🗂️ Created VFS for integration blueprint: ${blueprint.id}`);
         
         // Step 4: Pre-populate VFS with required files
-        console.log(`📂 Pre-loading ${analysis.allRequiredFiles.length} files into VFS for integration`);
         await this.preloadFilesIntoVFS(vfs, analysis.allRequiredFiles, this.pathHandler.getProjectRoot());
         
         // Step 5: Execute integration blueprint with pre-populated VFS
@@ -817,7 +802,6 @@ export class OrchestratorAgent {
         // Step 6: Flush VFS to disk (atomic commit)
         if (blueprintResult.success) {
           await vfs.flushToDisk();
-          console.log(`💾 VFS flushed to disk for integration blueprint: ${blueprint.id}`);
         } else {
           errors.push(...blueprintResult.errors);
           console.error(`❌ Integration blueprint failed: ${blueprintResult.errors.join(', ')}`);
@@ -827,7 +811,6 @@ export class OrchestratorAgent {
         // Add created files to results
         results.push(...integration.provides.files);
 
-        console.log(`✅ Integration adapter ${integrationConfig.name} completed successfully`);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -842,7 +825,6 @@ export class OrchestratorAgent {
    */
   private async installDependencies(): Promise<void> {
     try {
-      console.log('📦 Installing dependencies...');
       const { exec } = await import('child_process');
       const { promisify } = await import('util');
       const execAsync = promisify(exec);
@@ -851,7 +833,6 @@ export class OrchestratorAgent {
         cwd: this.pathHandler.getProjectRoot()
       });
       
-      console.log('✅ Dependencies installed successfully');
     } catch (error) {
       console.warn('⚠️ Failed to install dependencies automatically. Please run "npm install" manually.');
       console.warn(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -933,7 +914,6 @@ export class OrchestratorAgent {
       // Write back
       await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
       
-      console.log('✅ Package.json finalized with all dependencies');
     } catch (error) {
       console.error(`❌ Failed to finalize package.json: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -956,7 +936,6 @@ export class OrchestratorAgent {
       
       await fs.writeFile(envExamplePath, envExample);
       
-      console.log('✅ .env.example generated with all environment variables');
     } catch (error) {
       console.error(`❌ Failed to generate .env.example: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }

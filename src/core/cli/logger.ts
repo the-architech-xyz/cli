@@ -104,11 +104,9 @@ export class AgentLogger implements Logger {
     }
 
     // Output the message
-    console.log(formattedMessage);
 
     // Log additional context data in verbose mode
     if (this.verbose && context?.data) {
-      console.log(chalk.gray('  Context:'), JSON.stringify(context.data, null, 2));
     }
   }
 

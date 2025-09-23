@@ -17,7 +17,6 @@ export * from './path/path-service.js';
 export * from './project/project-manager.js';
 
 // Genome System
-export * from './module-management/genome/genome-registry.js';
 
 // Template System
 export * from './file-system/template/index.js';

@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "stripe-drizzle-integration",
+    "name": "stripe-drizzle-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.486Z",
+  "checksum": "8fd06eef4fa5b25acf88f1e310084873581b6daf0ca1898c34109ceb55cd41de",
+  "metadata": {
+    "moduleId": "stripe-drizzle-integration",
+    "fetchedAt": "2025-09-23T16:22:53.486Z",
+    "size": 84
+  }
+}

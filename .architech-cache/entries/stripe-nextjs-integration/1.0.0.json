@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "stripe-nextjs-integration",
+    "name": "stripe-nextjs-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.487Z",
+  "checksum": "bc697b4db07681e728f372c1a8c81a57ebdb224d0384f2b42b604fc79c47fdb6",
+  "metadata": {
+    "moduleId": "stripe-nextjs-integration",
+    "fetchedAt": "2025-09-23T16:22:53.487Z",
+    "size": 82
+  }
+}

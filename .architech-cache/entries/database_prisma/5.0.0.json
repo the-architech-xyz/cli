@@ -1,0 +1,33 @@
+{
+  "content": {
+    "id": "prisma-base-setup",
+    "name": "Prisma Base Setup",
+    "actions": [
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "prisma",
+          "@prisma/client"
+        ]
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "{{paths.database_config}}/prisma.ts",
+        "template": "adapters/database/prisma/templates/prisma.ts.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "prisma/schema.prisma",
+        "template": "adapters/database/prisma/templates/schema.prisma.tpl"
+      }
+    ]
+  },
+  "version": "5.0.0",
+  "lastModified": "2025-09-23T16:22:53.420Z",
+  "checksum": "d5ce32ed4a245e95c0acc20c479ae5bcc3549effa64ec03b29631c7702c51c51",
+  "metadata": {
+    "moduleId": "database/prisma",
+    "fetchedAt": "2025-09-23T16:22:53.420Z",
+    "size": 381
+  }
+}

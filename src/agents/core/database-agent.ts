@@ -19,7 +19,6 @@ export class DatabaseAgent extends SimpleAgent {
    * Execute a database module
    */
   async execute(module: Module, context: ProjectContext): Promise<AgentResult> {
-    console.log(`🗄️ Database Agent executing: ${module.id}`);
     
     // Validate basic module structure only
     const validation = this.validateModule(module);

@@ -1,0 +1,123 @@
+{
+  "content": {
+    "id": "dev-tools-setup",
+    "name": "Development Tools Setup",
+    "actions": [
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "prettier"
+        ],
+        "isDev": true,
+        "condition": "{{#if module.parameters.prettier}}"
+      },
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "husky"
+        ],
+        "isDev": true,
+        "condition": "{{#if module.parameters.husky}}"
+      },
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "lint-staged"
+        ],
+        "isDev": true,
+        "condition": "{{#if module.parameters.lintStaged}}"
+      },
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "@commitlint/cli",
+          "@commitlint/config-conventional"
+        ],
+        "isDev": true,
+        "condition": "{{#if module.parameters.commitlint}}"
+      },
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "eslint"
+        ],
+        "isDev": true,
+        "condition": "{{#if module.parameters.eslint}}"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": ".prettierrc",
+        "template": "adapters/tooling/dev-tools/templates/.prettierrc.tpl",
+        "condition": "{{#if module.parameters.prettier}}"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": ".prettierignore",
+        "template": "adapters/tooling/dev-tools/templates/.prettierignore.tpl",
+        "condition": "{{#if module.parameters.prettier}}"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": ".husky/pre-commit",
+        "template": "adapters/tooling/dev-tools/templates/.husky/pre-commit.tpl",
+        "condition": "{{#if module.parameters.husky}}"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": ".lintstagedrc",
+        "template": "adapters/tooling/dev-tools/templates/.lintstagedrc.tpl",
+        "condition": "{{#if module.parameters.lintStaged}}"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "commitlint.config.js",
+        "template": "adapters/tooling/dev-tools/templates/commitlint.config.js.tpl",
+        "condition": "{{#if module.parameters.commitlint}}"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": ".eslintrc.js",
+        "template": "adapters/tooling/dev-tools/templates/.eslintrc.js.tpl",
+        "condition": "{{#if module.parameters.eslint}}"
+      },
+      {
+        "type": "ADD_SCRIPT",
+        "name": "format",
+        "command": "prettier --write .",
+        "condition": "{{#if module.parameters.prettier}}"
+      },
+      {
+        "type": "ADD_SCRIPT",
+        "name": "format:check",
+        "command": "prettier --check .",
+        "condition": "{{#if module.parameters.prettier}}"
+      },
+      {
+        "type": "ADD_SCRIPT",
+        "name": "lint",
+        "command": "eslint . --ext .js,.jsx,.ts,.tsx",
+        "condition": "{{#if module.parameters.eslint}}"
+      },
+      {
+        "type": "ADD_SCRIPT",
+        "name": "lint:fix",
+        "command": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
+        "condition": "{{#if module.parameters.eslint}}"
+      },
+      {
+        "type": "ADD_SCRIPT",
+        "name": "prepare",
+        "command": "husky install",
+        "condition": "{{#if module.parameters.husky}}"
+      }
+    ]
+  },
+  "version": "latest",
+  "lastModified": "2025-09-23T12:37:54.462Z",
+  "checksum": "b2045a2f0295465c77b228e67a8ba6edf4f9279130b130d379e58ba7e0a5776a",
+  "metadata": {
+    "moduleId": "tooling/dev-tools",
+    "fetchedAt": "2025-09-23T12:37:54.462Z",
+    "size": 2293
+  }
+}

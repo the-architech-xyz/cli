@@ -1,0 +1,67 @@
+{
+  "content": {
+    "id": "drizzle-base-setup",
+    "name": "Drizzle Base Setup",
+    "actions": [
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "drizzle-orm",
+          "pg"
+        ]
+      },
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "drizzle-kit",
+          "@types/pg"
+        ],
+        "isDev": true
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "src/lib/db/index.ts",
+        "template": "adapters/database/drizzle/templates/db-index.ts.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "src/lib/db/schema.ts",
+        "template": "adapters/database/drizzle/templates/schema.ts.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "drizzle.config.ts",
+        "template": "adapters/database/drizzle/templates/drizzle.config.ts.tpl"
+      },
+      {
+        "type": "ADD_ENV_VAR",
+        "key": "DATABASE_URL",
+        "value": "postgresql://username:password@localhost:5432/{{project.name}}",
+        "description": "Database connection string"
+      },
+      {
+        "type": "ADD_SCRIPT",
+        "name": "db:generate",
+        "command": "drizzle-kit generate"
+      },
+      {
+        "type": "ADD_SCRIPT",
+        "name": "db:migrate",
+        "command": "drizzle-kit migrate"
+      },
+      {
+        "type": "ADD_SCRIPT",
+        "name": "db:studio",
+        "command": "drizzle-kit studio"
+      }
+    ]
+  },
+  "version": "latest",
+  "lastModified": "2025-09-23T02:57:57.888Z",
+  "checksum": "0272743c575fcc37d27113dadfb4ee2320e9a5e85d36779e339d40ff45a035f5",
+  "metadata": {
+    "moduleId": "database/drizzle",
+    "fetchedAt": "2025-09-23T02:57:57.888Z",
+    "size": 943
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "shadcn-zustand-integration",
+    "name": "shadcn-zustand-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.485Z",
+  "checksum": "250c2475eb24862f77d9c896f0ef1b19e86d6655092a0a2f599891e0e7e238f8",
+  "metadata": {
+    "moduleId": "shadcn-zustand-integration",
+    "fetchedAt": "2025-09-23T16:22:53.485Z",
+    "size": 84
+  }
+}

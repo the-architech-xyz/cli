@@ -1,0 +1,60 @@
+{
+  "content": {
+    "id": "better-auth-base-setup",
+    "name": "Better Auth Base Setup",
+    "actions": [
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "better-auth"
+        ]
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "{{paths.auth_config}}/config.ts",
+        "template": "adapters/auth/better-auth/templates/config.ts.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "{{paths.auth_config}}/api.ts",
+        "template": "adapters/auth/better-auth/templates/api.ts.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "{{paths.auth_config}}/client.ts",
+        "template": "adapters/auth/better-auth/templates/client.ts.tpl"
+      },
+      {
+        "type": "ADD_ENV_VAR",
+        "key": "AUTH_SECRET",
+        "value": "your-secret-key-here",
+        "description": "Better Auth secret key"
+      },
+      {
+        "type": "ADD_ENV_VAR",
+        "key": "AUTH_URL",
+        "value": "{{env.APP_URL}}",
+        "description": "Authentication base URL"
+      },
+      {
+        "type": "ADD_ENV_VAR",
+        "key": "DATABASE_URL",
+        "value": "postgresql://username:password@localhost:5432/{{project.name}}",
+        "description": "Database connection string (if using Drizzle)"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "{{paths.auth_config}}/INTEGRATION_GUIDE.md",
+        "template": "adapters/auth/better-auth/templates/INTEGRATION_GUIDE.md.tpl"
+      }
+    ]
+  },
+  "version": "0.18.0",
+  "lastModified": "2025-09-23T16:22:53.407Z",
+  "checksum": "b10d63d6b21d59f8110c9da06bf7dce6e56e5ec020a84afaf964efa241095a48",
+  "metadata": {
+    "moduleId": "auth/better-auth",
+    "fetchedAt": "2025-09-23T16:22:53.407Z",
+    "size": 1052
+  }
+}

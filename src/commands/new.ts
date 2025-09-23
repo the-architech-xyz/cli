@@ -1,80 +1,67 @@
 /**
  * New Command
  * 
- * Creates a new project from an architech.yaml recipe
- * Usage: architech new <recipe-file>
+ * Creates a new project from a TypeScript genome file
+ * Usage: architech new <genome-file.ts>
  */
 
 import { Command } from 'commander';
-import { readFileSync } from 'fs';
 import { join } from 'path';
-import * as yaml from 'js-yaml';
 import { Recipe } from '@thearchitech.xyz/types';
 import { OrchestratorAgent } from '../agents/orchestrator-agent.js';
 import { ProjectManager } from '../core/services/project/project-manager.js';
 import { PathService } from '../core/services/path/path-service.js';
 import { AgentLogger as Logger } from '../core/cli/logger.js';
-import { GenomeRegistry } from '../core/services/module-management/genome/genome-registry.js';
 
 export function createNewCommand(): Command {
   const command = new Command('new');
   
   command
-    .description('Create a new project from an architech.yaml recipe or genome')
-    .argument('<recipe-file-or-genome>', 'Path to recipe file or genome name')
+    .description('Create a new project from a genome template or custom genome file')
+    .argument('<template-or-file>', 'Template name (e.g., saas-app) or path to genome file (.ts)')
     .option('-d, --dry-run', 'Show what would be created without executing', false)
     .option('-v, --verbose', 'Enable verbose logging', false)
     .option('-q, --quiet', 'Suppress all output except errors', false)
-    .option('-g, --genome', 'Use genome template instead of recipe file', false)
-    .option('-n, --name <name>', 'Project name (required when using genome)')
-    .action(async (recipeFileOrGenome: string, options: { dryRun?: boolean; verbose?: boolean; quiet?: boolean; genome?: boolean; name?: string }) => {
+    .action(async (templateOrFile: string, options: { dryRun?: boolean; verbose?: boolean; quiet?: boolean }) => {
       const logger = new Logger(options.verbose);
       
       try {
-        let recipe: Recipe;
-        let projectName: string;
+        let recipe: Recipe | null = null;
+        let projectName = '';
 
-        if (options.genome) {
-          // Using genome template
-          if (!options.name) {
-            logger.error('❌ Project name is required when using genome template');
-            logger.info('💡 Use: architech new --genome <genome-name> --name <project-name>');
-            process.exit(1);
-          }
-
-          projectName = options.name;
-          logger.info(`🚀 Creating new project from genome: ${recipeFileOrGenome}`);
+        // Check if it's a template name or file path
+        const fileExtension = templateOrFile.split('.').pop()?.toLowerCase();
+        
+        if (fileExtension === 'ts' || fileExtension === 'js') {
+          // It's a file path
+          logger.info(`🚀 Creating new project from genome file: ${templateOrFile}`);
           
-          // Load genome
-          const genomeRegistry = new GenomeRegistry();
-          const genomeRecipe = genomeRegistry.createRecipe(recipeFileOrGenome, projectName);
-          
-          if (!genomeRecipe) {
-            logger.error(`❌ Genome '${recipeFileOrGenome}' not found`);
-            logger.info('💡 Available genomes:');
-            const genomes = genomeRegistry.getAllGenomes();
-            genomes.forEach(genome => {
-              logger.info(`   - ${genome.id}: ${genome.description}`);
-            });
-            process.exit(1);
-          }
-          
-          recipe = genomeRecipe;
+          const genomePath = join(process.cwd(), templateOrFile);
+          recipe = await loadTypeScriptGenome(genomePath);
+          projectName = recipe?.project.name || 'my-project';
         } else {
-          // Using recipe file
-          logger.info(`🚀 Creating new project from recipe: ${recipeFileOrGenome}`);
+          // It's a template name - load from marketplace
+          logger.info(`🚀 Creating new project from template: ${templateOrFile}`);
           
-          // Read and parse recipe file
-          const recipePath = join(process.cwd(), recipeFileOrGenome);
-          const recipeContent = readFileSync(recipePath, 'utf-8');
-          recipe = yaml.load(recipeContent) as Recipe;
-          projectName = recipe.project.name;
+          try {
+            const { createRequire } = await import('module');
+            const require = createRequire(import.meta.url);
+            const templatePath = require.resolve(`@thearchitech.xyz/marketplace/genomes/${templateOrFile}.genome.ts`);
+            recipe = await loadTypeScriptGenome(templatePath);
+            projectName = recipe?.project.name || templateOrFile;
+          } catch (error) {
+            logger.error(`❌ Template '${templateOrFile}' not found`);
+            logger.info('💡 Available templates: architech list');
+            logger.info('💡 Or use a custom genome file: architech new ./my-genome.ts');
+            process.exit(1);
+          }
         }
         
         if (!recipe) {
-          logger.error('❌ Failed to parse recipe file');
-    process.exit(1);
-  }
+          logger.error('❌ Failed to load genome template or file');
+          logger.info('💡 Make sure your genome file exports a valid Genome object');
+          process.exit(1);
+        }
         
         // Validate recipe structure
         const validation = validateRecipe(recipe);
@@ -197,5 +184,44 @@ function showDryRunPreview(recipe: Recipe, logger: Logger): void {
     logger.info(`📦 Dependencies: Will be skipped (skipInstall: true)`);
   } else {
     logger.info(`📦 Dependencies: Will be installed automatically`);
+  }
+}
+
+/**
+ * Load a TypeScript genome file and execute it to get the Recipe
+ */
+export async function loadTypeScriptGenome(filePath: string): Promise<Recipe | null> {
+  try {
+    const { execSync } = await import('child_process');
+    
+    // Use tsx to execute the TypeScript file and capture the output
+    const result = execSync(`npx tsx -e "
+      const genome = require('${filePath.replace(/\\/g, '\\\\')}');
+      console.log(JSON.stringify(genome.default || genome, null, 2));
+    "`, { 
+      encoding: 'utf8',
+      cwd: process.cwd()
+    });
+    
+    // Parse the JSON output
+    const genome = JSON.parse(result.trim());
+    
+    // Transform Genome to Recipe format
+    const recipe: Recipe = {
+      version: genome.version,
+      project: genome.project,
+      modules: genome.modules.map((module: any) => ({
+        id: module.id,
+        category: module.id.split('/')[0], // Extract category from id
+        version: '1.0.0', // Default version for now
+        parameters: module.parameters || {},
+        features: module.features || {}
+      }))
+    };
+    
+    return recipe;
+  } catch (error) {
+    console.error('Failed to load TypeScript genome:', error);
+    return null;
   }
 } 

@@ -19,7 +19,6 @@ export class FrameworkAgent extends SimpleAgent {
    * Execute a framework module
    */
   async execute(module: Module, context: ProjectContext): Promise<AgentResult> {
-    console.log(`🏗️ Framework Agent executing: ${module.id}`);
     
     // Validate basic module structure only
     const validation = this.validateModule(module);

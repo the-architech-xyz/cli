@@ -49,18 +49,16 @@ export class ModuleFetcherService {
     const localPath = process.env.LOCAL_MARKETPLACE_PATH;
     if (localPath) {
       this.localMarketplacePath = localPath;
-      console.log(`🔧 Using local marketplace: ${this.localMarketplacePath}`);
       this.marketplacePath = this.localMarketplacePath;
     } else {
       // Use NPM package
       try {
         const require = createRequire(import.meta.url);
-        const packagePath = require.resolve('@thearchitech/marketplace');
+        const packagePath = require.resolve('@thearchitech.xyz/marketplace');
         // Get the directory containing the package, not the main file
         this.marketplacePath = path.dirname(packagePath);
-        console.log(`📦 Using NPM marketplace: ${this.marketplacePath}`);
       } catch (error) {
-        throw new Error('@thearchitech/marketplace package not found. Please install it or set LOCAL_MARKETPLACE_PATH for development.');
+        throw new Error('@thearchitech.xyz/marketplace package not found. Please install it or set LOCAL_MARKETPLACE_PATH for development.');
       }
     }
   }
@@ -140,12 +138,10 @@ export class ModuleFetcherService {
         )
       );
 
-      console.log(`📦 Priming cache with ${modulesToPrime.length} modules...`);
 
       for (const module of modulesToPrime) {
         try {
           await this.fetch(module.id, module.version);
-          console.log(`✅ Cached: ${module.id}@${module.version}`);
         } catch (error) {
           console.warn(`⚠️  Failed to cache ${module.id}: ${error}`);
         }
@@ -270,14 +266,17 @@ export class ModuleFetcherService {
     const fullBlueprintPath = path.join(this.marketplacePath, blueprintPath);
     const blueprintContent = await fs.readFile(fullBlueprintPath, 'utf-8');
     
-  // Parse the TypeScript blueprint using proper AST parsing
-  console.log(`🔍 ModuleFetcher: Loading blueprint for ${moduleId}, content preview:`, blueprintContent.substring(0, 500));
-  const blueprint = TypeScriptBlueprintParser.parseBlueprint(blueprintContent);
-  
-  if (blueprint) {
-    console.log(`🔍 ModuleFetcher: Parsed blueprint actions:`, blueprint.actions?.slice(0, 3).map(a => a.command || a.type));
-    return blueprint;
-  }
+    // Fetch the adapter config for parameter defaults
+    const adapterConfig = await this.fetchAdapterConfig(moduleId, version)
+      .then(result => result.success ? result.content : null)
+      .catch(() => null);
+    
+    // Parse the TypeScript blueprint using proper AST parsing
+    const blueprint = TypeScriptBlueprintParser.parseBlueprint(blueprintContent, moduleId, adapterConfig);
+    
+    if (blueprint) {
+      return blueprint;
+    }
     
     // Fallback: return a minimal blueprint structure
     return {

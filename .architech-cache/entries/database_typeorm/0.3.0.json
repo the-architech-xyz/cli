@@ -1,0 +1,34 @@
+{
+  "content": {
+    "id": "typeorm-base-setup",
+    "name": "TypeORM Base Setup",
+    "actions": [
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "typeorm",
+          "reflect-metadata",
+          "{{module.parameters.databaseType}}"
+        ]
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "{{paths.database_config}}/typeorm.ts",
+        "template": "adapters/database/typeorm/templates/typeorm.ts.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "{{paths.database_config}}/entities/User.ts",
+        "template": "adapters/database/typeorm/templates/User.ts.tpl"
+      }
+    ]
+  },
+  "version": "0.3.0",
+  "lastModified": "2025-09-23T16:22:53.424Z",
+  "checksum": "728cc4be6ef167c55dd86caede1f7d81883e7d6901f6dfd44fcf1206bc69453f",
+  "metadata": {
+    "moduleId": "database/typeorm",
+    "fetchedAt": "2025-09-23T16:22:53.424Z",
+    "size": 443
+  }
+}

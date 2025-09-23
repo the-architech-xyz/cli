@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "web3-shadcn-integration",
+    "name": "web3-shadcn-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.494Z",
+  "checksum": "ae6de5b3b5b9c4080d875a7b98d04a67fbb9abc9be3eaac032e5ad97a3e03594",
+  "metadata": {
+    "moduleId": "web3-shadcn-integration",
+    "fetchedAt": "2025-09-23T16:22:53.494Z",
+    "size": 78
+  }
+}

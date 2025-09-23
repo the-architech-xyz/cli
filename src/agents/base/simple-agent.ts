@@ -42,13 +42,11 @@ export abstract class SimpleAgent implements Agent {
    */
   protected async executeAdapter(module: Module, context: ProjectContext, blueprintContext?: BlueprintContext): Promise<AgentResult> {
     try {
-      console.log(`  🔧 Loading adapter: ${module.category}/${module.id}`);
       
       // Load the adapter - extract adapter ID from module ID
       const adapterId = module.id.split('/').pop() || module.id;
       const adapter = await this.adapterLoader.loadAdapter(module.category, adapterId);
       
-      console.log(`  📋 Executing blueprint: ${adapter.blueprint.name}`);
       
       // Create blueprint executor
       this.blueprintExecutor = new BlueprintExecutor(context.project.path || '.', this.moduleFetcher);
@@ -57,7 +55,6 @@ export abstract class SimpleAgent implements Agent {
       const result = await this.blueprintExecutor!.executeBlueprint(adapter.blueprint, context, blueprintContext);
       
       if (result.success) {
-        console.log(`  ✅ Adapter ${module.id} completed successfully`);
         return {
           success: true,
           files: result.files,

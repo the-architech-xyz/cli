@@ -53,7 +53,6 @@ export class ModuleLoaderService {
         return { success: false, error: error.error };
       }
 
-      console.log(`🏗️ Loading framework adapter: ${frameworkModule.id}`);
 
       // 2. Load framework adapter
       const adapterId = frameworkModule.id.split('/').pop() || frameworkModule.id;
@@ -69,7 +68,6 @@ export class ModuleLoaderService {
         frameworkAdapter.config
       );
 
-      console.log(`📁 Framework paths configured:`, pathService.getAvailablePaths());
 
       return {
         success: true,

@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "ui/shadcn-ui",
+    "name": "ui/shadcn-ui",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.452Z",
+  "checksum": "84994da79dcda9eab488ab4689013b6f428658a0d46580928b50a7613460c25d",
+  "metadata": {
+    "moduleId": "ui/shadcn-ui",
+    "fetchedAt": "2025-09-23T16:22:53.452Z",
+    "size": 56
+  }
+}

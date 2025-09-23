@@ -19,7 +19,6 @@ export class TestingAgent extends SimpleAgent {
    * Execute a testing module
    */
   async execute(module: Module, context: ProjectContext): Promise<AgentResult> {
-    console.log(`🧪 Testing Agent executing: ${module.id}`);
     
     // Validate basic module structure only
     const validation = this.validateModule(module);

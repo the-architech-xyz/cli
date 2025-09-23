@@ -328,10 +328,8 @@ export async function POST(request: NextRequest) {
     case 'checkout.session.completed':
       const session = event.data.object as Stripe.Checkout.Session;
       // Handle successful payment
-      console.log('Payment succeeded:', session.id);
       break;
     default:
-      console.log(\`Unhandled event type: \${event.type}\`);
   }
 
   return NextResponse.json({ received: true });

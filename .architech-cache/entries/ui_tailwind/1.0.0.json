@@ -1,0 +1,64 @@
+{
+  "content": {
+    "id": "tailwind-setup",
+    "name": "Tailwind CSS Setup",
+    "actions": [
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "tailwindcss",
+          "postcss",
+          "autoprefixer"
+        ],
+        "isDev": true
+      },
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "@tailwindcss/typography"
+        ],
+        "isDev": true,
+        "condition": "{{#if module.parameters.typography}}"
+      },
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "@tailwindcss/forms"
+        ],
+        "isDev": true,
+        "condition": "{{#if module.parameters.forms}}"
+      },
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "@tailwindcss/aspect-ratio"
+        ],
+        "isDev": true,
+        "condition": "{{#if module.parameters.aspectRatio}}"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "tailwind.config.js",
+        "template": "adapters/ui/tailwind/templates/tailwind.config.js.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "postcss.config.js",
+        "template": "adapters/ui/tailwind/templates/postcss.config.js.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "src/app/globals.css",
+        "template": "adapters/ui/tailwind/templates/globals.css.tpl"
+      }
+    ]
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.455Z",
+  "checksum": "88e4a8aa8d3d6e022628a20527f459975464622246a73030c8030ac250d5711a",
+  "metadata": {
+    "moduleId": "ui/tailwind",
+    "fetchedAt": "2025-09-23T16:22:53.455Z",
+    "size": 888
+  }
+}

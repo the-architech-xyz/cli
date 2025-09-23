@@ -1,0 +1,49 @@
+{
+  "content": {
+    "id": "forms-setup",
+    "name": "Forms Setup",
+    "actions": [
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "zod"
+        ],
+        "condition": "{{#if module.parameters.zod}}"
+      },
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "react-hook-form"
+        ],
+        "condition": "{{#if module.parameters.reactHookForm}}"
+      },
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "@hookform/resolvers"
+        ],
+        "condition": "{{#if module.parameters.resolvers}}"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "src/lib/forms.ts",
+        "template": "adapters/ui/forms/templates/forms.ts.tpl",
+        "condition": "{{#if module.parameters.zod}}"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "src/components/forms/ContactForm.tsx",
+        "template": "adapters/ui/forms/templates/ContactForm.tsx.tpl",
+        "condition": "{{#if module.parameters.reactHookForm}}"
+      }
+    ]
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.454Z",
+  "checksum": "6e3cd783ed44ad07f1bbb41eed5cbb9f6daac0aacedf47325e3f7b24ac82af95",
+  "metadata": {
+    "moduleId": "ui/forms",
+    "fetchedAt": "2025-09-23T16:22:53.454Z",
+    "size": 701
+  }
+}

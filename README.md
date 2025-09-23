@@ -63,7 +63,64 @@ architech new --genome marketplace --name my-marketplace
 
 # Create a dApp
 architech new --genome dapp --name my-dapp
+
+# Create a project with TypeScript genome (type-safe)
+architech new --genome ./my-genome.ts --name my-project
 ```
+
+#### TypeScript Genomes (Type-Safe Development)
+
+For the best developer experience, you can write your genomes in TypeScript with full type safety and auto-completion:
+
+```typescript
+// my-genome.ts
+import { Genome } from '@thearchitech/marketplace';
+
+const genome: Genome = {
+  version: '1.0.0',
+  project: {
+    name: 'my-awesome-app',
+    description: 'A modern web application',
+    version: '0.1.0',
+    framework: 'nextjs',
+    path: './my-awesome-app'
+  },
+  modules: [
+    {
+      id: 'framework/nextjs',
+      parameters: {
+        typescript: true,
+        tailwind: true,
+        eslint: true,
+        appRouter: true,
+        srcDir: true,
+        importAlias: '@/*'
+      },
+      features: {
+        performance: true,
+        security: true,
+        'server-actions': true
+      }
+    },
+    {
+      id: 'ui/shadcn-ui',
+      parameters: {
+        components: ['button', 'card', 'input', 'dialog'],
+        theme: 'dark',
+        darkMode: true
+      }
+    }
+  ]
+};
+
+export default genome;
+```
+
+**Benefits of TypeScript Genomes:**
+- ✅ **Full Type Safety** - Catch errors at compile time
+- ✅ **Auto-completion** - IDE support for all parameters and features
+- ✅ **IntelliSense** - Hover documentation for all options
+- ✅ **Refactoring Support** - Safe renaming and restructuring
 
 #### Option 2: Using Custom Recipes
 

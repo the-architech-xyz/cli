@@ -26,7 +26,6 @@ export function registerAllModifiers(): void {
   registry.register('json-object-merger', jsonObjectMergerModifier);
   registry.register('css-enhancer', cssEnhancerModifier);
   
-  console.log(`✅ Registered ${registry.size()} modifiers: ${registry.list().join(', ')}`);
 }
 
 /**

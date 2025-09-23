@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "better-auth-nextjs-integration",
+    "name": "better-auth-nextjs-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.462Z",
+  "checksum": "6107ebde3e542debf40d8908445179f4bce8f30f0fa9ea851c569e739f0484ff",
+  "metadata": {
+    "moduleId": "better-auth-nextjs-integration",
+    "fetchedAt": "2025-09-23T16:22:53.462Z",
+    "size": 92
+  }
+}

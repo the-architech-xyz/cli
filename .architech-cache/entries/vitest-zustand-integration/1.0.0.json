@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "vitest-zustand-integration",
+    "name": "vitest-zustand-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.491Z",
+  "checksum": "36fcc55b51ffdc514f2e75a2499c8d4410aeeace3b3cf22003f0fbdb752638cf",
+  "metadata": {
+    "moduleId": "vitest-zustand-integration",
+    "fetchedAt": "2025-09-23T16:22:53.491Z",
+    "size": 84
+  }
+}

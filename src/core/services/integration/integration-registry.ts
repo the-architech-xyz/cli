@@ -25,11 +25,11 @@ export class IntegrationRegistry {
     } else {
       try {
         const require = createRequire(import.meta.url);
-        const packagePath = require.resolve('@thearchitech/marketplace');
+        const packagePath = require.resolve('@thearchitech.xyz/marketplace');
         // Get the directory containing the package, not the main file
         marketplacePath = path.dirname(packagePath);
       } catch (error) {
-        throw new Error('@thearchitech/marketplace package not found. Please install it or set LOCAL_MARKETPLACE_PATH for development.');
+        throw new Error('@thearchitech.xyz/marketplace package not found. Please install it or set LOCAL_MARKETPLACE_PATH for development.');
       }
     }
     
@@ -45,14 +45,12 @@ export class IntegrationRegistry {
     }
 
     try {
-      console.log('🔗 Loading integrations from marketplace...');
       const integrations = await this.integrationLoader.loadAllIntegrations();
       
       for (const integration of integrations) {
         this.integrations.set(integration.id, integration);
       }
       
-      console.log(`✅ Loaded ${integrations.length} integrations`);
       this.isInitialized = true;
     } catch (error) {
       console.error(`❌ Failed to initialize integration registry: ${error}`);

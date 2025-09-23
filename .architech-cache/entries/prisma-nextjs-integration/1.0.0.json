@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "prisma-nextjs-integration",
+    "name": "prisma-nextjs-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.470Z",
+  "checksum": "5aaf6eb61ef32f34367f275a1109afe029b9b62eb4c1eeeced4b8c9c821b8780",
+  "metadata": {
+    "moduleId": "prisma-nextjs-integration",
+    "fetchedAt": "2025-09-23T16:22:53.470Z",
+    "size": 82
+  }
+}

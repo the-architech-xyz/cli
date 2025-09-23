@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "docker-drizzle-integration",
+    "name": "docker-drizzle-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.463Z",
+  "checksum": "4290b644f520cddabc1ad0337e7d30f96c6f674191b4cff84f97afdedf4dfdfd",
+  "metadata": {
+    "moduleId": "docker-drizzle-integration",
+    "fetchedAt": "2025-09-23T16:22:53.463Z",
+    "size": 84
+  }
+}

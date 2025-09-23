@@ -12,7 +12,6 @@ import { CacheManagerService } from '../core/services/infrastructure/cache/cache
 import { ModuleFetcherService } from '../core/services/module-management/fetcher/module-fetcher.js';
 
 async function primeCache() {
-  console.log('🚀 Priming The Architech CLI cache...');
   
   try {
     // Initialize services
@@ -26,13 +25,7 @@ async function primeCache() {
     
     // Show cache statistics
     const stats = await fetcher.getCacheStats();
-    console.log(`📊 Cache Statistics:`);
-    console.log(`   - Total entries: ${stats.totalEntries}`);
-    console.log(`   - Total size: ${(stats.totalSize / 1024 / 1024).toFixed(2)} MB`);
-    console.log(`   - Oldest entry: ${stats.oldestEntry?.toISOString() || 'N/A'}`);
-    console.log(`   - Newest entry: ${stats.newestEntry?.toISOString() || 'N/A'}`);
     
-    console.log('✅ Cache priming completed successfully!');
   } catch (error) {
     console.error('❌ Failed to prime cache:', error);
     process.exit(1);

@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "vitest-nextjs-integration",
+    "name": "vitest-nextjs-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.490Z",
+  "checksum": "08e69fd6a3b84517ce15a5c1ce62f8a390f7d1d46b538ce951d5bcb695c33d82",
+  "metadata": {
+    "moduleId": "vitest-nextjs-integration",
+    "fetchedAt": "2025-09-23T16:22:53.490Z",
+    "size": 82
+  }
+}

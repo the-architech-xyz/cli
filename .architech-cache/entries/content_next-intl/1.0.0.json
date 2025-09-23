@@ -1,0 +1,42 @@
+{
+  "content": {
+    "id": "next-intl-base-setup",
+    "name": "Next.js Internationalization Base Setup",
+    "actions": [
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "next-intl"
+        ]
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "src/i18n/request.ts",
+        "template": "adapters/content/next-intl/templates/request.ts.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "src/messages/en.json",
+        "template": "adapters/content/next-intl/templates/en.json.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "src/messages/es.json",
+        "template": "adapters/content/next-intl/templates/es.json.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "src/messages/fr.json",
+        "template": "adapters/content/next-intl/templates/fr.json.tpl"
+      }
+    ]
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.414Z",
+  "checksum": "3cae245c9f86f8e93e2f1fc2d2e7152284a25593a9a0bbf308bfb2e95b7fd502",
+  "metadata": {
+    "moduleId": "content/next-intl",
+    "fetchedAt": "2025-09-23T16:22:53.414Z",
+    "size": 605
+  }
+}

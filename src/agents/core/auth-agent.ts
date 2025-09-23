@@ -19,7 +19,6 @@ export class AuthAgent extends SimpleAgent {
    * Execute an auth module
    */
   async execute(module: Module, context: ProjectContext): Promise<AgentResult> {
-    console.log(`🔐 Auth Agent executing: ${module.id}`);
     
     // Validate basic module structure only
     const validation = this.validateModule(module);

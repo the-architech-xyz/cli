@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "shadcn-nextjs-integration",
+    "name": "shadcn-nextjs-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.483Z",
+  "checksum": "76e303dd5d4b1150c5ca6a74f7f35313b6021dffd46fb2d8763768ef407623c5",
+  "metadata": {
+    "moduleId": "shadcn-nextjs-integration",
+    "fetchedAt": "2025-09-23T16:22:53.483Z",
+    "size": 82
+  }
+}

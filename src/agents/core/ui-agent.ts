@@ -19,7 +19,6 @@ export class UIAgent extends SimpleAgent {
    * Execute a UI module
    */
   async execute(module: Module, context: ProjectContext): Promise<AgentResult> {
-    console.log(`🎨 UI Agent executing: ${module.id}`);
     
     // Validate basic module structure only
     const validation = this.validateModule(module);

@@ -1,0 +1,60 @@
+{
+  "content": {
+    "id": "vitest-base-setup",
+    "name": "Vitest Base Setup",
+    "actions": [
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "vitest",
+          "@vitejs/plugin-react",
+          "jsdom",
+          "@testing-library/react",
+          "@testing-library/jest-dom",
+          "@testing-library/user-event",
+          "@types/react",
+          "@types/react-dom"
+        ],
+        "isDev": true
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "vitest.config.ts",
+        "template": "adapters/testing/vitest/templates/vitest.config.ts.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "tests/setup/setup.ts",
+        "template": "adapters/testing/vitest/templates/setup.ts.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "tests/setup/utils.tsx",
+        "template": "adapters/testing/vitest/templates/utils.tsx.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "tests/unit/example.test.tsx",
+        "template": "adapters/testing/vitest/templates/example.test.tsx.tpl"
+      },
+      {
+        "type": "ADD_SCRIPT",
+        "name": "test",
+        "command": "vitest"
+      },
+      {
+        "type": "ADD_SCRIPT",
+        "name": "test:run",
+        "command": "vitest run"
+      }
+    ]
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.445Z",
+  "checksum": "9aad54c683f3cd7402b3b1e5543ef77a9e0bea25031b50af005ec2bc030f457d",
+  "metadata": {
+    "moduleId": "testing/vitest",
+    "fetchedAt": "2025-09-23T16:22:53.445Z",
+    "size": 867
+  }
+}

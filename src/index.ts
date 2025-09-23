@@ -3,8 +3,8 @@
 /**
  * The Architech CLI V1 - Agent-Based Architecture
  * 
- * Agent-based project generation from YAML recipes
- * Flow: architech.yaml → Orchestrator → Agents → Adapters → Blueprints
+ * Agent-based project generation from TypeScript genomes
+ * Flow: genome.ts → Orchestrator → Agents → Adapters → Blueprints
  */
 
 import { Command } from 'commander';
@@ -12,8 +12,9 @@ import chalk from 'chalk';
 import { createNewCommand } from './commands/new.js';
 import { createAddCommand } from './commands/add.js';
 import { createScaleCommand } from './commands/scale.js';
-import { createListGenomesCommand } from './commands/list-genomes.js';
 import { createMarketplaceCommand } from './commands/marketplace.js';
+import { createAnalyzeCommand } from './commands/analyze.js';
+import { createListCommand } from './commands/list.js';
 import { displayBanner } from './core/cli/banner.js';
 
   const program = new Command();
@@ -35,23 +36,14 @@ import { displayBanner } from './core/cli/banner.js';
 program.addCommand(createNewCommand());
 program.addCommand(createAddCommand());
 program.addCommand(createScaleCommand());
-program.addCommand(createListGenomesCommand());
 program.addCommand(createMarketplaceCommand());
+program.addCommand(createAnalyzeCommand());
+program.addCommand(createListCommand());
 
 // Default command (show help)
   program
     .action(() => {
     displayBanner();
-    console.log(chalk.blue.bold('🏗️ The Architech V1 - Agent-Based Architecture\n'));
-    console.log(chalk.gray('Available commands:'));
-    console.log(chalk.gray('  new           Create a new project from architech.yaml recipe or genome'));
-    console.log(chalk.gray('  list-genomes  List all available project genome templates'));
-    console.log(chalk.gray('  add           Add modules to existing project (V2)'));
-    console.log(chalk.gray('  scale         Scale project to monorepo (V2)\n'));
-    console.log(chalk.yellow('💡 Use "architech new <recipe.yaml>" or "architech new --genome <name> --name <project>" to create a new project!'));
-    console.log(chalk.gray('Examples:'));
-    console.log(chalk.gray('  architech new my-saas.yaml'));
-    console.log(chalk.gray('  architech new --genome saas-boilerplate --name my-saas\n'));
   });
 
 // ============================================================================
@@ -60,7 +52,6 @@ program.addCommand(createMarketplaceCommand());
 
 program.on('command:*', (operands) => {
   console.error(chalk.red(`Error: Unknown command '${operands[0]}'`));
-  console.log(chalk.gray('Run --help for available commands.'));
   process.exit(1);
 });
 
@@ -71,9 +62,10 @@ program.on('command:*', (operands) => {
 program.addHelpText('after', `
 
 Examples:
-  $ architech new my-saas.yaml                    # Create new project from recipe
-  $ architech new --genome saas-boilerplate --name my-saas  # Create from genome
-  $ architech list-genomes                        # List available genomes
+  $ architech list                                # List available genome templates
+  $ architech new saas-app                        # Create project from template
+  $ architech new my-custom.genome.ts             # Create project from custom genome
+  $ architech analyze my-saas.ts                  # Analyze genome structure and completeness
   $ architech add auth/better-auth                # Add auth module (V2)
   $ architech scale --strategy nx                 # Scale to monorepo (V2)
 

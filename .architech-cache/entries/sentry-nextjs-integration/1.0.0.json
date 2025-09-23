@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "sentry-nextjs-integration",
+    "name": "sentry-nextjs-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.479Z",
+  "checksum": "e272f6fed426e90279167ef4d8a6c4cdd10d5738fadfa598d9aede94cc85bc42",
+  "metadata": {
+    "moduleId": "sentry-nextjs-integration",
+    "fetchedAt": "2025-09-23T16:22:53.479Z",
+    "size": 82
+  }
+}

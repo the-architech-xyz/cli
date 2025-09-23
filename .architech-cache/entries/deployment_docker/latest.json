@@ -1,0 +1,36 @@
+{
+  "content": {
+    "id": "docker-base-setup",
+    "name": "Docker Base Setup",
+    "actions": [
+      {
+        "type": "CREATE_FILE",
+        "path": "Dockerfile",
+        "template": "adapters/deployment/docker/templates/Dockerfile.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": ".dockerignore",
+        "template": "adapters/deployment/docker/templates/.dockerignore.tpl"
+      },
+      {
+        "type": "ADD_SCRIPT",
+        "name": "docker:build",
+        "command": "docker build -t {{project.name}}:latest ."
+      },
+      {
+        "type": "ADD_SCRIPT",
+        "name": "docker:run",
+        "command": "docker run -p 3000:3000 --env-file .env.local {{project.name}}:latest"
+      }
+    ]
+  },
+  "version": "latest",
+  "lastModified": "2025-09-23T12:37:55.471Z",
+  "checksum": "93414e6470d59d5a0dadf09beffd2a09fa0cd07f3e157ff02ace48f2a1e9ee87",
+  "metadata": {
+    "moduleId": "deployment/docker",
+    "fetchedAt": "2025-09-23T12:37:55.471Z",
+    "size": 509
+  }
+}

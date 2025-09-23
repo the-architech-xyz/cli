@@ -21,7 +21,6 @@ export class ContentAgent extends SimpleAgent {
    * Execute content module
    */
   async execute(module: Module, context: ProjectContext): Promise<AgentResult> {
-    console.log(`🌍 Content Agent executing: ${module.id}`);
     
     try {
       // Load adapter - extract adapter ID from module ID
@@ -38,15 +37,12 @@ export class ContentAgent extends SimpleAgent {
         };
       }
 
-      console.log(`  🔧 Loading adapter: ${this.category}/${module.id}`);
-      console.log(`  📋 Executing blueprint: ${adapter.blueprint.name}`);
 
       // Execute blueprint
       const blueprintExecutor = new BlueprintExecutor(context.project.path || '.', this.moduleFetcher);
       const result = await blueprintExecutor.executeBlueprint(adapter.blueprint, context);
 
       if (result.success) {
-        console.log(`  ✅ Adapter ${module.id} completed successfully`);
         return {
           success: true,
           files: result.files,
@@ -54,7 +50,6 @@ export class ContentAgent extends SimpleAgent {
           warnings: result.warnings || []
         };
       } else {
-        console.log(`  ❌ Adapter ${module.id} failed: ${result.errors.join(', ')}`);
         return {
           success: false,
           files: result.files,
@@ -64,7 +59,6 @@ export class ContentAgent extends SimpleAgent {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      console.log(`  ❌ Content Agent failed: ${errorMessage}`);
       
       return {
         success: false,

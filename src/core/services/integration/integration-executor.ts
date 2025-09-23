@@ -23,13 +23,10 @@ export class IntegrationExecutor {
     context: ProjectContext,
     features?: { [key: string]: boolean | string | string[] }
   ): Promise<void> {
-    console.log(`Executing integration adapter: ${integration.name}`);
     
     // Merge features with defaults
     const activeFeatures = this.mergeFeaturesWithDefaults(integration, features);
     
-    console.log(`🔍 Integration features:`, activeFeatures);
-    console.log(`🔍 Integration sub_features:`, integration.sub_features);
     
     // Create enhanced context with sub-features
     const enhancedContext = {
@@ -40,7 +37,6 @@ export class IntegrationExecutor {
       }
     };
     
-    console.log(`🔍 Enhanced context:`, JSON.stringify(enhancedContext, null, 2));
     
     // Execute the integration blueprint
     await this.blueprintExecutor.executeBlueprint(
@@ -48,7 +44,6 @@ export class IntegrationExecutor {
       enhancedContext
     );
     
-    console.log(`Integration adapter completed: ${integration.name}`);
   }
 
 
@@ -86,14 +81,12 @@ export class IntegrationExecutor {
     context: ProjectContext,
     featuresMap?: Map<string, { [key: string]: boolean | string | string[] }>
   ): Promise<void> {
-    console.log(`Executing ${integrations.length} integration adapters`);
     
     for (const integration of integrations) {
       const features = featuresMap?.get(integration.id);
       await this.executeIntegration(integration, context, features);
     }
     
-    console.log('All integration adapters completed');
   }
 
   /**

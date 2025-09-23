@@ -29,7 +29,10 @@
     "format": "echo 'Formatting...'",
     "prime-cache": "node dist/scripts/prime-cache.js",
     "generate-manifest": "node dist/scripts/generate-marketplace-manifest.js",
-    "migrate-marketplace": "node dist/scripts/migrate-to-marketplace.js"
+    "migrate-marketplace": "node dist/scripts/migrate-to-marketplace.js",
+    "generate-types": "node scripts/generate-types.js",
+    "types:generate": "node scripts/generate-types.js",
+    "ts-to-yaml": "node scripts/ts-to-yaml.js"
   },
   "keywords": [
     "cli",
@@ -50,8 +53,8 @@
   "dependencies": {
     "@better-auth/utils": "^0.2.6",
     "@neondatabase/serverless": "^1.0.1",
-    "@thearchitech.xyz/types": "^1.0.4",
-    "@thearchitech/marketplace": "file:../marketplace",
+    "@thearchitech.xyz/types": "^1.1.0",
+    "@thearchitech.xyz/marketplace": "^1.1.0",
     "@types/ejs": "^3.1.5",
     "@types/js-yaml": "^4.0.9",
     "@typescript-eslint/parser": "^8.43.0",

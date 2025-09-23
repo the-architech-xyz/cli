@@ -29,8 +29,7 @@ export class BlueprintExecutor {
    * Execute a blueprint
    */
   async executeBlueprint(blueprint: Blueprint, context: GlobalContext | LegacyProjectContext, blueprintContext?: BlueprintContext): Promise<BlueprintExecutionResult> {
-    console.log(`🎯 Executing blueprint: ${blueprint.name}`);
-    console.log(`🔍 Blueprint has ${blueprint.actions.length} actions:`, blueprint.actions.map(a => a.type));
+    // Execute blueprint
     
     const files: string[] = [];
     const errors: string[] = [];
@@ -49,9 +48,7 @@ export class BlueprintExecutor {
     }
     
     // Process actions and expand dynamic ones
-    console.log(`🔍 Original blueprint actions:`, blueprint.actions.map(a => ({ type: a.type, forEach: (a as any).forEach })));
     const processedActions = await this.processDynamicActions(blueprint.actions, context);
-    console.log(`🔍 Processed ${processedActions.length} actions (${blueprint.actions.length} original + ${processedActions.length - blueprint.actions.length} dynamic)`);
     
     for (let i = 0; i < processedActions.length; i++) {
       const action = processedActions[i];
@@ -61,16 +58,10 @@ export class BlueprintExecutor {
         continue;
       }
       
-      console.log(`  📋 [${i + 1}/${processedActions.length}] ${action.type}`);
-      console.log(`  🔍 Action path: ${action.path}`);
-      console.log(`  🔍 Action condition: ${action.condition}`);
-      
       // Check action condition before processing
       if (action.condition) {
         const shouldExecute = this.evaluateCondition(action.condition, context);
-        console.log(`  🔍 Action condition evaluation: ${action.condition} = ${shouldExecute}`);
         if (!shouldExecute) {
-          console.log(`  ⏭️ Skipping action due to condition: ${action.condition}`);
           continue;
         }
       }
@@ -105,7 +96,7 @@ export class BlueprintExecutor {
     if (shouldFlushVFS && vfs) {
       try {
         await vfs.flushToDisk();
-        console.log(`✅ Blueprint VFS flushed to disk`);
+        // VFS flushed successfully
       } catch (error) {
         console.error(`❌ Failed to flush VFS:`, error);
         errors.push(`Failed to flush VFS: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -129,31 +120,25 @@ export class BlueprintExecutor {
   private async processDynamicActions(actions: BlueprintAction[], context: GlobalContext | LegacyProjectContext): Promise<BlueprintAction[]> {
     const processedActions: BlueprintAction[] = [];
     
-    console.log(`🔍 Processing ${actions.length} actions for dynamic expansion`);
     
     for (let i = 0; i < actions.length; i++) {
       const action = actions[i];
       
       if (!action) {
-        console.log(`🔍 Action ${i + 1}: undefined, skipping`);
         continue;
       }
       
-      console.log(`🔍 Action ${i + 1}: type=${action.type}, forEach=${(action as any).forEach || 'none'}`);
       
       // Check if this action has a forEach property for dynamic expansion
       if ((action as any).forEach) {
-        console.log(`🔍 Detected forEach action: ${(action as any).forEach}`);
         
         // Extract array of items from context using the forEach path
         const items = this.extractArrayFromContext((action as any).forEach, context);
         
         if (items.length === 0) {
-          console.log(`  ⚠️ No items found for forEach: ${(action as any).forEach}, skipping`);
           continue;
         }
         
-        console.log(`  🔄 Generating ${items.length} dynamic actions for: ${items.join(', ')}`);
         
         // Generate individual actions for each item
         for (const item of items) {
@@ -203,37 +188,25 @@ export class BlueprintExecutor {
    */
   private extractArrayFromContext(path: string, context: GlobalContext | LegacyProjectContext): string[] {
     try {
-      console.log(`🔍 Extracting array from context: ${path}`);
       if ('environment' in context) {
         const globalContext = context as GlobalContext;
         
         // Handle module parameters
         if (path.startsWith('module.parameters.')) {
           const paramPath = path.substring(18);
-          console.log(`🔍 Looking for parameter: ${paramPath}`);
-          console.log(`🔍 Full execution context:`, globalContext.execution);
           const currentModule = globalContext.execution.currentModule;
-          console.log(`🔍 Current module: ${currentModule}`);
-          console.log(`🔍 Available modules:`, Array.from(globalContext.modules.configurations.keys()));
           if (currentModule) {
             const moduleConfig = globalContext.modules.configurations.get(currentModule);
-            console.log(`🔍 Module config:`, moduleConfig);
             const value = this.getNestedValueFromObject(moduleConfig?.parameters || {}, paramPath);
-            console.log(`🔍 Parameter value:`, value);
             if (Array.isArray(value)) {
-              console.log(`🔍 Found array with ${value.length} items:`, value);
               return value;
             }
           } else {
-            console.log(`🔍 No current module set, trying to find module by ID`);
             // Try to find the module by looking for the shadcn-ui module
             for (const [moduleId, moduleConfig] of globalContext.modules.configurations.entries()) {
               if (moduleId.includes('shadcn-ui')) {
-                console.log(`🔍 Found shadcn-ui module: ${moduleId}`, moduleConfig);
                 const value = this.getNestedValueFromObject(moduleConfig?.parameters || {}, paramPath);
-                console.log(`🔍 Parameter value from ${moduleId}:`, value);
                 if (Array.isArray(value)) {
-                  console.log(`🔍 Found array with ${value.length} items:`, value);
                   return value;
                 }
               }
@@ -279,10 +252,7 @@ export class BlueprintExecutor {
    * Process template variables in content
    */
   private processTemplate(template: string, context: GlobalContext | LegacyProjectContext): string {
-    console.log(`🔍 BlueprintExecutor.processTemplate called with: ${template}`);
-    console.log(`🔍 Context pathHandler:`, 'pathHandler' in context ? !!context.pathHandler : 'N/A');
     const result = TemplateService.processTemplate(template, context);
-    console.log(`🔍 BlueprintExecutor.processTemplate result: ${result}`);
     return result;
   }
 
@@ -361,12 +331,10 @@ export class BlueprintExecutor {
           if (blueprintContext.vfs) {
             // Create file in VFS
             blueprintContext.vfs.createFile(processedPath, processedContent);
-            console.log(`  📝 VFS: Created ${processedPath}`);
           } else {
             // Direct file creation for simple blueprints
             const fullPath = path.join(blueprintContext.projectRoot, processedPath);
             await fs.writeFile(fullPath, processedContent, 'utf-8');
-            console.log(`  📝 Created file: ${processedPath}`);
           }
           
           return { success: true, files: [processedPath] };
@@ -381,7 +349,6 @@ export class BlueprintExecutor {
           
           // Process template command
           const runCommand = this.processTemplate(action.command, context);
-          console.log(`  ⚡ Executing command: ${runCommand}`);
           
           // Actually execute the command
           try {
@@ -397,18 +364,14 @@ export class BlueprintExecutor {
             });
             
             if (stdout) {
-              console.log(`  📤 Output: ${stdout}`);
             }
             if (stderr) {
-              console.log(`  ⚠️  Stderr: ${stderr}`);
             }
             
-            console.log(`  ✅ Command executed successfully`);
             return { success: true };
             
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            console.log(`  ❌ Command failed: ${errorMessage}`);
             return { success: false, error: `Command execution failed: ${errorMessage}` };
           }
           
@@ -419,7 +382,6 @@ export class BlueprintExecutor {
           
           // Process template packages (packages is an array, so we join them)
           const processedPackages = action.packages.map(pkg => this.processTemplate(pkg, context));
-          console.log(`  📦 Installing packages: ${processedPackages.join(' ')}`);
           
           // Actually add packages to package.json using the package-json-merger
           try {
@@ -470,7 +432,6 @@ export class BlueprintExecutor {
               return { success: false, error: `Failed to add packages: ${result.error}` };
             }
             
-            console.log(`  ✅ Successfully added packages to package.json`);
             return { success: true };
             
           } catch (error) {
@@ -484,7 +445,6 @@ export class BlueprintExecutor {
           
           // Process template command
           const scriptCommand = this.processTemplate(action.command, context);
-          console.log(`  📝 Adding script '${action.name}': ${scriptCommand}`);
           
           // Actually add script to package.json using the package-json-merger
           try {
@@ -506,7 +466,6 @@ export class BlueprintExecutor {
               return { success: false, error: `Failed to add script: ${result.error}` };
             }
             
-            console.log(`  ✅ Successfully added script '${action.name}' to package.json`);
             return { success: true };
             
           } catch (error) {
@@ -520,7 +479,6 @@ export class BlueprintExecutor {
           
           // Process template value
           const processedValue = this.processTemplate(action.value, context);
-          console.log(`  🔧 Adding env var '${action.key}': ${processedValue}`);
           
           // Actually add environment variable to .env file
           try {
@@ -549,7 +507,6 @@ export class BlueprintExecutor {
             // Write back to .env file
             await fs.writeFile(envPath, envContent);
             
-            console.log(`  ✅ Successfully added environment variable '${action.key}' to .env`);
             return { success: true };
             
           } catch (error) {
@@ -563,16 +520,12 @@ export class BlueprintExecutor {
           
           // Process template path
           const enhancedPath = this.processTemplate(action.path, context);
-          console.log(`  🔧 Enhancing file: ${enhancedPath} with modifier: ${action.modifier}`);
           
           // Get the modifier registry
           const { getModifierRegistry } = await import('../../file-system/modifiers/modifier-registry.js');
           const modifierRegistry = getModifierRegistry();
           
           // Debug logging
-          console.log(`  🔍 Modifier registry size: ${modifierRegistry.size()}`);
-          console.log(`  🔍 Available modifiers: ${modifierRegistry.list().join(', ')}`);
-          console.log(`  🔍 Looking for modifier: ${action.modifier}`);
           
           // Get the modifier
           const modifier = modifierRegistry.get(action.modifier);
@@ -580,7 +533,6 @@ export class BlueprintExecutor {
             return { success: false, error: `Modifier '${action.modifier}' not found. Available modifiers: ${modifierRegistry.list().join(', ')}` };
           }
           
-          console.log(`  ✅ Found modifier: ${action.modifier}`);
           
           // Read the file from VFS or disk
           let fileContent: string;
@@ -589,13 +541,11 @@ export class BlueprintExecutor {
             if (!fileContent) {
               return { success: false, error: `File not found in VFS: ${enhancedPath}` };
             }
-            console.log(`  📖 VFS: Read file content (${fileContent.length} chars)`);
           } else {
             // Direct file read for simple blueprints
             const fullPath = path.join(blueprintContext.projectRoot, enhancedPath);
             try {
               fileContent = await fs.readFile(fullPath, 'utf-8');
-              console.log(`  📖 Read file content (${fileContent.length} chars)`);
             } catch (error) {
               return { success: false, error: `File not found: ${enhancedPath}` };
             }
@@ -608,14 +558,11 @@ export class BlueprintExecutor {
               if (blueprintContext.vfs) {
                 // Write the enhanced content back to VFS
                 blueprintContext.vfs.writeFile(enhancedPath, result.content);
-                console.log(`  ✏️ VFS: Wrote ${enhancedPath}`);
               } else {
                 // Direct file write for simple blueprints
                 const fullPath = path.join(blueprintContext.projectRoot, enhancedPath);
                 await fs.writeFile(fullPath, result.content, 'utf-8');
-                console.log(`  ✏️ Wrote ${enhancedPath}`);
               }
-              console.log(`  ✅ Enhanced file: ${enhancedPath}`);
               return { success: true, files: [enhancedPath] };
             } else {
               return { success: false, error: `Modifier execution failed: ${result.error}` };

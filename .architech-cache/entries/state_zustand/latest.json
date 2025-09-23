@@ -1,0 +1,32 @@
+{
+  "content": {
+    "id": "zustand-base-setup",
+    "name": "Zustand Base Setup",
+    "actions": [
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "zustand"
+        ]
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "{{paths.state_config}}/use-app-store.ts",
+        "template": "adapters/state/zustand/templates/use-app-store.ts.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "{{paths.state_config}}/index.ts",
+        "template": "adapters/state/zustand/templates/index.ts.tpl"
+      }
+    ]
+  },
+  "version": "latest",
+  "lastModified": "2025-09-23T02:58:01.760Z",
+  "checksum": "d013295db917a86ac028529cdc8098253301d5155c932670d3e11ef86e662f6b",
+  "metadata": {
+    "moduleId": "state/zustand",
+    "fetchedAt": "2025-09-23T02:58:01.760Z",
+    "size": 380
+  }
+}

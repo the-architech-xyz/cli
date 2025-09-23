@@ -134,7 +134,6 @@ export class Logger {
         console.debug(formattedMessage);
         break;
       case LogLevel.INFO:
-        console.log(formattedMessage);
         break;
       case LogLevel.WARN:
         console.warn(formattedMessage);

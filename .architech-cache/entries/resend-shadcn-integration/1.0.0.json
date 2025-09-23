@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "resend-shadcn-integration",
+    "name": "resend-shadcn-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.476Z",
+  "checksum": "649ac656386660d2a4ee5bba51637bbda552c2e94afe4b6b1b85c7551f5e8b4d",
+  "metadata": {
+    "moduleId": "resend-shadcn-integration",
+    "fetchedAt": "2025-09-23T16:22:53.476Z",
+    "size": 82
+  }
+}

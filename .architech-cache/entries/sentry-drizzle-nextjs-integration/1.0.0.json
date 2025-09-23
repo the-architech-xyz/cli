@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "sentry-drizzle-nextjs-integration",
+    "name": "sentry-drizzle-nextjs-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.477Z",
+  "checksum": "a9737243435c37c2f30494fe0631657794c0cdb5acadb2b0b6769c859ea56169",
+  "metadata": {
+    "moduleId": "sentry-drizzle-nextjs-integration",
+    "fetchedAt": "2025-09-23T16:22:53.477Z",
+    "size": 98
+  }
+}

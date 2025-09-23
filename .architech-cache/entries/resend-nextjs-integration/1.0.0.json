@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "resend-nextjs-integration",
+    "name": "resend-nextjs-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.473Z",
+  "checksum": "c5fe4a6678255d648b9019338a95cf422a9a2a8d22a281511ca9d82b7bae9331",
+  "metadata": {
+    "moduleId": "resend-nextjs-integration",
+    "fetchedAt": "2025-09-23T16:22:53.473Z",
+    "size": 82
+  }
+}

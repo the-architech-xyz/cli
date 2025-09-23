@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "drizzle-nextjs-integration",
+    "name": "drizzle-nextjs-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.467Z",
+  "checksum": "0fc8d115f6419ca8add6a28dc3674624d016f53d4443750848d1594be958b8a4",
+  "metadata": {
+    "moduleId": "drizzle-nextjs-integration",
+    "fetchedAt": "2025-09-23T16:22:53.467Z",
+    "size": 84
+  }
+}

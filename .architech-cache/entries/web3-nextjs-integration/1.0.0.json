@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "web3-nextjs-integration",
+    "name": "web3-nextjs-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.493Z",
+  "checksum": "2b96adf30abb11a55d4e65285ca993112ab57592c8377832f97ad20af8a291ce",
+  "metadata": {
+    "moduleId": "web3-nextjs-integration",
+    "fetchedAt": "2025-09-23T16:22:53.493Z",
+    "size": 78
+  }
+}

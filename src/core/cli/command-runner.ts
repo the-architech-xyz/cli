@@ -50,7 +50,6 @@ export class CommandRunner {
     this.commands = this.getPackageManagerCommands(this.packageManager);
     
     if (this.verbose) {
-      console.log(chalk.blue(`🔧 Using package manager: ${this.packageManager}`));
     }
   }
 
@@ -89,7 +88,6 @@ export class CommandRunner {
     } catch {}
 
     if (this.verbose) {
-      console.log(chalk.gray(`📦 Available package managers: ${available.join(', ')}`));
     }
 
     // Check parent directories for existing projects (traversing up)
@@ -98,15 +96,12 @@ export class CommandRunner {
     
     while (currentDir !== root) {
       if (existsSync(path.join(currentDir, 'yarn.lock'))) {
-        if (this.verbose) console.log(chalk.yellow('📄 Found yarn.lock'));
         return available.includes('yarn') ? 'yarn' : 'npm';
       }
       if (existsSync(path.join(currentDir, 'pnpm-lock.yaml'))) {
-        if (this.verbose) console.log(chalk.yellow('📄 Found pnpm-lock.yaml'));
         return available.includes('pnpm') ? 'pnpm' : 'npm';
       }
       if (existsSync(path.join(currentDir, 'bun.lockb'))) {
-        if (this.verbose) console.log(chalk.yellow('📄 Found bun.lockb'));
         return available.includes('bun') ? 'bun' : 'npm';
       }
       currentDir = path.dirname(currentDir);
@@ -230,12 +225,10 @@ export class CommandRunner {
         
         if (code === 0) {
           if (!options.silent) {
-            console.log(chalk.green(`✅ Completed: ${command}`));
           }
           resolve({ stdout, stderr, code: code || 0 });
         } else {
           if (!options.silent) {
-            console.log(chalk.red(`❌ Failed: ${cmdString} (exit code: ${code})`));
           }
           reject(new Error(`Command failed: ${cmdString}\nExit code: ${code}\nStderr: ${stderr}`));
         }
@@ -322,7 +315,6 @@ export class CommandRunner {
     const execCmd = [...this.commands.exec, toolName, ...args];
     
     if (this.verbose) {
-      console.log(chalk.blue(`🔧 Executing non-interactive: ${execCmd.join(' ')}`));
     }
     
     return new Promise((resolve, reject) => {

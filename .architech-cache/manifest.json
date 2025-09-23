@@ -4,20 +4,346 @@
   "modules": {
     "framework/nextjs": {
       "versions": [
+        "15.0.0",
         "latest"
       ],
       "lastChecked": "2025-09-22T15:50:23.850Z",
-      "lastModified": "2025-09-22T15:50:23.849Z",
-      "totalSize": 4902,
+      "lastModified": "2025-09-23T16:22:53.433Z",
+      "totalSize": 7216,
       "needsUpdate": false
     },
     "ui/shadcn-ui": {
       "versions": [
+        "1.0.0",
         "latest"
       ],
       "lastChecked": "2025-09-22T15:50:45.805Z",
-      "lastModified": "2025-09-22T15:50:45.804Z",
-      "totalSize": 1727,
+      "lastModified": "2025-09-23T16:22:53.452Z",
+      "totalSize": 1783,
+      "needsUpdate": false
+    },
+    "auth/better-auth": {
+      "versions": [
+        "0.18.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.408Z",
+      "lastModified": "2025-09-23T16:22:53.407Z",
+      "totalSize": 1052,
+      "needsUpdate": false
+    },
+    "blockchain/web3": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.412Z",
+      "lastModified": "2025-09-23T16:22:53.412Z",
+      "totalSize": 1274,
+      "needsUpdate": false
+    },
+    "content/next-intl": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.415Z",
+      "lastModified": "2025-09-23T16:22:53.414Z",
+      "totalSize": 605,
+      "needsUpdate": false
+    },
+    "database/drizzle": {
+      "versions": [
+        "0.29.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.418Z",
+      "lastModified": "2025-09-23T16:22:53.418Z",
+      "totalSize": 943,
+      "needsUpdate": false
+    },
+    "database/prisma": {
+      "versions": [
+        "5.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.420Z",
+      "lastModified": "2025-09-23T16:22:53.420Z",
+      "totalSize": 381,
+      "needsUpdate": false
+    },
+    "database/sequelize": {
+      "versions": [
+        "6.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.423Z",
+      "lastModified": "2025-09-23T16:22:53.422Z",
+      "totalSize": 1429,
+      "needsUpdate": false
+    },
+    "database/typeorm": {
+      "versions": [
+        "0.3.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.424Z",
+      "lastModified": "2025-09-23T16:22:53.424Z",
+      "totalSize": 443,
+      "needsUpdate": false
+    },
+    "deployment/docker": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.426Z",
+      "lastModified": "2025-09-23T16:22:53.426Z",
+      "totalSize": 509,
+      "needsUpdate": false
+    },
+    "email/resend": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.429Z",
+      "lastModified": "2025-09-23T16:22:53.429Z",
+      "totalSize": 1961,
+      "needsUpdate": false
+    },
+    "observability/sentry": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.436Z",
+      "lastModified": "2025-09-23T16:22:53.436Z",
+      "totalSize": 1350,
+      "needsUpdate": false
+    },
+    "payment/stripe": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.442Z",
+      "lastModified": "2025-09-23T16:22:53.440Z",
+      "totalSize": 1805,
+      "needsUpdate": false
+    },
+    "state/zustand": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.444Z",
+      "lastModified": "2025-09-23T16:22:53.443Z",
+      "totalSize": 380,
+      "needsUpdate": false
+    },
+    "testing/vitest": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.446Z",
+      "lastModified": "2025-09-23T16:22:53.445Z",
+      "totalSize": 867,
+      "needsUpdate": false
+    },
+    "ui/forms": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.454Z",
+      "lastModified": "2025-09-23T16:22:53.454Z",
+      "totalSize": 701,
+      "needsUpdate": false
+    },
+    "ui/tailwind": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.456Z",
+      "lastModified": "2025-09-23T16:22:53.455Z",
+      "totalSize": 888,
+      "needsUpdate": false
+    },
+    "tooling/dev-tools": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.459Z",
+      "lastModified": "2025-09-23T16:22:53.458Z",
+      "totalSize": 2293,
+      "needsUpdate": false
+    },
+    "better-auth-drizzle-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.461Z",
+      "lastModified": "2025-09-23T16:22:53.461Z",
+      "totalSize": 94,
+      "needsUpdate": false
+    },
+    "better-auth-nextjs-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.462Z",
+      "lastModified": "2025-09-23T16:22:53.462Z",
+      "totalSize": 92,
+      "needsUpdate": false
+    },
+    "docker-drizzle-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.463Z",
+      "lastModified": "2025-09-23T16:22:53.463Z",
+      "totalSize": 84,
+      "needsUpdate": false
+    },
+    "docker-nextjs-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.466Z",
+      "lastModified": "2025-09-23T16:22:53.465Z",
+      "totalSize": 82,
+      "needsUpdate": false
+    },
+    "drizzle-nextjs-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.469Z",
+      "lastModified": "2025-09-23T16:22:53.467Z",
+      "totalSize": 84,
+      "needsUpdate": false
+    },
+    "prisma-nextjs-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.471Z",
+      "lastModified": "2025-09-23T16:22:53.470Z",
+      "totalSize": 82,
+      "needsUpdate": false
+    },
+    "resend-nextjs-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.473Z",
+      "lastModified": "2025-09-23T16:22:53.473Z",
+      "totalSize": 82,
+      "needsUpdate": false
+    },
+    "resend-shadcn-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.476Z",
+      "lastModified": "2025-09-23T16:22:53.476Z",
+      "totalSize": 82,
+      "needsUpdate": false
+    },
+    "sentry-drizzle-nextjs-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.478Z",
+      "lastModified": "2025-09-23T16:22:53.477Z",
+      "totalSize": 98,
+      "needsUpdate": false
+    },
+    "sentry-nextjs-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.480Z",
+      "lastModified": "2025-09-23T16:22:53.479Z",
+      "totalSize": 82,
+      "needsUpdate": false
+    },
+    "shadcn-nextjs-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.484Z",
+      "lastModified": "2025-09-23T16:22:53.483Z",
+      "totalSize": 82,
+      "needsUpdate": false
+    },
+    "shadcn-zustand-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.486Z",
+      "lastModified": "2025-09-23T16:22:53.485Z",
+      "totalSize": 84,
+      "needsUpdate": false
+    },
+    "stripe-drizzle-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.487Z",
+      "lastModified": "2025-09-23T16:22:53.486Z",
+      "totalSize": 84,
+      "needsUpdate": false
+    },
+    "stripe-nextjs-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.488Z",
+      "lastModified": "2025-09-23T16:22:53.487Z",
+      "totalSize": 82,
+      "needsUpdate": false
+    },
+    "stripe-shadcn-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.489Z",
+      "lastModified": "2025-09-23T16:22:53.489Z",
+      "totalSize": 82,
+      "needsUpdate": false
+    },
+    "vitest-nextjs-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.490Z",
+      "lastModified": "2025-09-23T16:22:53.490Z",
+      "totalSize": 82,
+      "needsUpdate": false
+    },
+    "vitest-zustand-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.492Z",
+      "lastModified": "2025-09-23T16:22:53.491Z",
+      "totalSize": 84,
+      "needsUpdate": false
+    },
+    "web3-nextjs-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.493Z",
+      "lastModified": "2025-09-23T16:22:53.493Z",
+      "totalSize": 78,
+      "needsUpdate": false
+    },
+    "web3-shadcn-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.495Z",
+      "lastModified": "2025-09-23T16:22:53.494Z",
+      "totalSize": 78,
+      "needsUpdate": false
+    },
+    "zustand-nextjs-integration": {
+      "versions": [
+        "1.0.0"
+      ],
+      "lastChecked": "2025-09-23T16:22:53.496Z",
+      "lastModified": "2025-09-23T16:22:53.495Z",
+      "totalSize": 84,
       "needsUpdate": false
     }
   }

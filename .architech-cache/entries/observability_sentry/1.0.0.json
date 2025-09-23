@@ -1,0 +1,78 @@
+{
+  "content": {
+    "id": "sentry-observability-setup",
+    "name": "Sentry Error Monitoring Setup",
+    "actions": [
+      {
+        "type": "INSTALL_PACKAGES",
+        "packages": [
+          "@sentry/browser",
+          "@sentry/node"
+        ]
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "src/lib/sentry/client.ts",
+        "template": "adapters/observability/sentry/templates/client.ts.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "src/lib/sentry/server.ts",
+        "template": "adapters/observability/sentry/templates/server.ts.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "src/lib/sentry/config.ts",
+        "template": "adapters/observability/sentry/templates/config.ts.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "src/lib/sentry/performance.ts",
+        "template": "adapters/observability/sentry/templates/performance.ts.tpl"
+      },
+      {
+        "type": "CREATE_FILE",
+        "path": "src/lib/sentry/analytics.ts",
+        "template": "adapters/observability/sentry/templates/analytics.ts.tpl"
+      },
+      {
+        "type": "ADD_ENV_VAR",
+        "key": "SENTRY_DSN",
+        "value": "https://...",
+        "description": "Sentry DSN for server-side error reporting"
+      },
+      {
+        "type": "ADD_ENV_VAR",
+        "key": "SENTRY_DSN",
+        "value": "https://...",
+        "description": "Sentry DSN for client-side error reporting"
+      },
+      {
+        "type": "ADD_ENV_VAR",
+        "key": "SENTRY_ORG",
+        "value": "your-org",
+        "description": "Sentry organization slug"
+      },
+      {
+        "type": "ADD_ENV_VAR",
+        "key": "SENTRY_PROJECT",
+        "value": "your-project",
+        "description": "Sentry project slug"
+      },
+      {
+        "type": "ADD_ENV_VAR",
+        "key": "SENTRY_RELEASE",
+        "value": "1.0.0",
+        "description": "Sentry release version"
+      }
+    ]
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.436Z",
+  "checksum": "e79b74fe23eeaf8e878c6e3f82c74498be8750b732950a3e9828c25564bbb0b0",
+  "metadata": {
+    "moduleId": "observability/sentry",
+    "fetchedAt": "2025-09-23T16:22:53.436Z",
+    "size": 1350
+  }
+}

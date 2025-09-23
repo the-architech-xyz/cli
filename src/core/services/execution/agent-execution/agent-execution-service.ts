@@ -55,8 +55,6 @@ export class AgentExecutionService {
         reasons: [`Requires ${analysis.allRequiredFiles.length} files`, ...(analysis.contextualFiles.length > 0 ? ['Uses contextual files'] : [])]
       };
 
-      console.log(`🔍 Blueprint analysis: ${strategy.complexity} complexity, VFS needed: ${strategy.needsVFS}`);
-      console.log(`📋 Reasons: ${strategy.reasons.join(', ')}`);
 
       let result: AgentResult;
 
@@ -133,9 +131,7 @@ export class AgentExecutionService {
 
     if (moduleResult.success) {
       // Flush VFS to disk for this blueprint
-      console.log(`💾 Flushing VFS to disk for ${module.id}...`);
       await vfs.flushToDisk();
-      console.log(`✅ VFS flushed for ${module.id}`);
     }
 
     return moduleResult;
@@ -150,7 +146,6 @@ export class AgentExecutionService {
     blueprint: Blueprint,
     projectRoot: string
   ): Promise<AgentResult> {
-    console.log(`⚡ Executing simple blueprint: ${module.id} (direct to disk)`);
 
     const files: string[] = [];
     const errors: string[] = [];
@@ -165,7 +160,6 @@ export class AgentExecutionService {
           break;
         }
 
-        console.log(`  📋 [${i + 1}/${blueprint.actions.length}] ${action.type}`);
 
         // Simple action execution (replacing SimpleFileExecutor)
         const result = await this.executeSimpleAction(action, projectRoot);
@@ -247,10 +241,8 @@ export class AgentExecutionService {
         const fullPath = path.join(projectRoot, filePath);
         const content = await fs.readFile(fullPath, 'utf-8');
         await vfs.writeFile(filePath, content);
-        console.log(`📁 Pre-loaded external file: ${filePath}`);
       } catch (error) {
         // File doesn't exist, skip silently
-        console.log(`⚠️ External file not found: ${filePath}`);
       }
     }
   }

@@ -1,0 +1,15 @@
+{
+  "content": {
+    "id": "docker-nextjs-integration",
+    "name": "docker-nextjs-integration",
+    "actions": []
+  },
+  "version": "1.0.0",
+  "lastModified": "2025-09-23T16:22:53.465Z",
+  "checksum": "0cf63089e4efced3cc218300312bafdf6ee61fe51f66fae3e87c875a34da74ad",
+  "metadata": {
+    "moduleId": "docker-nextjs-integration",
+    "fetchedAt": "2025-09-23T16:22:53.465Z",
+    "size": 82
+  }
+}

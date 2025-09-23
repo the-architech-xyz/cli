@@ -13,13 +13,11 @@ class Logger {
 
   info(message: string, ...args: any[]) {
     if (this.level !== 'quiet') {
-      console.log(message, ...args);
     }
   }
 
   success(message: string, ...args: any[]) {
     if (this.level !== 'quiet') {
-      console.log(`✅ ${message}`, ...args);
     }
   }
 
@@ -35,13 +33,11 @@ class Logger {
 
   debug(message: string, ...args: any[]) {
     if (this.level === 'verbose') {
-      console.log(`  🔍 ${message}`, ...args);
     }
   }
 
   verbose(message: string, ...args: any[]) {
     if (this.level === 'verbose') {
-      console.log(`  📋 ${message}`, ...args);
     }
   }
 }

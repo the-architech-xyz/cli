@@ -7,12 +7,14 @@
 
 import { parse } from '@typescript-eslint/typescript-estree';
 import { Blueprint } from '@thearchitech.xyz/types';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 export class TypeScriptBlueprintParser {
   /**
    * Parse a TypeScript blueprint file and extract the Blueprint object
    */
-  static parseBlueprint(typescriptContent: string): Blueprint | null {
+  static parseBlueprint(typescriptContent: string, moduleId?: string, adapterConfig?: any): Blueprint | null {
     try {
       // Parse the TypeScript content into an AST
       const ast = parse(typescriptContent, {
@@ -33,11 +35,81 @@ export class TypeScriptBlueprintParser {
       }
 
       // Convert the AST node to a Blueprint object
-      return this.astNodeToBlueprint(blueprintExport, ast);
+      const parsedBlueprint = this.astNodeToBlueprint(blueprintExport, ast);
+      
+      // Check if this is a function-based blueprint
+      if (this.isFunctionBasedBlueprint(parsedBlueprint)) {
+        return this.handleFunctionBasedBlueprint(parsedBlueprint, moduleId, adapterConfig);
+      }
+      
+      return parsedBlueprint;
     } catch (error) {
       console.error('Failed to parse TypeScript blueprint:', error);
       return null;
     }
+  }
+  
+  /**
+   * Check if a blueprint is a function-based blueprint
+   */
+  private static isFunctionBasedBlueprint(blueprint: any): boolean {
+    return typeof blueprint === 'function';
+  }
+  
+  /**
+   * Handle function-based blueprint by calling it with parameters from adapter config
+   */
+  private static handleFunctionBasedBlueprint(blueprintFn: any, moduleId?: string, adapterConfig?: any): Blueprint {
+    try {
+      
+      // Get default parameters from adapter config
+      const params = this.getDefaultParameters(adapterConfig);
+      
+      // Call the blueprint function with parameters
+      const blueprint = blueprintFn(params);
+      
+      return blueprint;
+    } catch (error) {
+      console.error('Failed to process function-based blueprint:', error);
+      
+      // Fallback to minimal blueprint
+      return {
+        id: moduleId || 'fallback',
+        name: moduleId || 'Fallback Blueprint',
+        description: 'Error processing function-based blueprint',
+        version: '1.0.0',
+        actions: []
+      };
+    }
+  }
+  
+  /**
+   * Extract default parameters from adapter config
+   */
+  private static getDefaultParameters(adapterConfig: any): any {
+    if (!adapterConfig) {
+      return {};
+    }
+    
+    const params: any = {};
+    
+    // Extract parameters
+    if (adapterConfig.parameters) {
+      Object.entries(adapterConfig.parameters).forEach(([key, value]: [string, any]) => {
+        if (value.default !== undefined) {
+          params[key] = value.default;
+        }
+      });
+    }
+    
+    // Extract features
+    if (adapterConfig.features) {
+      Object.entries(adapterConfig.features).forEach(([key, value]: [string, any]) => {
+        params[key] = value.default !== undefined ? value.default : false;
+      });
+    }
+    
+    return params;
   }
 
   /**
@@ -99,23 +171,18 @@ export class TypeScriptBlueprintParser {
           const key = property.key.name;
           const value = this.astValueToJavaScript(property.value);
           blueprint[key] = value;
-          console.log(`🔍 Parsed blueprint property: ${key} =`, value);
           
           // Special debug for actions array
           if (key === 'actions' && Array.isArray(value)) {
-            console.log(`🔍 Actions array length: ${value.length}`);
             value.forEach((action, index) => {
-              console.log(`🔍 Action ${index}:`, { type: action.type, forEach: action.forEach });
               // Special debug for shadcn-ui blueprint
               if (action.type === 'RUN_COMMAND' && action.command && action.command.includes('shadcn')) {
-                console.log(`🔍 SHADCN ACTION FOUND:`, action);
               }
             });
           }
         }
       }
 
-      console.log(`🔍 Final parsed blueprint:`, blueprint);
       return blueprint as Blueprint;
     } else if (node.type === 'Identifier') {
       // Handle case where blueprint is exported as a reference to another variable
@@ -175,7 +242,6 @@ export class TypeScriptBlueprintParser {
             const key = property.key.name;
             const value = this.astValueToJavaScript(property.value);
             obj[key] = value;
-            console.log(`🔍 Object property: ${key} =`, value);
           }
         }
         return obj;
