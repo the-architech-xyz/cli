@@ -164,6 +164,13 @@ export class ModuleFetcherService {
   async clearCache(): Promise<void> {
     await this.cacheManager.clear();
   }
+  
+  /**
+   * Get the marketplace path
+   */
+  getMarketplacePath(): string {
+    return this.marketplacePath;
+  }
 
   /**
    * Fetch adapter configuration from the marketplace

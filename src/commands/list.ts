@@ -46,7 +46,7 @@ export function createListCommand(): Command {
 
         if (options.category) {
           filteredGenomes = filteredGenomes.filter(genome => 
-            genome.category.toLowerCase() === options.category.toLowerCase()
+            genome.category.toLowerCase() === options.category!.toLowerCase()
           );
         }
 

@@ -36,6 +36,7 @@ import { AgentExecutionService } from '../core/services/execution/agent-executio
 import { ErrorHandler, ErrorCode } from '../core/services/infrastructure/error/index.js';
 import { Logger, ExecutionTracer, LogLevel } from '../core/services/infrastructure/logging/index.js';
 import { PrerequisiteValidator, ExecutionPlan } from '../core/services/validation/prerequisite-validator.js';
+import { ParameterValidator } from '../core/services/validation/parameter-validator.js';
 import * as fs from 'fs/promises';
 
 export class OrchestratorAgent {
@@ -52,6 +53,7 @@ export class OrchestratorAgent {
   private updateChecker: UpdateChecker;
   private contextManager: GlobalContextManager;
   private prerequisiteValidator: PrerequisiteValidator;
+  private parameterValidator: ParameterValidator;
 
   constructor(projectManager: ProjectManager) {
     this.projectManager = projectManager;
@@ -61,6 +63,7 @@ export class OrchestratorAgent {
     this.updateChecker = new UpdateChecker(this.cacheManager, this.moduleFetcher);
     this.moduleLoader = new ModuleLoaderService(this.moduleFetcher);
     this.prerequisiteValidator = new PrerequisiteValidator(this.moduleFetcher);
+    this.parameterValidator = new ParameterValidator();
     this.agents = new Map();
     
     // Initialize global context manager
@@ -339,6 +342,46 @@ export class OrchestratorAgent {
             errors.push(adapterResult.error!);
             break;
           }
+          
+          // ============================================================================
+          // SCHEMA VALIDATION: Validate module parameters against JSON schema
+          // ============================================================================
+          Logger.info(`🔍 Validating parameters for module: ${module.id}`, {
+            traceId,
+            operation: 'parameter_validation',
+            moduleId: module.id
+          });
+          
+          const validationResult = this.parameterValidator.validateModuleParameters(
+            module.id,
+            module.parameters,
+            adapterResult.adapter!.config
+          );
+          
+          if (!validationResult.valid) {
+            const errorMessages = validationResult.errors.map(err => `  - ${err}`).join('\n');
+            const error = `Error in module [${module.id}]: Invalid parameters\n${errorMessages}`;
+            
+            Logger.error(`❌ ${error}`, {
+              traceId,
+              operation: 'parameter_validation',
+              moduleId: module.id,
+              validationErrors: validationResult.errors
+            });
+            
+            errors.push(error);
+            break;
+          }
+          
+          // Apply default values to parameters
+          module.parameters = this.parameterValidator.applyDefaultValues(module.parameters, adapterResult.adapter!.config);
+          
+          Logger.info(`✅ Parameters validated successfully for module: ${module.id}`, {
+            traceId,
+            operation: 'parameter_validation',
+            moduleId: module.id
+          });
+          
           
           // Create legacy context for backward compatibility
           const context = this.createLegacyContext(recipe, module, adapterResult.adapter!.config);

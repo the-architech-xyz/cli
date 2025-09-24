@@ -20,9 +20,11 @@ import * as fs from 'fs/promises';
 export class BlueprintExecutor {
   private commandRunner: CommandRunner;
   private currentAction: BlueprintAction | null = null;
+  private moduleFetcher: ModuleFetcherService;
 
   constructor(projectRoot: string, moduleFetcher: ModuleFetcherService) {
     this.commandRunner = new CommandRunner();
+    this.moduleFetcher = moduleFetcher;
   }
 
   /**
@@ -314,13 +316,30 @@ export class BlueprintExecutor {
     try {
       switch (action.type) {
         case 'CREATE_FILE':
-          if (!action.path || !action.content) {
-            return { success: false, error: 'CREATE_FILE action missing path or content' };
+          if (!action.path || (!action.content && !action.template)) {
+            return { success: false, error: 'CREATE_FILE action missing path or content/template' };
           }
           
-          // Process template path and content
-          const processedPath = this.processTemplate(action.path, context);
-          const processedContent = this.processTemplate(action.content, context);
+          // File paths should NOT be processed as templates - they're just file paths
+          const processedPath = action.path;
+          
+          // Get content from either direct content or template file
+          let content: string;
+          if (action.content) {
+            content = this.processTemplate(action.content, context);
+          } else if (action.template) {
+            // Load template file from marketplace
+            // Template path should NOT be processed as a template - it's just a file path
+            const templatePath = action.template;
+            try {
+              const templateContent = await this.loadTemplateFile(templatePath);
+              content = this.processTemplate(templateContent, context);
+            } catch (error) {
+              return { success: false, error: `Failed to load template file: ${templatePath}` };
+            }
+          } else {
+            return { success: false, error: 'CREATE_FILE action missing content or template' };
+          }
           
           // Check for config file conflicts (TypeScript vs JavaScript)
           const conflictCheck = await this.checkConfigFileConflict(processedPath, blueprintContext.vfs, blueprintContext.projectRoot);
@@ -330,11 +349,11 @@ export class BlueprintExecutor {
           
           if (blueprintContext.vfs) {
             // Create file in VFS
-            blueprintContext.vfs.createFile(processedPath, processedContent);
+            blueprintContext.vfs.createFile(processedPath, content);
           } else {
             // Direct file creation for simple blueprints
             const fullPath = path.join(blueprintContext.projectRoot, processedPath);
-            await fs.writeFile(fullPath, processedContent, 'utf-8');
+            await fs.writeFile(fullPath, content, 'utf-8');
           }
           
           return { success: true, files: [processedPath] };
@@ -518,8 +537,8 @@ export class BlueprintExecutor {
             return { success: false, error: 'ENHANCE_FILE action missing path or modifier' };
           }
           
-          // Process template path
-          const enhancedPath = this.processTemplate(action.path, context);
+          // File paths should NOT be processed as templates - they're just file paths
+          const enhancedPath = action.path;
           
           // Get the modifier registry
           const { getModifierRegistry } = await import('../../file-system/modifiers/modifier-registry.js');
@@ -610,6 +629,30 @@ export class BlueprintExecutor {
     } else {
       // LegacyProjectContext - return as is
       return context;
+    }
+  }
+
+  /**
+   * Load template file from marketplace
+   */
+  private async loadTemplateFile(templatePath: string): Promise<string> {
+    try {
+      // Get marketplace path from module fetcher
+      const marketplacePath = this.moduleFetcher.getMarketplacePath();
+      
+      if (!marketplacePath) {
+        throw new Error('Marketplace path not available');
+      }
+
+      // Resolve the full path to the template file
+      const fullTemplatePath = path.join(marketplacePath, templatePath);
+      
+      // Read the template file
+      const content = await fs.readFile(fullTemplatePath, 'utf-8');
+      return content;
+    } catch (error) {
+      console.error(`Failed to load template file: ${templatePath}`, error);
+      throw error;
     }
   }
 
