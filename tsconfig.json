@@ -26,7 +26,8 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true
+    "exactOptionalPropertyTypes": true,
+    "types": ["node"]
   },
   "include": [
     "src/index.ts",
@@ -37,7 +38,8 @@
     "src/core/**/*",
     "src/adapters/**/*",
     "src/plugins/**/*",
-    "src/integrations/**/*"
+    "src/integrations/**/*",
+    "src/scripts/**/*"
   ],
   "exclude": [
     "node_modules",

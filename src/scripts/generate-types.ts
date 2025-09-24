@@ -6,20 +6,20 @@
  * This creates a type-safe development experience for blueprint and genome authors.
  */
 
-import * as fs from 'fs';
-import * as path from 'path';
-import * as glob from 'glob';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { resolve, dirname, relative, join, sep } from 'path';
+import { sync as globSync } from 'glob';
 
 // Configuration
-const MARKETPLACE_PATH = path.resolve(process.env.MARKETPLACE_PATH || '../marketplace');
-const OUTPUT_DIR = path.resolve('./types/generated');
+const MARKETPLACE_PATH = resolve(process.env.MARKETPLACE_PATH || '../marketplace');
+const OUTPUT_DIR = resolve('./types/generated');
 const ADAPTERS_GLOB = 'adapters/**/adapter.json';
 const INTEGRATIONS_GLOB = 'integrations/**/adapter.json';
 
 // Ensure output directories exist
 function ensureDirectoryExists(dirPath: string) {
-  if (!fs.existsSync(dirPath)) {
-    fs.mkdirSync(dirPath, { recursive: true });
+  if (!existsSync(dirPath)) {
+    mkdirSync(dirPath, { recursive: true });
   }
 }
 
@@ -100,23 +100,23 @@ function generateFeaturesInterface(adapterConfig: any, adapterName: string): str
 function generateAdapterTypes(adapterPath: string): { category: string; id: string; name: string; path: string; outputPath: string } | null {
   try {
     // Read adapter.json
-    const adapterContent = fs.readFileSync(adapterPath, 'utf-8');
+    const adapterContent = readFileSync(adapterPath, 'utf-8');
     const adapterConfig = JSON.parse(adapterContent);
     
     // Extract adapter ID and name
-    const adapterDir = path.dirname(adapterPath);
-    const relativePath = path.relative(MARKETPLACE_PATH, adapterDir);
-    const pathParts = relativePath.split(path.sep);
+    const adapterDir = dirname(adapterPath);
+    const relativePath = relative(MARKETPLACE_PATH, adapterDir);
+    const pathParts = relativePath.split(sep);
     
     // Determine if this is an adapter or integration
     const isAdapter = pathParts[0] === 'adapters';
-    const category = pathParts[1];
-    const id = pathParts[2];
+    const category = pathParts[1] || 'unknown';
+    const id = pathParts[2] || 'unknown';
     const adapterName = toPascalCase(id);
     
     // Create output path
-    const outputPath = path.join(OUTPUT_DIR, relativePath, 'types.d.ts');
-    ensureDirectoryExists(path.dirname(outputPath));
+    const outputPath = join(OUTPUT_DIR, relativePath, 'types.d.ts');
+    ensureDirectoryExists(dirname(outputPath));
     
     // Generate content
     let content = `/**
@@ -132,7 +132,7 @@ function generateAdapterTypes(adapterPath: string): { category: string; id: stri
     content += generateFeaturesInterface(adapterConfig, adapterName);
     
     // Write file
-    fs.writeFileSync(outputPath, content);
+    writeFileSync(outputPath, content);
     
     return {
       category,
@@ -188,8 +188,8 @@ function generateGenomeTypes(adapters: any[]): void {
   content += `}\n`;
   
   // Write the file
-  const outputPath = path.join(OUTPUT_DIR, 'genome.d.ts');
-  fs.writeFileSync(outputPath, content);
+  const outputPath = join(OUTPUT_DIR, 'genome.d.ts');
+  writeFileSync(outputPath, content);
 }
 
 // Utility: Convert string to PascalCase
@@ -208,11 +208,11 @@ async function main() {
     ensureDirectoryExists(OUTPUT_DIR);
     
     // Find all adapter.json files
-    const adapterPaths = glob.sync(ADAPTERS_GLOB, { cwd: MARKETPLACE_PATH })
-      .map(p => path.join(MARKETPLACE_PATH, p));
+    const adapterPaths = globSync(ADAPTERS_GLOB, { cwd: MARKETPLACE_PATH })
+      .map(p => join(MARKETPLACE_PATH, p));
     
-    const integrationPaths = glob.sync(INTEGRATIONS_GLOB, { cwd: MARKETPLACE_PATH })
-      .map(p => path.join(MARKETPLACE_PATH, p));
+    const integrationPaths = globSync(INTEGRATIONS_GLOB, { cwd: MARKETPLACE_PATH })
+      .map(p => join(MARKETPLACE_PATH, p));
     
     
     // Generate types for each adapter
