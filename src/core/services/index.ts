@@ -38,6 +38,7 @@ export * from './infrastructure/logging/index.js';
 export * from './file-system/file-engine/index.js';
 
 // Modifiers
+export * from './file-system/modifiers/modifier-registry.js';
 export * from './file-system/modifiers/modifier-service.js';
 
 // Integration

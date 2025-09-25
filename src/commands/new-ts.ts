@@ -14,8 +14,7 @@ import { OrchestratorAgent } from '../agents/orchestrator-agent.js';
 import { ProjectManager } from '../core/services/project/project-manager.js';
 import { AgentLogger as Logger } from '../core/cli/logger.js';
 import { GenomeValidator } from '../core/services/validation/genome-validator.js';
-import { ModuleFetcherService } from '../core/services/module-management/fetcher/module-fetcher.js';
-import { AdapterLoader } from '../core/services/module-management/adapter/adapter-loader.js';
+import { ModuleService } from '../core/services/module-management/module-service.js';
 import { CacheManagerService } from '../core/services/infrastructure/cache/cache-manager.js';
 import { ErrorHandler } from '../core/services/infrastructure/error/index.js';
 
@@ -67,9 +66,8 @@ export function createNewTsCommand(): Command {
 
         // PHASE 1: Pre-execution genome validation
         logger.info('🔍 Validating genome before execution...');
-        const moduleFetcher = new ModuleFetcherService(new CacheManagerService());
-        const adapterLoader = new AdapterLoader(moduleFetcher);
-        const genomeValidator = new GenomeValidator(adapterLoader);
+        const moduleService = new ModuleService(new CacheManagerService());
+        const genomeValidator = new GenomeValidator(moduleService);
         
         const genomeValidation = await genomeValidator.validateGenome(genome);
         if (!genomeValidation.valid) {

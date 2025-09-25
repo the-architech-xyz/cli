@@ -9,7 +9,7 @@ import { Command } from 'commander';
 import { PathService } from '../core/services/path/path-service.js';
 import { ProjectManager } from '../core/services/project/project-manager.js';
 // import { FeatureManager } from '../core/services/feature/feature-manager.js'; // V2 feature removed
-import { ModuleFetcherService } from '../core/services/module-management/fetcher/module-fetcher.js';
+import { ModuleService } from '../core/services/module-management/module-service.js';
 import { CacheManagerService } from '../core/services/infrastructure/cache/cache-manager.js';
 import { AgentLogger } from '../core/cli/logger.js';
 
@@ -56,10 +56,10 @@ export function createAddCommand(): Command {
           process.exit(1);
         }
         
-        // Initialize module fetcher
+        // Initialize module service
         const cacheManager = new CacheManagerService();
-        const moduleFetcher = new ModuleFetcherService(cacheManager);
-        await moduleFetcher.initialize();
+        const moduleService = new ModuleService(cacheManager);
+        await moduleService.initialize();
         
         // Initialize feature manager
         // const featureManager = new FeatureManager(pathHandler, moduleFetcher); // V2 feature removed

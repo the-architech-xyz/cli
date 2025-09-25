@@ -10,10 +10,10 @@
 
 import { Module } from '@thearchitech.xyz/types';
 import { Genome } from '@thearchitech.xyz/marketplace';
-import { ModuleValidator } from './module-validator';
-import { DependencyResolver } from './dependency-resolver';
-import { ParameterValidator } from './parameter-validator';
-import { AdapterLoader } from '../module-management/adapter/adapter-loader';
+import { ModuleValidator } from './module-validator.js';
+import { DependencyResolver } from './dependency-resolver.js';
+import { ParameterValidator } from './parameter-validator.js';
+import { ModuleService } from '../module-management/module-service.js';
 
 export interface GenomeValidationResult {
   valid: boolean;
@@ -28,10 +28,10 @@ export class GenomeValidator {
   private dependencyResolver: DependencyResolver;
   private parameterValidator: ParameterValidator;
 
-  constructor(private adapterLoader: AdapterLoader) {
-    this.moduleValidator = new ModuleValidator(adapterLoader);
-    this.dependencyResolver = new DependencyResolver(adapterLoader);
-    this.parameterValidator = new ParameterValidator(adapterLoader);
+  constructor(private moduleService: ModuleService) {
+    this.moduleValidator = new ModuleValidator(moduleService);
+    this.dependencyResolver = new DependencyResolver(moduleService);
+    this.parameterValidator = new ParameterValidator(moduleService);
   }
 
   /**
@@ -53,24 +53,27 @@ export class GenomeValidator {
       }
 
       // Step 2: Validate each module
-      for (const module of genome.modules) {
-        console.log(`  🔍 Validating module: ${module.id}`);
+      for (const moduleConfig of genome.modules) {
+        console.log(`  🔍 Validating module: ${moduleConfig.id}`);
+        
+        // Convert ModuleConfig to Module
+        const module = this.convertModuleConfigToModule(moduleConfig);
         
         const moduleValidation = await this.moduleValidator.validateModule(module);
         if (!moduleValidation.valid) {
-          errors.push(`Module ${module.id}: ${moduleValidation.errors.join(', ')}`);
+          errors.push(`Module ${moduleConfig.id}: ${moduleValidation.errors.join(', ')}`);
           continue;
         }
 
         // Step 3: Validate module parameters
         const parameterValidation = await this.parameterValidator.validateParameters(module);
         if (!parameterValidation.valid) {
-          errors.push(`Module ${module.id} parameters: ${parameterValidation.errors.join(', ')}`);
+          errors.push(`Module ${moduleConfig.id} parameters: ${parameterValidation.errors.join(', ')}`);
           continue;
         }
 
         validatedModules.push(module);
-        console.log(`  ✅ Module ${module.id} validated successfully`);
+        console.log(`  ✅ Module ${moduleConfig.id} validated successfully`);
       }
 
       // Step 4: Resolve dependencies and check for conflicts
@@ -116,6 +119,21 @@ export class GenomeValidator {
         executionOrder: []
       };
     }
+  }
+
+  /**
+   * Convert ModuleConfig to Module
+   */
+  private convertModuleConfigToModule(moduleConfig: any): Module {
+    // Extract category and version from module ID
+    const [category, name] = moduleConfig.id.split('/');
+    
+    return {
+      id: moduleConfig.id,
+      category: category || 'unknown',
+      version: 'latest', // Default version
+      parameters: moduleConfig.parameters || {}
+    };
   }
 
   /**

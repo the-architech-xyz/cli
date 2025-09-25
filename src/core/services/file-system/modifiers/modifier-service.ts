@@ -105,42 +105,4 @@ export class TSConfigEnhancer extends BaseModifier {
   }
 }
 
-/**
- * Modifier Registry
- */
-export class ModifierRegistry {
-  private instances: Map<string, BaseModifier> = new Map();
-
-  constructor(private engine: FileModificationEngine) {}
-
-  /**
-   * Register a modifier
-   */
-  register(id: string, modifier: BaseModifier): void {
-    this.instances.set(id, modifier);
-  }
-
-  /**
-   * Get modifier by ID
-   */
-  getModifier(id: string): BaseModifier | undefined {
-    return this.instances.get(id);
-  }
-
-  /**
-   * Execute a modifier
-   */
-  async executeModifier(
-    id: string, 
-    filePath: string, 
-    params: ModifierParams, 
-    context: ProjectContext
-  ): Promise<ModifierResult> {
-    const modifier = this.getModifier(id);
-    if (!modifier) {
-      return { success: false, error: `Modifier '${id}' not found` };
-    }
-    
-    return await modifier.execute(filePath, params, context);
-  }
-}
+// ModifierRegistry is now in modifier-registry.ts

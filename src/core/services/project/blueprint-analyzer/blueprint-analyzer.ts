@@ -9,6 +9,7 @@
 import { Blueprint, BlueprintAction, ProjectContext } from '@thearchitech.xyz/types';
 
 export interface BlueprintAnalysis {
+  needVFS: boolean;  // ← NEW: The key VFS decision
   filesToRead: string[];
   filesToCreate: string[];
   contextualFiles: string[];
@@ -17,7 +18,7 @@ export interface BlueprintAnalysis {
 
 export class BlueprintAnalyzer {
   /**
-   * Analyze a blueprint to determine all files that need to be pre-loaded
+   * Analyze a blueprint to determine VFS need and file dependencies
    */
   analyzeBlueprint(blueprint: Blueprint, context: ProjectContext): BlueprintAnalysis {
     console.log(`🔍 Analyzing blueprint: ${blueprint.name}`);
@@ -32,15 +33,45 @@ export class BlueprintAnalyzer {
       console.log(`📋 Found ${contextualFiles.length} contextual files:`, contextualFiles);
     }
     
-    // 2. Analyze all actions to determine file dependencies
+    // 2. Analyze all actions to determine file dependencies and VFS need
     const analysis = this.analyzeActions(blueprint.actions, context);
     
+    // 3. Determine if VFS is needed based on action types
+    const needVFS = this.determineVFSNeed(blueprint.actions);
+    
+    console.log(`🎯 VFS Decision: ${needVFS ? 'VFS Mode' : 'Direct Mode'} for ${blueprint.name}`);
+    
     return {
+      needVFS,
       filesToRead: analysis.filesToRead,
       filesToCreate: analysis.filesToCreate,
       contextualFiles: analysis.contextualFiles,
       allRequiredFiles: analysis.filesToRead
     };
+  }
+
+  /**
+   * Determine if VFS is needed based on action types
+   */
+  private determineVFSNeed(actions: BlueprintAction[]): boolean {
+    // VFS is required for actions that need to modify existing files
+    const vfsRequiredActions = [
+      'ENHANCE_FILE',      // Modifies existing files using modifiers
+      'INSTALL_PACKAGES',  // Modifies package.json
+      'ADD_SCRIPT',        // Modifies package.json
+      'ADD_DEPENDENCY',    // Modifies package.json
+      'ADD_DEV_DEPENDENCY' // Modifies package.json
+    ];
+    
+    const needsVFS = actions.some(action => vfsRequiredActions.includes(action.type));
+    
+    if (needsVFS) {
+      console.log(`🔧 VFS required: Found ${actions.filter(a => vfsRequiredActions.includes(a.type)).length} VFS-requiring actions`);
+    } else {
+      console.log(`💾 Direct mode: No VFS-requiring actions found`);
+    }
+    
+    return needsVFS;
   }
 
   /**
@@ -152,6 +183,7 @@ export class BlueprintAnalyzer {
     ]));
     
     const analysis: BlueprintAnalysis = {
+      needVFS: false, // This will be overridden by the main analyzeBlueprint method
       filesToRead,
       filesToCreate,
       contextualFiles,

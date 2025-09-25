@@ -9,7 +9,7 @@
  */
 
 import { Module } from '@thearchitech.xyz/types';
-import { AdapterLoader } from '../module-management/adapter/adapter-loader';
+import { ModuleService } from '../module-management/module-service.js';
 
 export interface ModuleValidationResult {
   valid: boolean;
@@ -19,7 +19,7 @@ export interface ModuleValidationResult {
 }
 
 export class ModuleValidator {
-  constructor(private adapterLoader: AdapterLoader) {}
+  constructor(private moduleService: ModuleService) {}
 
   /**
    * Validate a single module
@@ -117,7 +117,17 @@ export class ModuleValidator {
       const adapterId = module.id.split('/').pop() || module.id;
       
       // Try to load the adapter
-      const adapter = await this.adapterLoader.loadAdapter(module.category, adapterId);
+      const adapterResult = await this.moduleService.loadModuleAdapter(module);
+      
+      if (!adapterResult.success) {
+        return {
+          valid: false,
+          errors: [`Failed to load adapter: ${adapterResult.error}`],
+          warnings: []
+        };
+      }
+      
+      const adapter = adapterResult.adapter;
       
       return {
         valid: true,

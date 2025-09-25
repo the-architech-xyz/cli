@@ -6,7 +6,7 @@
  */
 
 import { Module } from '@thearchitech.xyz/types';
-import { AdapterLoader } from '../module-management/adapter/adapter-loader';
+import { ModuleService } from '../module-management/module-service.js';
 
 export interface DependencyNode {
   module: Module;
@@ -27,7 +27,7 @@ export class DependencyGraph {
   private graph: Map<string, DependencyNode> = new Map();
   private circularDependencies: string[] = [];
 
-  constructor(private adapterLoader: AdapterLoader) {}
+  constructor(private moduleService: ModuleService) {}
 
   /**
    * Build dependency graph from validated modules
@@ -127,10 +127,10 @@ export class DependencyGraph {
     // Explicit dependencies (from adapter.json)
     try {
       const adapterId = module.id.split('/').pop() || module.id;
-      const adapter = await this.adapterLoader.loadAdapter(module.category, adapterId);
+      const adapterResult = await this.moduleService.loadModuleAdapter(module);
       
-      if (adapter?.config?.prerequisites) {
-        const explicitDeps = adapter.config.prerequisites.modules || [];
+      if (adapterResult.success && adapterResult.adapter?.config?.prerequisites) {
+        const explicitDeps = adapterResult.adapter.config.prerequisites.modules || [];
         dependencies.push(...explicitDeps);
       }
     } catch (error) {

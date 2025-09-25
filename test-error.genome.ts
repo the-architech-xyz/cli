@@ -8,6 +8,7 @@ import { Genome } from '@thearchitech.xyz/marketplace';
 const genome: Genome = {
   project: {
     name: 'test-error-app',
+    version: '1.0.0',
     framework: 'nextjs',
     path: './test-error-app',
     description: 'Test app for error handling validation'
@@ -36,6 +37,7 @@ const genome: Genome = {
       category: 'database',
       version: '1.0.0',
       parameters: {
+        databaseType: 'postgresql',
         provider: 'neon',
         migrations: true
       }

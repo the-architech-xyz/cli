@@ -9,110 +9,50 @@ import { Recipe, Module, ExecutionResult } from '@thearchitech.xyz/types';
 import { ProjectManager } from '../core/services/project/project-manager.js';
 import { PathService } from '../core/services/path/path-service.js';
 import { BlueprintExecutor } from '../core/services/execution/blueprint/blueprint-executor.js';
-import { VirtualFileSystem } from '../core/services/file-system/file-engine/virtual-file-system.js';
 import { BlueprintAnalyzer } from '../core/services/project/blueprint-analyzer/index.js';
-import { ModuleFetcherService } from '../core/services/module-management/fetcher/module-fetcher.js';
-import { AdapterLoader } from '../core/services/module-management/adapter/adapter-loader.js';
+import { ModuleService } from '../core/services/module-management/module-service.js';
 import { CacheManagerService } from '../core/services/infrastructure/cache/cache-manager.js';
 import * as path from 'path';
-import { FrameworkAgent } from './core/framework-agent.js';
-import { DatabaseAgent } from './core/database-agent.js';
-import { AuthAgent } from './core/auth-agent.js';
-import { UIAgent } from './core/ui-agent.js';
-import { TestingAgent } from './core/testing-agent.js';
-import { DeploymentAgent } from './core/deployment-agent.js';
-import { StateAgent } from './core/state-agent.js';
-import { PaymentAgent } from './core/payment-agent.js';
-import { EmailAgent } from './core/email-agent.js';
-import { ObservabilityAgent } from './core/observability-agent.js';
-import { ContentAgent } from './core/content-agent.js';
-import { BlockchainAgent } from './core/blockchain-agent.js';
-import { ModuleLoaderService } from '../core/services/module-management/module-loader/index.js';
 import { Logger, ExecutionTracer, LogLevel } from '../core/services/infrastructure/logging/index.js';
 import { ErrorHandler } from '../core/services/infrastructure/error/index.js';
 import { DependencyGraph } from '../core/services/dependency/dependency-graph.js';
 import { ExecutionPlanner } from '../core/services/dependency/execution-planner.js';
 import { ParallelExecutionService } from '../core/services/execution/parallel-execution-service.js';
+import { SuccessValidator } from '../core/services/validation/success-validator.js';
 
 export class OrchestratorAgent {
   private projectManager: ProjectManager;
   private pathHandler: PathService;
-  private moduleLoader: ModuleLoaderService;
-  private agents: Map<string, unknown>;
+  private moduleService: ModuleService;
   private blueprintAnalyzer: BlueprintAnalyzer;
-  private moduleFetcher: ModuleFetcherService;
   private cacheManager: CacheManagerService;
   private dependencyGraph: DependencyGraph;
   private executionPlanner: ExecutionPlanner;
   private parallelExecutor: ParallelExecutionService;
+  private successValidator: SuccessValidator;
 
   constructor(projectManager: ProjectManager) {
     this.projectManager = projectManager;
     this.pathHandler = projectManager.getPathHandler();
     this.cacheManager = new CacheManagerService();
-    this.moduleFetcher = new ModuleFetcherService(this.cacheManager);
-    this.moduleLoader = new ModuleLoaderService(this.moduleFetcher);
-    this.agents = new Map();
+    this.moduleService = new ModuleService(this.cacheManager);
     
     // Initialize blueprint analyzer
     this.blueprintAnalyzer = new BlueprintAnalyzer();
     
     // Initialize dependency resolution services
-    const adapterLoader = new AdapterLoader(this.moduleFetcher);
-    this.dependencyGraph = new DependencyGraph(adapterLoader);
+    this.dependencyGraph = new DependencyGraph(this.moduleService);
     this.executionPlanner = new ExecutionPlanner(this.dependencyGraph);
     this.parallelExecutor = new ParallelExecutionService(this);
-    
-    // Initialize agents (will be reconfigured with decentralized path handler)
-    this.initializeAgents();
+    this.successValidator = new SuccessValidator();
   }
 
-  /**
-   * Initialize all agents
-   */
-  private initializeAgents(): void {
-    this.agents.set('framework', new FrameworkAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('database', new DatabaseAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('auth', new AuthAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('ui', new UIAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('testing', new TestingAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('deployment', new DeploymentAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('state', new StateAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('payment', new PaymentAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('email', new EmailAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('observability', new ObservabilityAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('content', new ContentAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('blockchain', new BlockchainAgent(this.pathHandler, this.moduleFetcher));
-  }
-
-  /**
-   * Reconfigure all agents with the decentralized path handler
-   */
-  private reconfigureAgents(): void {
-    if (!this.pathHandler) {
-      throw new Error('Path handler not initialized');
-    }
-
-    // Update all agents to use the path handler
-    this.agents.set('framework', new FrameworkAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('database', new DatabaseAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('auth', new AuthAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('ui', new UIAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('testing', new TestingAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('deployment', new DeploymentAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('state', new StateAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('payment', new PaymentAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('email', new EmailAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('observability', new ObservabilityAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('content', new ContentAgent(this.pathHandler, this.moduleFetcher));
-    this.agents.set('blockchain', new BlockchainAgent(this.pathHandler, this.moduleFetcher));
-  }
 
   /**
    * Initialize the orchestrator
    */
   async initialize(): Promise<void> {
-    await this.moduleFetcher.initialize();
+    await this.moduleService.initialize();
   }
 
   /**
@@ -141,13 +81,12 @@ export class OrchestratorAgent {
     try {
       // 1. Setup framework and create path handler
       ExecutionTracer.logOperation(traceId, 'Setting up framework and path handler');
-      const frameworkSetup = await this.moduleLoader.setupFramework(recipe, this.pathHandler);
+      const frameworkSetup = await this.moduleService.setupFramework(recipe, this.pathHandler);
       if (!frameworkSetup.success) {
         throw new Error(frameworkSetup.error);
       }
       
       this.pathHandler = frameworkSetup.pathHandler!;
-      this.reconfigureAgents();
       
       // 2. Initialize project directory
       ExecutionTracer.logOperation(traceId, 'Initializing project directory');
@@ -257,6 +196,70 @@ export class OrchestratorAgent {
           warnings
         };
       }
+
+      // 8. Success Validation - Final quality gate
+      ExecutionTracer.logOperation(traceId, 'Validating generation success');
+      try {
+        // Get the list of files that should have been created
+        const expectedFiles = this.getExpectedFilesFromExecution(executionResult);
+        
+        const validationResult = await this.successValidator.validate(
+          this.pathHandler.getProjectRoot(),
+          expectedFiles
+        );
+
+        if (!validationResult.isSuccess) {
+          const validationErrorResult = ErrorHandler.handleCriticalError(
+            `Success validation failed: ${validationResult.errors.join(', ')}`,
+            traceId,
+            'success_validation',
+            verbose
+          );
+          errors.push(ErrorHandler.formatUserError(validationErrorResult, verbose));
+          Logger.error(`❌ ${validationErrorResult.error}`, {
+            traceId,
+            operation: 'success_validation'
+          });
+          
+          ExecutionTracer.endTrace(traceId, false, new Error(validationErrorResult.error));
+          
+          return {
+            success: false,
+            modulesExecuted: results.length,
+            errors,
+            warnings
+          };
+        }
+
+        Logger.info('✅ Success validation passed - project is ready to use!', {
+          traceId,
+          operation: 'success_validation',
+          filesValidated: validationResult.details.filesValidated,
+          buildSuccess: validationResult.details.buildSuccess
+        });
+
+      } catch (error) {
+        const validationErrorResult = ErrorHandler.handleCriticalError(
+          error,
+          traceId,
+          'success_validation',
+          verbose
+        );
+        errors.push(ErrorHandler.formatUserError(validationErrorResult, verbose));
+        Logger.error(`❌ ${validationErrorResult.error}`, {
+          traceId,
+          operation: 'success_validation'
+        });
+        
+        ExecutionTracer.endTrace(traceId, false, new Error(validationErrorResult.error));
+        
+        return {
+          success: false,
+          modulesExecuted: results.length,
+          errors,
+          warnings
+        };
+      }
       
       const success = errors.length === 0;
       
@@ -296,19 +299,6 @@ export class OrchestratorAgent {
 
 
 
-  /**
-   * Get available agents
-   */
-  getAvailableAgents(): string[] {
-    return Array.from(this.agents.keys());
-  }
-
-  /**
-   * Get agent by category
-   */
-  getAgent(category: string): unknown {
-    return this.agents.get(category);
-  }
 
   /**
    * Create architech.json configuration file
@@ -343,6 +333,28 @@ export class OrchestratorAgent {
   }
 
 
+
+  /**
+   * Get expected files from execution result for validation
+   */
+  private getExpectedFilesFromExecution(executionResult: any): string[] {
+    const expectedFiles: string[] = [];
+    
+    // Extract files from successful module executions
+    for (const batchResult of executionResult.batchResults) {
+      if (batchResult.success) {
+        for (const result of batchResult.results) {
+          if (result.success && result.executedModules) {
+            // For now, we'll use a basic approach
+            // In a real implementation, we'd track files created by each module
+            expectedFiles.push('package.json'); // Always expect package.json
+          }
+        }
+      }
+    }
+    
+    return expectedFiles;
+  }
 
   /**
    * Identify critical module failures that should stop execution
@@ -402,31 +414,28 @@ export class OrchestratorAgent {
       });
 
       // Load adapter for this module
-      const adapterResult = await this.moduleLoader.loadModuleAdapter(module);
+      const adapterResult = await this.moduleService.loadModuleAdapter(module);
       if (!adapterResult.success) {
         return { success: false, error: adapterResult.error || 'Unknown error' };
       }
 
       // Create project context
-      const context = this.moduleLoader.createProjectContext(
+      const contextResult = this.moduleService.createProjectContext(
         { project: { name: 'temp', path: this.pathHandler.getProjectRoot() }, modules: [module] } as Recipe,
-        module,
-        adapterResult.adapter!.config,
-        this.pathHandler
+        this.pathHandler,
+        module
       );
+      
+      if (!contextResult.success) {
+        return { success: false, error: contextResult.error || 'Failed to create project context' };
+      }
+      
+      const context = contextResult.context!;
 
-      // Execute blueprint
+      // Execute blueprint using the Intelligent Foreman
       const blueprint = adapterResult.adapter!.blueprint;
-      const vfs = new VirtualFileSystem(`blueprint-${blueprint.id}`, this.pathHandler.getProjectRoot());
-      
-      const blueprintExecutor = new BlueprintExecutor(this.pathHandler.getProjectRoot(), this.moduleFetcher);
-      const blueprintContext = {
-        vfs,
-        projectRoot: this.pathHandler.getProjectRoot(),
-        externalFiles: []
-      };
-      
-      const blueprintResult = await blueprintExecutor.executeBlueprint(blueprint, context, blueprintContext);
+      const blueprintExecutor = new BlueprintExecutor(this.pathHandler.getProjectRoot());
+      const blueprintResult = await blueprintExecutor.executeBlueprint(blueprint, context);
       
       if (blueprintResult.success) {
         Logger.info(`✅ Module ${module.id} executed successfully`);

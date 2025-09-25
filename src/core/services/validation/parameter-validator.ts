@@ -9,7 +9,7 @@
  */
 
 import { Module } from '@thearchitech.xyz/types';
-import { AdapterLoader } from '../module-management/adapter/adapter-loader';
+import { ModuleService } from '../module-management/module-service.js';
 
 export interface ParameterValidationResult {
   valid: boolean;
@@ -18,7 +18,7 @@ export interface ParameterValidationResult {
 }
 
 export class ParameterValidator {
-  constructor(private adapterLoader: AdapterLoader) {}
+  constructor(private moduleService: ModuleService) {}
 
   /**
    * Validate module parameters against schema
@@ -29,9 +29,18 @@ export class ParameterValidator {
 
     try {
       // Load adapter to get schema
-      const adapterId = module.id.split('/').pop() || module.id;
-      const adapter = await this.adapterLoader.loadAdapter(module.category, adapterId);
-      const schema = adapter.config?.parameters;
+      const adapterResult = await this.moduleService.loadModuleAdapter(module);
+      
+      if (!adapterResult.success) {
+        return {
+          valid: false,
+          errors: [`Failed to load adapter: ${adapterResult.error}`],
+          warnings: []
+        };
+      }
+      
+      const adapter = adapterResult.adapter;
+      const schema = adapter?.config?.parameters;
 
       if (!schema) {
         // No schema defined, parameters are valid by default

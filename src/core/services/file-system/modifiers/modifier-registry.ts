@@ -6,9 +6,14 @@
  * specific modifier implementations.
  */
 
-import { ModifierDefinition, ModifierRegistry as IModifierRegistry, ProjectContext } from '@thearchitech.xyz/types';
+import { ProjectContext } from '@thearchitech.xyz/types';
 
-export class ModifierRegistry implements IModifierRegistry {
+// Simple modifier interface for now
+interface ModifierDefinition {
+  execute: (filePath: string, params: any, context: ProjectContext, vfs?: any) => Promise<{ success: boolean; error?: string; message?: string }>;
+}
+
+export class ModifierRegistry {
   private modifiers: Map<string, ModifierDefinition> = new Map();
 
   // Index signature to satisfy the interface
