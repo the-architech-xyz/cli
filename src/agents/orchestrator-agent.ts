@@ -8,13 +8,11 @@
 import { Recipe, Module, ExecutionResult } from '@thearchitech.xyz/types';
 import { ProjectManager } from '../core/services/project/project-manager.js';
 import { PathService } from '../core/services/path/path-service.js';
-import { AdapterConfig } from '@thearchitech.xyz/types';
-import { IntegrationRegistry } from '../core/services/integration/integration-registry.js';
-import { IntegrationExecutor } from '../core/services/integration/integration-executor.js';
 import { BlueprintExecutor } from '../core/services/execution/blueprint/blueprint-executor.js';
 import { VirtualFileSystem } from '../core/services/file-system/file-engine/virtual-file-system.js';
 import { BlueprintAnalyzer } from '../core/services/project/blueprint-analyzer/index.js';
 import { ModuleFetcherService } from '../core/services/module-management/fetcher/module-fetcher.js';
+import { AdapterLoader } from '../core/services/module-management/adapter/adapter-loader.js';
 import { CacheManagerService } from '../core/services/infrastructure/cache/cache-manager.js';
 import * as path from 'path';
 import { FrameworkAgent } from './core/framework-agent.js';
@@ -29,23 +27,24 @@ import { EmailAgent } from './core/email-agent.js';
 import { ObservabilityAgent } from './core/observability-agent.js';
 import { ContentAgent } from './core/content-agent.js';
 import { BlockchainAgent } from './core/blockchain-agent.js';
-import { ProjectContext, AgentResult, Blueprint } from '@thearchitech.xyz/types';
 import { ModuleLoaderService } from '../core/services/module-management/module-loader/index.js';
-import { AgentExecutionService } from '../core/services/execution/agent-execution/index.js';
-import { ErrorHandler, ErrorCode } from '../core/services/infrastructure/error/index.js';
 import { Logger, ExecutionTracer, LogLevel } from '../core/services/infrastructure/logging/index.js';
+import { ErrorHandler } from '../core/services/infrastructure/error/index.js';
+import { DependencyGraph } from '../core/services/dependency/dependency-graph.js';
+import { ExecutionPlanner } from '../core/services/dependency/execution-planner.js';
+import { ParallelExecutionService } from '../core/services/execution/parallel-execution-service.js';
 
 export class OrchestratorAgent {
   private projectManager: ProjectManager;
   private pathHandler: PathService;
   private moduleLoader: ModuleLoaderService;
-  private agentExecutor: AgentExecutionService;
   private agents: Map<string, unknown>;
-  private integrationRegistry: IntegrationRegistry;
-  private integrationExecutor?: IntegrationExecutor;
   private blueprintAnalyzer: BlueprintAnalyzer;
   private moduleFetcher: ModuleFetcherService;
   private cacheManager: CacheManagerService;
+  private dependencyGraph: DependencyGraph;
+  private executionPlanner: ExecutionPlanner;
+  private parallelExecutor: ParallelExecutionService;
 
   constructor(projectManager: ProjectManager) {
     this.projectManager = projectManager;
@@ -55,17 +54,17 @@ export class OrchestratorAgent {
     this.moduleLoader = new ModuleLoaderService(this.moduleFetcher);
     this.agents = new Map();
     
-    // Initialize integration services
-    this.integrationRegistry = new IntegrationRegistry();
-    
     // Initialize blueprint analyzer
     this.blueprintAnalyzer = new BlueprintAnalyzer();
     
+    // Initialize dependency resolution services
+    const adapterLoader = new AdapterLoader(this.moduleFetcher);
+    this.dependencyGraph = new DependencyGraph(adapterLoader);
+    this.executionPlanner = new ExecutionPlanner(this.dependencyGraph);
+    this.parallelExecutor = new ParallelExecutionService(this);
+    
     // Initialize agents (will be reconfigured with decentralized path handler)
     this.initializeAgents();
-    
-    // Initialize agent executor after agents are set up
-    this.agentExecutor = new AgentExecutionService(this.agents);
   }
 
   /**
@@ -117,22 +116,21 @@ export class OrchestratorAgent {
   }
 
   /**
-   * Execute a complete recipe
+   * Execute a complete recipe using intelligent dependency resolution and parallel execution
    */
-  async executeRecipe(recipe: Recipe): Promise<ExecutionResult> {
+  async executeRecipe(recipe: Recipe, verbose: boolean = false): Promise<ExecutionResult> {
     // Initialize the orchestrator
     await this.initialize();
     
     // Start execution trace
-    const traceId = ExecutionTracer.startTrace('recipe_execution', {
+    const traceId = ExecutionTracer.startTrace('intelligent_recipe_execution', {
       projectName: recipe.project.name,
-      moduleCount: recipe.modules.length,
-      hasIntegrations: !!(recipe.integrations && recipe.integrations.length > 0)
+      moduleCount: recipe.modules.length
     });
 
-    Logger.info(`🎯 Orchestrator Agent executing recipe: ${recipe.project.name}`, {
+    Logger.info(`🧠 Intelligent Orchestrator executing recipe: ${recipe.project.name}`, {
       traceId,
-      operation: 'recipe_execution',
+      operation: 'intelligent_recipe_execution',
       moduleId: recipe.project.name
     });
     
@@ -141,7 +139,7 @@ export class OrchestratorAgent {
     const warnings: string[] = [];
 
     try {
-      // 1. Setup framework and create decentralized path handler
+      // 1. Setup framework and create path handler
       ExecutionTracer.logOperation(traceId, 'Setting up framework and path handler');
       const frameworkSetup = await this.moduleLoader.setupFramework(recipe, this.pathHandler);
       if (!frameworkSetup.success) {
@@ -149,284 +147,154 @@ export class OrchestratorAgent {
       }
       
       this.pathHandler = frameworkSetup.pathHandler!;
-      
-      // 2. Reconfigure all agents with the new path handler
-      ExecutionTracer.logOperation(traceId, 'Reconfiguring agents with new path handler');
       this.reconfigureAgents();
       
-      // 3. Initialize project directory
+      // 2. Initialize project directory
       ExecutionTracer.logOperation(traceId, 'Initializing project directory');
       await this.projectManager.initializeProject();
-      Logger.info('📋 Project directory created - framework modules will handle setup', {
+      
+      // 3. Build dependency graph
+      ExecutionTracer.logOperation(traceId, 'Building dependency graph');
+      const graphResult = await this.dependencyGraph.buildGraph(recipe.modules);
+      if (!graphResult.success) {
+        throw new Error(`Dependency graph build failed: ${graphResult.errors.join(', ')}`);
+      }
+
+      // 4. Create execution plan
+      ExecutionTracer.logOperation(traceId, 'Creating execution plan');
+      const executionPlan = this.executionPlanner.createExecutionPlan();
+      if (!executionPlan.success) {
+        throw new Error(`Execution plan creation failed: ${executionPlan.errors.join(', ')}`);
+      }
+
+      // 5. Log execution plan
+      Logger.info(`📋 Execution plan created:`, {
         traceId,
-        operation: 'project_initialization'
+        operation: 'execution_planning'
       });
       
-      
-      // 4. Sort modules by execution order
-      ExecutionTracer.logOperation(traceId, 'Sorting modules by execution order');
-      const sortedModules = this.moduleLoader.sortModulesByExecutionOrder(recipe.modules);
-      
-      // 5. Execute modules using the NEW Contextual, Isolated VFS architecture
-      const moduleResults = [];
-      
-      for (let i = 0; i < sortedModules.length; i++) {
-        const module = sortedModules[i];
-        
-        if (!module) {
-          errors.push(`Module at index ${i} is undefined`);
-          break;
-        }
-        
-        Logger.info(`🚀 [${i + 1}/${sortedModules.length}] Executing module: ${module.id} (${module.category})`, {
+      for (const batch of executionPlan.batches) {
+        const moduleIds = batch.modules.map(m => m.id).join(', ');
+        Logger.info(`  Batch ${batch.batchNumber}: [${moduleIds}] ${batch.canExecuteInParallel ? '(parallel)' : '(sequential)'}`, {
           traceId,
-          operation: 'module_execution',
-          moduleId: module.id,
-          agentCategory: module.category
+          operation: 'execution_planning'
+        });
+      }
+
+      // 6. Execute batches using parallel execution service
+      ExecutionTracer.logOperation(traceId, 'Executing batches');
+      const executionResult = await this.parallelExecutor.executeAllBatches(executionPlan.batches);
+      
+      if (executionResult.success) {
+        results.push(...executionResult.batchResults.flatMap(br => br.results.flatMap(r => r.executedModules)));
+        Logger.info(`✅ All batches executed successfully`, {
+            traceId,
+          operation: 'batch_execution'
+        });
+      } else {
+        // FAIL-FAST: Stop immediately on any batch failure
+        errors.push(...executionResult.errors);
+        Logger.error(`❌ Batch execution failed: ${executionResult.errors.join(', ')}`, {
+              traceId,
+          operation: 'batch_execution'
         });
         
-        try {
-          // Load adapter for this module
-          const adapterResult = await this.moduleLoader.loadModuleAdapter(module);
-          if (!adapterResult.success) {
-            errors.push(adapterResult.error!);
-            break;
-          }
-          
-          // Create project context
-          const context = this.moduleLoader.createProjectContext(
-            recipe,
-            module,
-            adapterResult.adapter!.config,
-            this.pathHandler
+        // Check for critical module failures (framework, database, etc.)
+        const criticalFailures = this.identifyCriticalFailures(executionResult.batchResults);
+        if (criticalFailures.length > 0) {
+          const criticalErrorResult = ErrorHandler.handleCriticalError(
+            `Critical modules failed: ${criticalFailures.join(', ')}. Generation cannot continue.`,
+            traceId,
+            'critical_failure',
+            verbose
           );
-
-          // NEW ARCHITECTURE: Contextual, Isolated VFS
-          const blueprint = adapterResult.adapter!.blueprint;
-          
-          // Step 1: Analyze blueprint to determine required files
-          Logger.info(`🔍 Analyzing blueprint: ${blueprint.name}`, {
+          errors.push(ErrorHandler.formatUserError(criticalErrorResult, verbose));
+          Logger.error(`💥 ${criticalErrorResult.error}`, {
             traceId,
-            operation: 'blueprint_analysis',
-            moduleId: module.id
+            operation: 'critical_failure'
           });
           
-          const analysis = this.blueprintAnalyzer.analyzeBlueprint(blueprint);
+          // Stop execution immediately - do not proceed to dependency installation
+          ExecutionTracer.endTrace(traceId, false, new Error(criticalErrorResult.error));
           
-          // Step 2: Validate required files exist on disk
-          const validation = await this.blueprintAnalyzer.validateRequiredFiles(analysis, this.pathHandler.getProjectRoot());
-          if (!validation.valid) {
-            const error = `Missing required files for ${module.id}: ${validation.missingFiles.join(', ')}`;
-            errors.push(error);
-            Logger.error(`❌ ${error}`, {
-              traceId,
-              operation: 'blueprint_validation',
-              moduleId: module.id
-            });
-            break;
-          }
-          
-          // Step 3: Create new VFS instance for this blueprint
-          const vfs = new VirtualFileSystem(`blueprint-${blueprint.id}`, this.pathHandler.getProjectRoot());
-          Logger.info(`🗂️ Created VFS for blueprint: ${blueprint.id}`, {
-            traceId,
-            operation: 'vfs_creation',
-            moduleId: module.id
-          });
-          
-          // Step 4: Pre-populate VFS with required files
-          Logger.info(`📂 Pre-loading ${analysis.allRequiredFiles.length} files into VFS`, {
-            traceId,
-            operation: 'vfs_preload',
-            moduleId: module.id,
-            fileCount: analysis.allRequiredFiles.length
-          });
-          
-          await this.preloadFilesIntoVFS(vfs, analysis.allRequiredFiles, this.pathHandler.getProjectRoot());
-          
-          // Step 5: Execute blueprint with pre-populated VFS
-          const blueprintExecutor = new BlueprintExecutor(this.pathHandler.getProjectRoot(), this.moduleFetcher);
-          const blueprintContext = {
-            vfs,
-            projectRoot: this.pathHandler.getProjectRoot(),
-            externalFiles: []
+          return {
+            success: false,
+            modulesExecuted: 0,
+            errors,
+            warnings
           };
-          
-          const blueprintResult = await blueprintExecutor.executeBlueprint(blueprint, context, blueprintContext);
-          
-          // Step 6: Flush VFS to disk (atomic commit)
-          if (blueprintResult.success) {
-            await vfs.flushToDisk();
-            Logger.info(`💾 VFS flushed to disk for blueprint: ${blueprint.id}`, {
-              traceId,
-              operation: 'vfs_flush',
-              moduleId: module.id
-            });
-          }
-          
-          // Create module result from blueprint result
-          const moduleResult = {
-            success: blueprintResult.success,
-            files: blueprintResult.files,
-            errors: blueprintResult.errors,
-            warnings: blueprintResult.warnings,
-            executionTime: 0, // TODO: Add timing
-            strategy: {
-              needsVFS: true,
-              complexity: 'complex' as const,
-              reasons: ['Uses Contextual, Isolated VFS architecture']
-            }
-          };
-          
-          moduleResults.push(moduleResult);
-          
-          if (moduleResult.success) {
-            results.push(...moduleResult.files);
-            warnings.push(...moduleResult.warnings);
-            Logger.info(`✅ Module ${module.id} completed successfully`, {
-              traceId,
-              operation: 'module_execution',
-              moduleId: module.id,
-              agentCategory: module.category,
-              duration: moduleResult.executionTime,
-              metadata: { filesCreated: moduleResult.files.length }
-            });
-          } else {
-            errors.push(...moduleResult.errors);
-            Logger.error(`❌ Module ${module.id} failed: ${moduleResult.errors.join(', ')}`, {
-              traceId,
-              operation: 'module_execution',
-              moduleId: module.id,
-              agentCategory: module.category
-            });
-            // Stop on first failure
-            break;
-          }
-          
-        } catch (error) {
-          const errorResult = ErrorHandler.handleAgentError(error, module.category, module.id);
-          errors.push(errorResult.error);
-          Logger.error(`❌ Module ${module.id} failed: ${errorResult.error}`, {
-            traceId,
-            operation: 'module_execution',
-            moduleId: module.id,
-            agentCategory: module.category
-          }, error instanceof Error ? error : undefined);
-          // Stop on first failure
-          break;
         }
+        
+        // For non-critical failures, also stop execution
+        ExecutionTracer.endTrace(traceId, false, new Error('Module execution failed'));
+        
+        return {
+          success: false,
+          modulesExecuted: 0,
+          errors,
+          warnings
+        };
+      }
+
+      // 7. Install dependencies (only if all modules succeeded)
+      ExecutionTracer.logOperation(traceId, 'Installing dependencies');
+      try {
+        await this.installDependencies();
+        } catch (error) {
+        const dependencyErrorResult = ErrorHandler.handleDependencyFailure(error, verbose);
+        errors.push(ErrorHandler.formatUserError(dependencyErrorResult, verbose));
+        Logger.error(`❌ ${dependencyErrorResult.error}`, {
+            traceId,
+          operation: 'dependency_installation'
+        });
+        
+        ExecutionTracer.endTrace(traceId, false, new Error(dependencyErrorResult.error));
+        
+        return {
+          success: false,
+          modulesExecuted: 0,
+          errors,
+          warnings
+        };
       }
       
       const success = errors.length === 0;
       
-      if (success) {
-        Logger.info(`🎉 Recipe orchestrated successfully! ${results.length} files created`, {
-          traceId,
-          operation: 'recipe_execution',
-          metadata: { 
-            filesCreated: results.length,
-            modulesExecuted: sortedModules.length
-          }
-        });
-        
-        // Log execution statistics
-        const stats = this.agentExecutor.getExecutionStats(moduleResults);
-        Logger.info(`📊 Execution stats: ${stats.successfulModules}/${stats.totalModules} modules successful`, {
-          traceId,
-          operation: 'execution_stats',
-          metadata: {
-            successfulModules: stats.successfulModules,
-            totalModules: stats.totalModules,
-            totalExecutionTime: stats.totalExecutionTime,
-            vfsModules: stats.vfsModules,
-            simpleModules: stats.simpleModules
-          }
-        });
-        
-        // Execute integration adapters if any are specified
-        if (recipe.integrations && recipe.integrations.length > 0) {
-          Logger.info(`🔗 Executing ${recipe.integrations.length} integration adapters...`, {
-            traceId,
-            operation: 'integration_execution',
-            metadata: { integrationCount: recipe.integrations.length }
-          });
-          await this.executeIntegrationAdapters(recipe, results, errors, warnings);
-        }
-        
-        // Create architech.json file
-        ExecutionTracer.logOperation(traceId, 'Creating architech.json configuration file');
-        await this.createArchitechConfig(recipe);
-        
-        
-        // Final step: Install all dependencies
-        if (!recipe.options?.skipInstall) {
-          Logger.info('📦 Installing dependencies...', {
-            traceId,
-            operation: 'dependency_installation'
-          });
-          await this.installDependencies();
-        }
-      } else {
-        Logger.error(`💥 Recipe orchestration failed with ${errors.length} errors`, {
-          traceId,
-          operation: 'recipe_execution',
-          metadata: { errorCount: errors.length }
-        });
-      }
-      
-      // End execution trace
       ExecutionTracer.endTrace(traceId, success);
+
+      Logger.info(`${success ? '✅' : '❌'} Intelligent recipe execution ${success ? 'completed' : 'failed'}`, {
+          traceId,
+        operation: 'intelligent_recipe_execution',
+        executedModules: results.length,
+        failedModules: executionResult.totalFailed
+        });
       
       return {
         success,
-        modulesExecuted: success ? sortedModules.length : 0,
+        modulesExecuted: results.length,
         errors,
         warnings
       };
       
     } catch (error) {
-      const errorResult = ErrorHandler.handleAgentError(error, 'orchestrator', 'recipe_execution');
-      Logger.error(`💥 Orchestration failed: ${errorResult.error}`, {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      Logger.error(`❌ Intelligent recipe execution failed: ${errorMessage}`, {
         traceId,
-        operation: 'recipe_execution'
-      }, error instanceof Error ? error : undefined);
+        operation: 'intelligent_recipe_execution'
+      });
       
-      // End execution trace with failure
-      ExecutionTracer.endTrace(traceId, false, error instanceof Error ? error : undefined);
+      ExecutionTracer.endTrace(traceId, false, error instanceof Error ? error : new Error(errorMessage));
       
       return {
         success: false,
         modulesExecuted: 0,
-        errors: [errorResult.error],
-        warnings: []
-      };
+          errors: [...errors, errorMessage],
+          warnings
+        };
     }
   }
 
 
-  /**
-   * Pre-populate VFS with required files from disk
-   */
-  private async preloadFilesIntoVFS(vfs: VirtualFileSystem, filePaths: string[], projectRoot: string): Promise<void> {
-    console.log(`📂 Pre-loading ${filePaths.length} files into VFS...`);
-    
-    const fs = await import('fs/promises');
-    const path = await import('path');
-    
-    for (const filePath of filePaths) {
-      try {
-        const fullPath = path.join(projectRoot, filePath);
-        const content = await fs.readFile(fullPath, 'utf-8');
-        await vfs.writeFile(filePath, content);
-        console.log(`✅ Pre-loaded: ${filePath}`);
-      } catch (error) {
-        console.warn(`⚠️ Failed to pre-load ${filePath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        // Continue with other files - some might not exist yet
-      }
-    }
-    
-    console.log(`✅ VFS pre-population complete`);
-  }
 
   /**
    * Get available agents
@@ -474,124 +342,33 @@ export class OrchestratorAgent {
     }
   }
 
+
+
   /**
-   * Execute integration features
+   * Identify critical module failures that should stop execution
    */
-  private async executeIntegrationAdapters(
-    recipe: Recipe,
-    results: string[],
-    errors: string[],
-    warnings: string[]
-  ): Promise<void> {
-    try {
-      // Initialize integration executor
-      const blueprintExecutor = new BlueprintExecutor(recipe.project.path || '.', this.moduleFetcher);
-      this.integrationExecutor = new IntegrationExecutor(blueprintExecutor);
-      
-      // Get available modules for validation (extract adapter IDs)
-      const availableModules = recipe.modules.map(m => m.id.split('/').pop() || m.id);
-
-      for (const integrationConfig of recipe.integrations!) {
-        console.log(`🔗 Executing integration adapter: ${integrationConfig.name}`);
-
-        // Load integration adapter
-        const integration = await this.integrationRegistry.get(integrationConfig.name);
-        if (!integration) {
-          const error = `Integration adapter not found: ${integrationConfig.name}`;
-          errors.push(error);
-          console.error(`❌ ${error}`);
-          continue;
+  private identifyCriticalFailures(batchResults: any[]): string[] {
+    const criticalFailures: string[] = [];
+    const criticalCategories = ['framework', 'database'];
+    
+    for (const batchResult of batchResults) {
+      if (!batchResult.success) {
+        for (const result of batchResult.results) {
+          if (!result.success) {
+            for (const failedModule of result.failedModules) {
+              // Extract category from module ID (e.g., 'framework/nextjs' -> 'framework')
+              const category = failedModule.split('/')[0];
+              if (criticalCategories.includes(category)) {
+                criticalFailures.push(failedModule);
+              }
+            }
+          }
         }
-
-        // Validate requirements
-        if (!this.integrationExecutor!.validateRequirements(integration, availableModules)) {
-          const error = `Integration ${integrationConfig.name} requirements not met`;
-          errors.push(error);
-          console.error(`❌ ${error}`);
-          continue;
-        }
-
-        // Validate features
-        if (!this.integrationExecutor!.validateFeatures(integration, integrationConfig.features)) {
-          const error = `Integration ${integrationConfig.name} features validation failed`;
-          errors.push(error);
-          console.error(`❌ ${error}`);
-          continue;
-        }
-
-        // Create context for integration with shared VFS
-        const context = {
-          project: {
-            ...recipe.project,
-            path: this.pathHandler.getProjectRoot()
-          },
-          module: { 
-            id: integrationConfig.name, 
-            category: 'integration',
-            version: '1.0.0',
-            parameters: {}
-          },
-          pathHandler: this.pathHandler,
-          adapter: { id: integrationConfig.name },
-          framework: recipe.project.framework
-        };
-
-        // NEW ARCHITECTURE: Contextual, Isolated VFS for Integration
-        const blueprint = integration.blueprint;
-        
-        // Step 1: Analyze integration blueprint to determine required files
-        console.log(`🔍 Analyzing integration blueprint: ${blueprint.name}`);
-        const analysis = this.blueprintAnalyzer.analyzeBlueprint(blueprint);
-        
-        // Step 2: Validate required files exist on disk
-        const validation = await this.blueprintAnalyzer.validateRequiredFiles(analysis, this.pathHandler.getProjectRoot());
-        if (!validation.valid) {
-          const error = `Missing required files for integration ${integrationConfig.name}: ${validation.missingFiles.join(', ')}`;
-          errors.push(error);
-          console.error(`❌ ${error}`);
-          continue;
-        }
-        
-        // Step 3: Create new VFS instance for this integration blueprint
-        const vfs = new VirtualFileSystem(`integration-${blueprint.id}`, this.pathHandler.getProjectRoot());
-        console.log(`🗂️ Created VFS for integration blueprint: ${blueprint.id}`);
-        
-        // Step 4: Pre-populate VFS with required files
-        console.log(`📂 Pre-loading ${analysis.allRequiredFiles.length} files into VFS for integration`);
-        await this.preloadFilesIntoVFS(vfs, analysis.allRequiredFiles, this.pathHandler.getProjectRoot());
-        
-        // Step 5: Execute integration blueprint with pre-populated VFS
-        const blueprintExecutor = new BlueprintExecutor(recipe.project.path || '.', this.moduleFetcher);
-        const blueprintContext = {
-          vfs,
-          projectRoot: this.pathHandler.getProjectRoot(),
-          externalFiles: []
-        };
-        
-        const blueprintResult = await blueprintExecutor.executeBlueprint(blueprint, context, blueprintContext);
-        
-        // Step 6: Flush VFS to disk (atomic commit)
-        if (blueprintResult.success) {
-          await vfs.flushToDisk();
-          console.log(`💾 VFS flushed to disk for integration blueprint: ${blueprint.id}`);
-        } else {
-          errors.push(...blueprintResult.errors);
-          console.error(`❌ Integration blueprint failed: ${blueprintResult.errors.join(', ')}`);
-          continue;
-        }
-
-        // Add created files to results
-        results.push(...integration.provides.files);
-
-        console.log(`✅ Integration adapter ${integrationConfig.name} completed successfully`);
       }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      errors.push(`Integration execution failed: ${errorMessage}`);
-      console.error(`❌ Integration execution failed: ${errorMessage}`);
     }
+    
+    return criticalFailures;
   }
-
 
   /**
    * Install dependencies (delegated to project manager)
@@ -613,4 +390,58 @@ export class OrchestratorAgent {
       console.warn(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
+
+  /**
+   * Execute a single module (for ParallelExecutionService)
+   */
+  async executeModule(module: Module): Promise<{ success: boolean; error?: string }> {
+    try {
+      Logger.info(`🔧 Executing module: ${module.id}`, {
+        operation: 'module_execution',
+        moduleId: module.id
+      });
+
+      // Load adapter for this module
+      const adapterResult = await this.moduleLoader.loadModuleAdapter(module);
+      if (!adapterResult.success) {
+        return { success: false, error: adapterResult.error || 'Unknown error' };
+      }
+
+      // Create project context
+      const context = this.moduleLoader.createProjectContext(
+        { project: { name: 'temp', path: this.pathHandler.getProjectRoot() }, modules: [module] } as Recipe,
+        module,
+        adapterResult.adapter!.config,
+        this.pathHandler
+      );
+
+      // Execute blueprint
+      const blueprint = adapterResult.adapter!.blueprint;
+      const vfs = new VirtualFileSystem(`blueprint-${blueprint.id}`, this.pathHandler.getProjectRoot());
+      
+      const blueprintExecutor = new BlueprintExecutor(this.pathHandler.getProjectRoot(), this.moduleFetcher);
+      const blueprintContext = {
+        vfs,
+        projectRoot: this.pathHandler.getProjectRoot(),
+        externalFiles: []
+      };
+      
+      const blueprintResult = await blueprintExecutor.executeBlueprint(blueprint, context, blueprintContext);
+      
+      if (blueprintResult.success) {
+        Logger.info(`✅ Module ${module.id} executed successfully`);
+        return { success: true };
+      } else {
+        const errorMessage = blueprintResult.errors?.join(', ') || 'Unknown blueprint error';
+        Logger.error(`❌ Module ${module.id} failed: ${errorMessage}`);
+        return { success: false, error: errorMessage };
+      }
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      Logger.error(`❌ Module ${module.id} execution error: ${errorMessage}`);
+      return { success: false, error: errorMessage };
+    }
+  }
+
 }

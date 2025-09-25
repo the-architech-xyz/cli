@@ -313,4 +313,117 @@ export class ErrorHandler {
     
     return `${errors.length} errors (${recoverable} recoverable, ${nonRecoverable} non-recoverable)`;
   }
+
+  /**
+   * Handle critical errors that should stop execution
+   */
+  static handleCriticalError(
+    error: unknown,
+    traceId: string,
+    operation: string,
+    verbose: boolean = false
+  ): ErrorResult {
+    const message = error instanceof Error ? error.message : 'Unknown critical error';
+    const stackTrace = error instanceof Error ? error.stack : undefined;
+    
+    const userFriendlyMessage = verbose 
+      ? `Critical error in ${operation}: ${message}${stackTrace ? `\n\nStack trace:\n${stackTrace}` : ''}`
+      : `An error occurred during ${operation}. For more details, run with --verbose.`;
+    
+    return this.createError(
+      userFriendlyMessage,
+      { 
+        operation, 
+        traceId,
+        metadata: { verbose, originalError: message }
+      },
+      ErrorCode.CRITICAL_ERROR,
+      false,
+      verbose ? undefined : 'Run with --verbose for detailed error information'
+    );
+  }
+
+  /**
+   * Handle module failure with user-friendly messages
+   */
+  static reportModuleFailure(
+    moduleId: string,
+    error: string,
+    verbose: boolean = false
+  ): ErrorResult {
+    const userFriendlyMessage = verbose
+      ? `Module ${moduleId} failed: ${error}`
+      : `Failed to install module '${moduleId}'. For more details, run with --verbose.`;
+    
+    return this.createError(
+      userFriendlyMessage,
+      { 
+        operation: 'module_execution',
+        moduleId,
+        metadata: { verbose, originalError: error }
+      },
+      ErrorCode.MODULE_EXECUTION_ERROR,
+      true,
+      verbose ? undefined : 'Run with --verbose for detailed error information'
+    );
+  }
+
+  /**
+   * Handle batch execution failures
+   */
+  static handleBatchFailure(
+    batchNumber: number,
+    errors: string[],
+    verbose: boolean = false
+  ): ErrorResult {
+    const userFriendlyMessage = verbose
+      ? `Batch ${batchNumber} failed: ${errors.join(', ')}`
+      : `Execution failed at batch ${batchNumber}. For more details, run with --verbose.`;
+    
+    return this.createError(
+      userFriendlyMessage,
+      { 
+        operation: 'batch_execution',
+        metadata: { batchNumber, verbose, originalErrors: errors }
+      },
+      ErrorCode.BATCH_EXECUTION_ERROR,
+      false,
+      verbose ? undefined : 'Run with --verbose for detailed error information'
+    );
+  }
+
+  /**
+   * Handle dependency installation failures
+   */
+  static handleDependencyFailure(
+    error: unknown,
+    verbose: boolean = false
+  ): ErrorResult {
+    const message = error instanceof Error ? error.message : 'Unknown dependency error';
+    const userFriendlyMessage = verbose
+      ? `Dependency installation failed: ${message}`
+      : 'Failed to install dependencies. For more details, run with --verbose.';
+    
+    return this.createError(
+      userFriendlyMessage,
+      { 
+        operation: 'dependency_installation',
+        metadata: { verbose, originalError: message }
+      },
+      ErrorCode.DEPENDENCY_INSTALLATION_ERROR,
+      true,
+      verbose ? undefined : 'Run with --verbose for detailed error information'
+    );
+  }
+
+  /**
+   * Format error for user display (respects verbose mode)
+   */
+  static formatUserError(error: ErrorResult, verbose: boolean = false): string {
+    if (verbose) {
+      return `${error.error}${error.recoverySuggestion ? `\n\nSuggestion: ${error.recoverySuggestion}` : ''}`;
+    } else {
+      return error.error;
+    }
+  }
 }

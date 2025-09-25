@@ -10,6 +10,7 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { createNewCommand } from './commands/new.js';
+import { createNewTsCommand } from './commands/new-ts.js';
 import { createAddCommand } from './commands/add.js';
 import { createScaleCommand } from './commands/scale.js';
 import { createListGenomesCommand } from './commands/list-genomes.js';
@@ -33,6 +34,7 @@ import { displayBanner } from './core/cli/banner.js';
 
 // Add all commands
 program.addCommand(createNewCommand());
+program.addCommand(createNewTsCommand());
 program.addCommand(createAddCommand());
 program.addCommand(createScaleCommand());
 program.addCommand(createListGenomesCommand());
@@ -45,11 +47,13 @@ program.addCommand(createMarketplaceCommand());
     console.log(chalk.blue.bold('🏗️ The Architech V1 - Agent-Based Architecture\n'));
     console.log(chalk.gray('Available commands:'));
     console.log(chalk.gray('  new           Create a new project from architech.yaml recipe or genome'));
+    console.log(chalk.gray('  new-ts        Create a new project from TypeScript genome file'));
     console.log(chalk.gray('  list-genomes  List all available project genome templates'));
     console.log(chalk.gray('  add           Add modules to existing project (V2)'));
     console.log(chalk.gray('  scale         Scale project to monorepo (V2)\n'));
-    console.log(chalk.yellow('💡 Use "architech new <recipe.yaml>" or "architech new --genome <name> --name <project>" to create a new project!'));
+    console.log(chalk.yellow('💡 Use "architech new-ts <genome.ts>" for type-safe development!'));
     console.log(chalk.gray('Examples:'));
+    console.log(chalk.gray('  architech new-ts my-genome.ts'));
     console.log(chalk.gray('  architech new my-saas.yaml'));
     console.log(chalk.gray('  architech new --genome saas-boilerplate --name my-saas\n'));
   });
@@ -71,6 +75,7 @@ program.on('command:*', (operands) => {
 program.addHelpText('after', `
 
 Examples:
+  $ architech new-ts my-genome.ts                 # Create new project from TypeScript genome
   $ architech new my-saas.yaml                    # Create new project from recipe
   $ architech new --genome saas-boilerplate --name my-saas  # Create from genome
   $ architech list-genomes                        # List available genomes

@@ -6,7 +6,7 @@
  * Isolated VFS" architecture.
  */
 
-import { Blueprint, BlueprintAction } from '@thearchitech.xyz/types';
+import { Blueprint, BlueprintAction, ProjectContext } from '@thearchitech.xyz/types';
 
 export interface BlueprintAnalysis {
   filesToRead: string[];
@@ -19,7 +19,7 @@ export class BlueprintAnalyzer {
   /**
    * Analyze a blueprint to determine all files that need to be pre-loaded
    */
-  analyzeBlueprint(blueprint: Blueprint): BlueprintAnalysis {
+  analyzeBlueprint(blueprint: Blueprint, context: ProjectContext): BlueprintAnalysis {
     console.log(`🔍 Analyzing blueprint: ${blueprint.name}`);
     
     const filesToRead: string[] = [];
@@ -33,8 +33,42 @@ export class BlueprintAnalyzer {
     }
     
     // 2. Analyze all actions to determine file dependencies
-    for (const action of blueprint.actions) {
+    const analysis = this.analyzeActions(blueprint.actions, context);
+    
+    return {
+      filesToRead: analysis.filesToRead,
+      filesToCreate: analysis.filesToCreate,
+      contextualFiles: analysis.contextualFiles,
+      allRequiredFiles: analysis.filesToRead
+    };
+  }
+
+  /**
+   * Analyze a list of actions to determine file dependencies
+   */
+  private analyzeActions(actions: BlueprintAction[], context: ProjectContext): {
+    filesToRead: string[];
+    filesToCreate: string[];
+    contextualFiles: string[];
+  } {
+    const filesToRead: string[] = [];
+    const filesToCreate: string[] = [];
+    const contextualFiles: string[] = [];
+
+    for (const action of actions) {
       if (!action) continue;
+      
+      // Handle forEach actions by expanding them
+      if (action.forEach) {
+        console.log(`🔄 Found forEach action: ${action.forEach}`);
+        const expandedActions = this.expandForEachAction(action, context);
+        console.log(`🔄 Expanded into ${expandedActions.length} actions`);
+        const analysis = this.analyzeActions(expandedActions, context);
+        filesToRead.push(...analysis.filesToRead);
+        filesToCreate.push(...analysis.filesToCreate);
+        contextualFiles.push(...analysis.contextualFiles);
+        continue;
+      }
       
       switch (action.type) {
         case 'CREATE_FILE':
@@ -46,8 +80,13 @@ export class BlueprintAnalyzer {
           
         case 'ENHANCE_FILE':
           if (action.path) {
-            filesToRead.push(action.path);
-            console.log(`🔧 Will enhance: ${action.path}`);
+            // Only add to filesToRead if there's no fallback create option
+            if (!action.fallback || action.fallback !== 'create') {
+              filesToRead.push(action.path);
+              console.log(`🔧 Will enhance: ${action.path}`);
+            } else {
+              console.log(`🔧 Will enhance (with fallback create): ${action.path}`);
+            }
           }
           break;
           
@@ -166,5 +205,60 @@ export class BlueprintAnalyzer {
       missingFiles,
       existingFiles
     };
+  }
+
+  /**
+   * Expand forEach actions into multiple individual actions
+   */
+  private expandForEachAction(action: BlueprintAction, context: ProjectContext): BlueprintAction[] {
+    if (!action.forEach) return [action];
+    
+    console.log(`🔍 Expanding forEach: ${action.forEach}`);
+    
+    // Get the array to iterate over from context
+    const forEachPath = action.forEach.split('.');
+    let forEachArray: any[] = [];
+    
+    // Navigate to the array in the context
+    let current: any = context;
+    for (const key of forEachPath) {
+      if (current && typeof current === 'object' && key in current) {
+        current = current[key];
+      } else {
+        console.warn(`forEach path not found: ${action.forEach} at key: ${key}`);
+        return [action];
+      }
+    }
+    
+    if (!Array.isArray(current)) {
+      console.warn(`forEach target is not an array: ${action.forEach}`);
+      return [action];
+    }
+    
+    forEachArray = current;
+    
+    // Create individual actions for each item
+    const expandedActions: BlueprintAction[] = [];
+    
+    for (let i = 0; i < forEachArray.length; i++) {
+      const item = forEachArray[i];
+      const expandedAction: BlueprintAction = {
+        type: action.type,
+        ...(action.command && { command: action.command.replace(/\{\{item\}\}/g, item) }),
+        ...(action.path && { path: action.path.replace(/\{\{item\}\}/g, item) }),
+        ...(action.content && { content: action.content.replace(/\{\{item\}\}/g, item) }),
+        ...(action.template && { template: action.template.replace(/\{\{item\}\}/g, item) }),
+        ...(action.packages && { packages: action.packages }),
+        ...(action.workingDir && { workingDir: action.workingDir }),
+        ...(action.condition && { condition: action.condition }),
+        ...(action.params && { params: action.params }),
+        ...(action.fallback && { fallback: action.fallback })
+      };
+      
+      expandedActions.push(expandedAction);
+    }
+    
+    console.log(`🔄 Expanded forEach action into ${expandedActions.length} individual actions`);
+    return expandedActions;
   }
 }
