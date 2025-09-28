@@ -6,6 +6,7 @@
  */
 
 import * as fs from 'fs/promises';
+import { existsSync } from 'fs';
 import * as path from 'path';
 
 export interface VFSFile {
@@ -24,6 +25,38 @@ export class VirtualFileSystem {
     this.blueprintId = blueprintId;
     this.projectRoot = projectRoot;
     console.log(`🗂️ Created VFS for blueprint: ${blueprintId} in ${projectRoot}`);
+  }
+
+  /**
+   * Initialize VFS with required files from disk
+   */
+  async initializeWithFiles(filePaths: string[]): Promise<void> {
+    console.log(`🔄 VFS: Initializing with ${filePaths.length} files from disk...`);
+    console.log(`🔍 DEBUG VFS INIT: Project root: ${this.projectRoot}`);
+    console.log(`🔍 DEBUG VFS INIT: Files to load: [${filePaths.join(', ')}]`);
+    
+    for (const filePath of filePaths) {
+      try {
+        const normalizedPath = this.normalizePath(filePath);
+        const fullPath = path.join(this.projectRoot, normalizedPath);
+        
+        console.log(`🔍 DEBUG VFS INIT: Checking file: ${filePath} -> ${normalizedPath} -> ${fullPath}`);
+        
+        // Check if file exists on disk
+        if (existsSync(fullPath)) {
+          const content = await fs.readFile(fullPath, 'utf-8');
+          this.files.set(normalizedPath, content);
+          console.log(`📖 VFS-READ-FROM-DISK: ${fullPath} (${content.length} chars)`);
+        } else {
+          console.log(`⚠️ VFS: File not found on disk: ${normalizedPath} (${fullPath})`);
+        }
+      } catch (error) {
+        console.log(`⚠️ VFS: Failed to load ${filePath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+    
+    console.log(`✅ VFS: Initialized with ${this.files.size} files`);
+    console.log(`🔍 DEBUG VFS INIT: Final VFS files: [${Array.from(this.files.keys()).join(', ')}]`);
   }
 
   /**
@@ -60,16 +93,16 @@ export class VirtualFileSystem {
         const newContent = JSON.parse(content);
         const merged = { ...existing, ...newContent };
         this.files.set(normalizedPath, JSON.stringify(merged, null, 2));
-        console.log(`🔄 VFS: Merged JSON ${normalizedPath}`);
+        console.log(`🔄 VFS-WRITE-IN-MEMORY: ${normalizedPath} (JSON merged)`);
       } catch (error) {
         // If JSON merge fails, overwrite
         this.files.set(normalizedPath, content);
-        console.log(`⚠️ VFS: JSON merge failed, overwrote ${normalizedPath}`);
+        console.log(`⚠️ VFS-WRITE-IN-MEMORY: ${normalizedPath} (JSON merge failed, overwrote)`);
       }
     } else {
       // Simple overwrite for non-JSON files
       this.files.set(normalizedPath, content);
-      console.log(`✏️ VFS: Wrote ${normalizedPath}`);
+      console.log(`✏️ VFS-WRITE-IN-MEMORY: ${normalizedPath}`);
     }
   }
 
@@ -145,21 +178,21 @@ export class VirtualFileSystem {
    * Flush all files to disk
    */
   async flushToDisk(): Promise<void> {
-    console.log(`💾 VFS: Flushing ${this.files.size} files to disk...`);
+    console.log(`💾 VFS-FLUSH-TO-DISK: Writing ${this.files.size} files...`);
     
     for (const [filePath, content] of this.files) {
       try {
         const fullPath = path.join(this.projectRoot, filePath);
         await fs.mkdir(path.dirname(fullPath), { recursive: true });
         await fs.writeFile(fullPath, content, 'utf-8');
-        console.log(`✅ Flushed: ${filePath}`);
+        console.log(`✅ VFS-FLUSH-TO-DISK: ${filePath}`);
       } catch (error) {
-        console.error(`❌ Failed to flush ${filePath}:`, error);
+        console.error(`❌ VFS-FLUSH-TO-DISK: Failed to flush ${filePath}:`, error);
         throw new Error(`Failed to flush file ${filePath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
     
-    console.log(`✅ VFS: Successfully flushed all files to disk`);
+    console.log(`✅ VFS-FLUSH-TO-DISK: Successfully flushed all files to disk`);
   }
 
   /**

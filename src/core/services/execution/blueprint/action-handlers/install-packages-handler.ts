@@ -38,11 +38,15 @@ export class InstallPackagesHandler extends BaseActionHandler {
       return { success: false, error: 'INSTALL_PACKAGES action missing packages' };
     }
 
-    if (!vfs) {
-      return { success: false, error: 'INSTALL_PACKAGES requires VFS mode' };
-    }
+        if (!vfs) {
+          return { success: false, error: 'INSTALL_PACKAGES requires VFS mode' };
+        }
 
-    try {
+        // DEBUG: Log VFS contents before attempting package installation
+        console.log(`🔍 DEBUG INSTALL_PACKAGES: VFS contains files: [${vfs.getAllFiles().join(', ')}]`);
+        console.log(`🔍 DEBUG INSTALL_PACKAGES: Looking for package.json, exists: ${vfs.fileExists('package.json')}`);
+
+        try {
       // Use package-json-merger modifier to add packages
       const modifier = this.modifierRegistry.get('package-json-merger');
       if (!modifier) {

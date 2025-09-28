@@ -75,6 +75,23 @@ export class ActionHandlerRegistry {
     projectRoot: string,
     vfs?: VirtualFileSystem
   ): Promise<ActionResult> {
+    // DEBUG: Log the action being processed
+    console.log(`🔍 DEBUG: Processing action:`, {
+      type: action.type,
+      forEach: action.forEach,
+      command: action.command,
+      target: action.target,
+      packages: action.packages
+    });
+    
+    // DEBUG: Check for forEach expansion
+    if (action.forEach) {
+      console.log(`🔍 DEBUG: forEach action detected:`, {
+        forEach: action.forEach,
+        originalAction: action
+      });
+    }
+    
     const handler = this.getHandler(action.type);
     
     if (!handler) {
@@ -83,6 +100,9 @@ export class ActionHandlerRegistry {
         error: `No handler found for action type: ${action.type}` 
       };
     }
+
+    // DEBUG: Log before executing action
+    console.log(`🔍 DEBUG: Executing Action ${action.type} for target ${action.target || 'N/A'}`);
 
     try {
       return await handler.handle(action, context, projectRoot, vfs);

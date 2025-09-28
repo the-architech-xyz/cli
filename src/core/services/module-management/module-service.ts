@@ -211,19 +211,81 @@ export class ModuleService {
     }
 
     try {
-      // Load from marketplace package
-      const adapterPath = `@thearchitech.xyz/marketplace/adapters/${category}/${adapterId}`;
-      const adapter = await import(adapterPath);
+      // Use fs to read the adapter.json file
+      const { readFileSync } = await import('fs');
+      const { join } = await import('path');
+      
+      // Construct the path to the adapter.json file
+      const adapterJsonPath = join(
+        process.cwd(),
+        'node_modules',
+        '@thearchitech.xyz',
+        'marketplace',
+        'adapters',
+        category,
+        adapterId,
+        'adapter.json'
+      );
+      
+      const adapterJsonContent = readFileSync(adapterJsonPath, 'utf-8');
+      const adapterJson = JSON.parse(adapterJsonContent);
+      
+      // Load the blueprint file using the full path since the package exports don't support TypeScript files
+      const blueprintPath = `@thearchitech.xyz/marketplace/adapters/${category}/${adapterId}/${adapterJson.blueprint}`;
+      
+      // Try to import the blueprint file directly from the file system
+      const blueprintFilePath = join(
+        process.cwd(),
+        'node_modules',
+        '@thearchitech.xyz',
+        'marketplace',
+        'adapters',
+        category,
+        adapterId,
+        adapterJson.blueprint
+      );
+      
+      const blueprintModule = await import(blueprintFilePath);
+      
+      // Find the blueprint export (it might be a named export or default export)
+      let blueprint = blueprintModule.default || blueprintModule.blueprint || blueprintModule[`${adapterId}Blueprint`];
+      
+      // If we still don't have a blueprint, look for any export that looks like a blueprint
+      if (!blueprint) {
+        const exports = Object.keys(blueprintModule);
+        const blueprintKey = exports.find(key => 
+          key.toLowerCase().includes('blueprint') || 
+          key.toLowerCase().includes(adapterId)
+        );
+        if (blueprintKey) {
+          blueprint = blueprintModule[blueprintKey];
+        }
+      }
+      
+      if (!blueprint) {
+        throw new Error(`No blueprint found in ${blueprintPath}. Available exports: ${Object.keys(blueprintModule).join(', ')}`);
+      }
+      
+      const adapter = {
+        config: adapterJson,
+        blueprint: blueprint
+      };
       
       // Cache the result
       this.cache.set(cacheKey, adapter);
       
       return adapter;
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
       Logger.error(`Failed to load adapter ${cacheKey}`, {
         operation: 'load_adapter',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: errorMessage,
+        stack: errorStack,
+        category,
+        adapterId
       });
+      console.error(`Detailed error for ${cacheKey}:`, error);
       return null;
     }
   }

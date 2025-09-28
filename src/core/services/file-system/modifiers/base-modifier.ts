@@ -94,7 +94,7 @@ export abstract class BaseModifier {
    * Write file content to VFS
    */
   protected async writeFile(filePath: string, content: string): Promise<void> {
-    await this.engine.createFile(filePath, content);
+    await this.engine.writeFile(filePath, content);
   }
 
   /**

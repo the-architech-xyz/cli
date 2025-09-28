@@ -93,7 +93,7 @@ export class AddEnvVarHandler extends BaseActionHandler {
     }
 
     // Write back to VFS
-    vfs.createFile(filePath, lines.join('\n'));
+    vfs.writeFile(filePath, lines.join('\n'));
   }
 
   /**

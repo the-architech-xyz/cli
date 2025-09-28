@@ -22,6 +22,8 @@ export class BlueprintAnalyzer {
    */
   analyzeBlueprint(blueprint: Blueprint, context: ProjectContext): BlueprintAnalysis {
     console.log(`🔍 Analyzing blueprint: ${blueprint.name}`);
+    console.log(`🔍 DEBUG: Blueprint ID: ${blueprint.id}`);
+    console.log(`🔍 DEBUG: Total actions: ${blueprint.actions.length}`);
     
     const filesToRead: string[] = [];
     const filesToCreate: string[] = [];
@@ -172,7 +174,13 @@ export class BlueprintAnalyzer {
           break;
           
         default:
-          console.warn(`⚠️ Unknown action type: ${action.type}`);
+          // Handle additional package.json actions (using string comparison to avoid TypeScript issues)
+          if (action.type === 'ADD_DEPENDENCY' || action.type === 'ADD_DEV_DEPENDENCY') {
+            filesToRead.push('package.json');
+            console.log(`📦 Action ${action.type} requires package.json access`);
+          } else {
+            console.warn(`⚠️ Unknown action type: ${action.type}`);
+          }
       }
     }
     
@@ -196,6 +204,9 @@ export class BlueprintAnalyzer {
       contextualFiles: analysis.contextualFiles.length,
       totalRequiredFiles: analysis.allRequiredFiles.length
     });
+    
+    // DEBUG: Show specific files for Drizzle blueprint
+    // Note: blueprint.id is not available in this scope, so we'll check in the main analyzeBlueprint method
     
     return analysis;
   }

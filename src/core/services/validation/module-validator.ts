@@ -132,13 +132,14 @@ export class ModuleValidator {
       return {
         valid: true,
         errors,
+        warnings,
         adapter: adapter
       };
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       errors.push(`Failed to load module ${module.id}: ${errorMessage}`);
-      return { valid: false, errors };
+      return { valid: false, errors, warnings: [] };
     }
   }
 

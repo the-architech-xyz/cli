@@ -130,7 +130,8 @@ export class DependencyGraph {
       const adapterResult = await this.moduleService.loadModuleAdapter(module);
       
       if (adapterResult.success && adapterResult.adapter?.config?.prerequisites) {
-        const explicitDeps = adapterResult.adapter.config.prerequisites.modules || [];
+        const prerequisites = adapterResult.adapter.config.prerequisites;
+        const explicitDeps = (prerequisites as any).modules || [];
         dependencies.push(...explicitDeps);
       }
     } catch (error) {

@@ -57,6 +57,8 @@ export class ExecutionPlanner {
       // Convert to ExecutionBatch format
       for (let i = 0; i < sortedBatches.length; i++) {
         const batchModules = sortedBatches[i];
+        if (!batchModules) continue;
+        
         const batch: ExecutionBatch = {
           batchNumber: i + 1,
           modules: batchModules,

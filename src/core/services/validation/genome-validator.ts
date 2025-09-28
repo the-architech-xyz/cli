@@ -9,7 +9,7 @@
  */
 
 import { Module } from '@thearchitech.xyz/types';
-import { Genome } from '@thearchitech.xyz/marketplace';
+import { Genome } from '@thearchitech.xyz/marketplace/types';
 import { ModuleValidator } from './module-validator.js';
 import { DependencyResolver } from './dependency-resolver.js';
 import { ParameterValidator } from './parameter-validator.js';

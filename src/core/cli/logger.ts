@@ -72,6 +72,13 @@ export class AgentLogger implements Logger {
     }
   }
 
+  // Enhanced debug logging with structured data
+  debugStructured(message: string, data: any): void {
+    if (this.verbose) {
+      this.log(LogLevel.DEBUG, message, { data });
+    }
+  }
+
   success(message: string, data?: any): void {
     this.log(LogLevel.SUCCESS, message, { data });
   }

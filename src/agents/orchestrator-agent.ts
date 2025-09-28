@@ -17,7 +17,8 @@ import { Logger, ExecutionTracer, LogLevel } from '../core/services/infrastructu
 import { ErrorHandler } from '../core/services/infrastructure/error/index.js';
 import { DependencyGraph } from '../core/services/dependency/dependency-graph.js';
 import { ExecutionPlanner } from '../core/services/dependency/execution-planner.js';
-import { ParallelExecutionService } from '../core/services/execution/parallel-execution-service.js';
+import { SequentialExecutionService } from '../core/services/execution/sequential-execution-service.js';
+import { VirtualFileSystem } from '../core/services/file-system/file-engine/virtual-file-system.js';
 import { SuccessValidator } from '../core/services/validation/success-validator.js';
 
 export class OrchestratorAgent {
@@ -28,7 +29,7 @@ export class OrchestratorAgent {
   private cacheManager: CacheManagerService;
   private dependencyGraph: DependencyGraph;
   private executionPlanner: ExecutionPlanner;
-  private parallelExecutor: ParallelExecutionService;
+  private sequentialExecutor: SequentialExecutionService;
   private successValidator: SuccessValidator;
 
   constructor(projectManager: ProjectManager) {
@@ -43,7 +44,7 @@ export class OrchestratorAgent {
     // Initialize dependency resolution services
     this.dependencyGraph = new DependencyGraph(this.moduleService);
     this.executionPlanner = new ExecutionPlanner(this.dependencyGraph);
-    this.parallelExecutor = new ParallelExecutionService(this);
+    this.sequentialExecutor = new SequentialExecutionService(this);
     this.successValidator = new SuccessValidator();
   }
 
@@ -106,10 +107,29 @@ export class OrchestratorAgent {
         throw new Error(`Execution plan creation failed: ${executionPlan.errors.join(', ')}`);
       }
 
-      // 5. Log execution plan
+      // 5. Log execution plan with FULL DETAILS
       Logger.info(`📋 Execution plan created:`, {
         traceId,
         operation: 'execution_planning'
+      });
+      
+      // DEBUG: Log the ENTIRE execution plan structure
+      Logger.debug(`🔍 COMPLETE EXECUTION PLAN STRUCTURE:`, {
+        traceId,
+        operation: 'execution_planning',
+        data: {
+          totalBatches: executionPlan.batches.length,
+          totalModules: executionPlan.batches.reduce((sum, batch) => sum + batch.modules.length, 0),
+          estimatedDuration: executionPlan.batches.reduce((sum, batch) => sum + batch.estimatedDuration, 0),
+          batches: executionPlan.batches.map(batch => ({
+            batchNumber: batch.batchNumber,
+            moduleCount: batch.modules.length,
+            moduleIds: batch.modules.map(m => m.id),
+            canExecuteInParallel: batch.canExecuteInParallel,
+            estimatedDuration: batch.estimatedDuration,
+            dependencies: batch.dependencies
+          }))
+        }
       });
       
       for (const batch of executionPlan.batches) {
@@ -120,26 +140,26 @@ export class OrchestratorAgent {
         });
       }
 
-      // 6. Execute batches using parallel execution service
-      ExecutionTracer.logOperation(traceId, 'Executing batches');
-      const executionResult = await this.parallelExecutor.executeAllBatches(executionPlan.batches);
+      // 6. Execute using Hierarchical & Parallel Execution model
+      ExecutionTracer.logOperation(traceId, 'Executing hierarchical phases');
+      const hierarchicalResult = await this.executeHierarchicalPhases(recipe, traceId, verbose, executionPlan);
       
-      if (executionResult.success) {
-        results.push(...executionResult.batchResults.flatMap(br => br.results.flatMap(r => r.executedModules)));
-        Logger.info(`✅ All batches executed successfully`, {
+      if (hierarchicalResult.success) {
+        results.push(...hierarchicalResult.results);
+        Logger.info(`✅ All hierarchical phases executed successfully`, {
             traceId,
-          operation: 'batch_execution'
+          operation: 'hierarchical_execution'
         });
       } else {
-        // FAIL-FAST: Stop immediately on any batch failure
-        errors.push(...executionResult.errors);
-        Logger.error(`❌ Batch execution failed: ${executionResult.errors.join(', ')}`, {
+        // FAIL-FAST: Stop immediately on any phase failure
+        errors.push(...hierarchicalResult.errors);
+        Logger.error(`❌ Hierarchical execution failed: ${hierarchicalResult.errors.join(', ')}`, {
               traceId,
-          operation: 'batch_execution'
+          operation: 'hierarchical_execution'
         });
         
         // Check for critical module failures (framework, database, etc.)
-        const criticalFailures = this.identifyCriticalFailures(executionResult.batchResults);
+        const criticalFailures = this.identifyCriticalFailuresFromResults(hierarchicalResult.results);
         if (criticalFailures.length > 0) {
           const criticalErrorResult = ErrorHandler.handleCriticalError(
             `Critical modules failed: ${criticalFailures.join(', ')}. Generation cannot continue.`,
@@ -201,7 +221,7 @@ export class OrchestratorAgent {
       ExecutionTracer.logOperation(traceId, 'Validating generation success');
       try {
         // Get the list of files that should have been created
-        const expectedFiles = this.getExpectedFilesFromExecution(executionResult);
+        const expectedFiles = this.getExpectedFilesFromExecution(hierarchicalResult);
         
         const validationResult = await this.successValidator.validate(
           this.pathHandler.getProjectRoot(),
@@ -269,7 +289,7 @@ export class OrchestratorAgent {
           traceId,
         operation: 'intelligent_recipe_execution',
         executedModules: results.length,
-        failedModules: executionResult.totalFailed
+        failedModules: hierarchicalResult.errors.length
         });
       
       return {
@@ -404,9 +424,9 @@ export class OrchestratorAgent {
   }
 
   /**
-   * Execute a single module (for ParallelExecutionService)
+   * Execute a single module (for SequentialExecutionService)
    */
-  async executeModule(module: Module): Promise<{ success: boolean; error?: string }> {
+  async executeModule(module: Module, vfs?: VirtualFileSystem): Promise<{ success: boolean; error?: string }> {
     try {
       Logger.info(`🔧 Executing module: ${module.id}`, {
         operation: 'module_execution',
@@ -435,7 +455,7 @@ export class OrchestratorAgent {
       // Execute blueprint using the Intelligent Foreman
       const blueprint = adapterResult.adapter!.blueprint;
       const blueprintExecutor = new BlueprintExecutor(this.pathHandler.getProjectRoot());
-      const blueprintResult = await blueprintExecutor.executeBlueprint(blueprint, context);
+      const blueprintResult = await blueprintExecutor.executeBlueprint(blueprint, context, vfs);
       
       if (blueprintResult.success) {
         Logger.info(`✅ Module ${module.id} executed successfully`);
@@ -451,6 +471,324 @@ export class OrchestratorAgent {
       Logger.error(`❌ Module ${module.id} execution error: ${errorMessage}`);
       return { success: false, error: errorMessage };
     }
+  }
+
+  /**
+   * Execute modules using Hierarchical & Parallel Execution model
+   * Phase 1: Framework modules (Sequential)
+   * Phase 2: Adapter modules (Parallel) 
+   * Phase 3: Integrator modules (Sequential)
+   */
+  private async executeHierarchicalPhases(
+    recipe: Recipe, 
+    traceId: string, 
+    verbose: boolean,
+    executionPlan: any
+  ): Promise<{ success: boolean; results: any[]; errors: string[] }> {
+    const results: any[] = [];
+    const errors: string[] = [];
+    
+    // Create recipe-scoped VFS for state persistence across phases
+    const recipeVFS = new VirtualFileSystem(`recipe-${recipe.project.name}`, this.pathHandler.getProjectRoot());
+    
+    try {
+      // Classify modules into three categories
+      const { frameworkModules, adapterModules, integratorModules } = this.classifyModules(recipe.modules);
+      
+      Logger.info(`🏗️ Hierarchical Execution Plan:`, {
+        traceId,
+        operation: 'hierarchical_planning'
+      });
+      Logger.info(`  Phase 1 - Framework: ${frameworkModules.length} modules`, {
+        traceId,
+        operation: 'hierarchical_planning'
+      });
+      Logger.info(`  Phase 2 - Adapters: ${adapterModules.length} modules`, {
+        traceId,
+        operation: 'hierarchical_planning'
+      });
+      Logger.info(`  Phase 3 - Integrators: ${integratorModules.length} modules`, {
+        traceId,
+        operation: 'hierarchical_planning'
+      });
+
+      // Phase 1: Framework Execution (Sequential)
+      if (frameworkModules.length > 0) {
+        Logger.info(`--- STARTING PHASE: FRAMEWORK ---`, {
+          traceId,
+          operation: 'phase1_framework'
+        });
+        Logger.info(`🚀 Phase 1: Executing Framework modules (Sequential)`, {
+          traceId,
+          operation: 'phase1_framework'
+        });
+        Logger.debug(`🔍 Framework modules to execute:`, {
+          traceId,
+          operation: 'phase1_framework',
+          data: frameworkModules.map(m => ({ id: m.id, category: m.category }))
+        });
+        
+        for (const module of frameworkModules) {
+          const result = await this.executeModuleWithVFS(module, recipe, recipeVFS, traceId);
+          if (result.success) {
+            results.push(result);
+            Logger.info(`✅ Framework module ${module.id} completed`, {
+              traceId,
+              operation: 'phase1_framework'
+            });
+          } else {
+            errors.push(`Framework module ${module.id} failed: ${result.error}`);
+            Logger.error(`❌ Framework module ${module.id} failed: ${result.error}`, {
+              traceId,
+              operation: 'phase1_framework'
+            });
+            return { success: false, results, errors };
+          }
+        }
+        
+        // Flush VFS after framework phase to ensure files are on disk
+        await recipeVFS.flushToDisk();
+        Logger.info(`💾 Phase 1 complete: Framework files written to disk`, {
+          traceId,
+          operation: 'phase1_framework'
+        });
+        Logger.info(`--- COMPLETED PHASE: FRAMEWORK ---`, {
+          traceId,
+          operation: 'phase1_framework'
+        });
+      }
+
+      // Phase 2: Adapter Execution (Parallel)
+      if (adapterModules.length > 0) {
+        Logger.info(`--- STARTING PHASE: ADAPTERS ---`, {
+          traceId,
+          operation: 'phase2_adapters'
+        });
+        Logger.info(`🚀 Phase 2: Executing Adapter modules (Parallel)`, {
+          traceId,
+          operation: 'phase2_adapters'
+        });
+        Logger.debug(`🔍 Adapter modules to execute:`, {
+          traceId,
+          operation: 'phase2_adapters',
+          data: adapterModules.map(m => ({ id: m.id, category: m.category }))
+        });
+        
+        // Use the proper execution plan - filter to get only adapter batches
+        const adapterBatches = executionPlan.batches.filter((batch: any) => 
+          batch.modules.some((module: any) => module.category === 'adapter' || module.category === 'ui' || module.category === 'database' || module.category === 'auth' || module.category === 'observability')
+        );
+        
+        Logger.info(`📋 Using ${adapterBatches.length} adapter batches from execution plan`, {
+          traceId,
+          operation: 'phase2_adapters'
+        });
+        
+        const adapterResult = await this.sequentialExecutor.executeBatches(adapterBatches, recipeVFS);
+        
+        if (adapterResult.success) {
+          results.push(...adapterResult.batchResults.flatMap(br => br.results.flatMap(r => r.executedModules)));
+          Logger.info(`✅ Phase 2 complete: All adapter modules executed successfully`, {
+            traceId,
+            operation: 'phase2_adapters'
+          });
+          Logger.info(`--- COMPLETED PHASE: ADAPTERS ---`, {
+            traceId,
+            operation: 'phase2_adapters'
+          });
+        } else {
+          errors.push(...adapterResult.errors);
+          Logger.error(`❌ Phase 2 failed: Adapter execution failed: ${adapterResult.errors.join(', ')}`, {
+            traceId,
+            operation: 'phase2_adapters'
+          });
+          return { success: false, results, errors };
+        }
+      }
+
+      // Phase 3: Integrator Execution (Sequential)
+      if (integratorModules.length > 0) {
+        Logger.info(`--- STARTING PHASE: INTEGRATORS ---`, {
+          traceId,
+          operation: 'phase3_integrators'
+        });
+        Logger.info(`🚀 Phase 3: Executing Integrator modules (Sequential)`, {
+          traceId,
+          operation: 'phase3_integrators'
+        });
+        Logger.debug(`🔍 Integrator modules to execute:`, {
+          traceId,
+          operation: 'phase3_integrators',
+          data: integratorModules.map(m => ({ id: m.id, category: m.category }))
+        });
+        
+        for (const module of integratorModules) {
+          const result = await this.executeModuleWithVFS(module, recipe, recipeVFS, traceId);
+          if (result.success) {
+            results.push(result);
+            Logger.info(`✅ Integrator module ${module.id} completed`, {
+              traceId,
+              operation: 'phase3_integrators'
+            });
+          } else {
+            errors.push(`Integrator module ${module.id} failed: ${result.error}`);
+            Logger.error(`❌ Integrator module ${module.id} failed: ${result.error}`, {
+              traceId,
+              operation: 'phase3_integrators'
+            });
+            return { success: false, results, errors };
+          }
+        }
+        
+        Logger.info(`✅ Phase 3 complete: All integrator modules executed successfully`, {
+          traceId,
+          operation: 'phase3_integrators'
+        });
+        Logger.info(`--- COMPLETED PHASE: INTEGRATORS ---`, {
+          traceId,
+          operation: 'phase3_integrators'
+        });
+      }
+
+      // Final flush of VFS
+      await recipeVFS.flushToDisk();
+      Logger.info(`💾 All phases complete: Final VFS flush to disk`, {
+        traceId,
+        operation: 'hierarchical_complete'
+      });
+
+      return { success: true, results, errors };
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      errors.push(`Hierarchical execution failed: ${errorMessage}`);
+      Logger.error(`❌ Hierarchical execution error: ${errorMessage}`, {
+        traceId,
+        operation: 'hierarchical_execution'
+      });
+      return { success: false, results, errors };
+    }
+  }
+
+  /**
+   * Classify modules into framework, adapter, and integrator categories
+   */
+  private classifyModules(modules: Module[]): {
+    frameworkModules: Module[];
+    adapterModules: Module[];
+    integratorModules: Module[];
+  } {
+    const frameworkModules: Module[] = [];
+    const adapterModules: Module[] = [];
+    const integratorModules: Module[] = [];
+
+    for (const module of modules) {
+      const [category] = module.id.split('/');
+      
+      switch (category) {
+        case 'framework':
+          frameworkModules.push(module);
+          break;
+        case 'integration':
+          integratorModules.push(module);
+          break;
+        default:
+          adapterModules.push(module);
+          break;
+      }
+    }
+
+    return { frameworkModules, adapterModules, integratorModules };
+  }
+
+  /**
+   * Execute a single module with VFS support
+   */
+  private async executeModuleWithVFS(
+    module: Module, 
+    recipe: Recipe, 
+    vfs: VirtualFileSystem, 
+    traceId: string
+  ): Promise<{ success: boolean; error?: string; executedModules?: any[] }> {
+    try {
+      Logger.info(`🔧 Executing module: ${module.id}`, {
+        traceId,
+        operation: 'module_execution',
+        moduleId: module.id
+      });
+
+      // Load adapter for this module
+      const adapterResult = await this.moduleService.loadModuleAdapter(module);
+      if (!adapterResult.success) {
+        return { success: false, error: adapterResult.error || 'Unknown error' };
+      }
+
+      // Create project context
+      const contextResult = this.moduleService.createProjectContext(
+        recipe,
+        this.pathHandler,
+        module
+      );
+      
+      if (!contextResult.success) {
+        return { success: false, error: contextResult.error || 'Failed to create project context' };
+      }
+      
+      const context = contextResult.context!;
+
+      // Execute blueprint using the Intelligent Foreman with shared VFS
+      const blueprint = adapterResult.adapter!.blueprint;
+      const blueprintExecutor = new BlueprintExecutor(this.pathHandler.getProjectRoot());
+      const blueprintResult = await blueprintExecutor.executeBlueprint(blueprint, context, vfs);
+      
+      if (blueprintResult.success) {
+        Logger.info(`✅ Module ${module.id} executed successfully`, {
+          traceId,
+          operation: 'module_execution',
+          moduleId: module.id
+        });
+        return { success: true, executedModules: [{ moduleId: module.id, success: true }] };
+      } else {
+        const errorMessage = blueprintResult.errors?.join(', ') || 'Unknown blueprint error';
+        Logger.error(`❌ Module ${module.id} failed: ${errorMessage}`, {
+          traceId,
+          operation: 'module_execution',
+          moduleId: module.id
+        });
+        return { success: false, error: errorMessage };
+      }
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      Logger.error(`❌ Module ${module.id} execution error: ${errorMessage}`, {
+        traceId,
+        operation: 'module_execution',
+        moduleId: module.id
+      });
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  /**
+   * Identify critical failures from execution results
+   */
+  private identifyCriticalFailuresFromResults(results: any[]): string[] {
+    const criticalFailures: string[] = [];
+    
+    for (const result of results) {
+      if (result.executedModules) {
+        for (const module of result.executedModules) {
+          if (!module.success) {
+            const [category] = module.moduleId.split('/');
+            if (category === 'framework' || category === 'database') {
+              criticalFailures.push(module.moduleId);
+            }
+          }
+        }
+      }
+    }
+    
+    return criticalFailures;
   }
 
 }
