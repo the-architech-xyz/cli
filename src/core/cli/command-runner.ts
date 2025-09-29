@@ -194,11 +194,14 @@ export class CommandRunner {
       // For npx commands, we need to use shell to find npx in PATH
       const useShell = command === 'npx' || command === 'npm' || command === 'yarn' || command === 'pnpm' || command === 'bun';
       
+      // Use system's default shell
+      const shellPath = process.platform === 'win32' ? 'cmd.exe' : process.env.SHELL || '/bin/bash';
+      
       const child = useShell 
         ? spawn(command, args, {
             cwd: options.cwd || process.cwd(),
             stdio: options.silent ? 'pipe' : 'inherit',
-            shell: process.platform === 'win32' ? 'cmd.exe' : true, // Let Node.js find the shell automatically
+            shell: shellPath,
             env: { 
               ...process.env, 
               ...options.env,
