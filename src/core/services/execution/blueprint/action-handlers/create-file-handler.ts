@@ -11,7 +11,7 @@ import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ArchitechError } from '../../../infrastructure/error/architech-error.js';
 import { TemplateService } from '../../../file-system/template/template-service.js';
 import { promises as fs } from 'fs';
-import { join, dirname } from 'path';
+import { join, dirname, resolve as pathResolve } from 'path';
 
 export class CreateFileHandler extends BaseActionHandler {
   getSupportedActionType(): string {
@@ -32,6 +32,12 @@ export class CreateFileHandler extends BaseActionHandler {
     if (!action.path) {
       return { success: false, error: 'CREATE_FILE action missing path' };
     }
+
+    // DEBUG: Log file creation details
+    console.log(`🔍 DEBUG CREATE_FILE: Current working directory: ${process.cwd()}`);
+    console.log(`🔍 DEBUG CREATE_FILE: Project root: ${projectRoot}`);
+    console.log(`🔍 DEBUG CREATE_FILE: Attempting to create file at path: ${pathResolve(projectRoot, action.path)}`);
+    console.log(`🔍 DEBUG CREATE_FILE: VFS mode: ${!!vfs}`);
 
     // Handle both content and template properties
     let content: string;

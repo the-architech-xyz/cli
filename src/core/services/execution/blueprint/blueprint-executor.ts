@@ -156,6 +156,14 @@ export class BlueprintExecutor {
           );
           errors.push(error.getUserMessage());
           console.log(`    ❌ RUN_COMMAND failed: ${error.getDebugMessage()}`);
+          
+          // FAIL FAST: Return immediately when RUN_COMMAND fails
+          return {
+            success: false,
+            files,
+            errors,
+            warnings
+          };
         } else {
           console.log(`    ✅ RUN_COMMAND completed: ${result.message || 'Command executed'}`);
         }

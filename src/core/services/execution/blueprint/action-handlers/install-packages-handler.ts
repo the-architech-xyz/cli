@@ -10,6 +10,7 @@ import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ModifierRegistry } from '../../../file-system/modifiers/modifier-registry.js';
 import { ArchitechError } from '../../../infrastructure/error/architech-error.js';
+import { resolve as pathResolve } from 'path';
 
 export class InstallPackagesHandler extends BaseActionHandler {
   private modifierRegistry: ModifierRegistry;
@@ -45,6 +46,9 @@ export class InstallPackagesHandler extends BaseActionHandler {
         // DEBUG: Log VFS contents before attempting package installation
         console.log(`🔍 DEBUG INSTALL_PACKAGES: VFS contains files: [${vfs.getAllFiles().join(', ')}]`);
         console.log(`🔍 DEBUG INSTALL_PACKAGES: Looking for package.json, exists: ${vfs.fileExists('package.json')}`);
+        console.log(`🔍 DEBUG INSTALL_PACKAGES: Current working directory: ${process.cwd()}`);
+        console.log(`🔍 DEBUG INSTALL_PACKAGES: Project root: ${projectRoot}`);
+        console.log(`🔍 DEBUG INSTALL_PACKAGES: Attempting to merge package.json at path: ${pathResolve(projectRoot, 'package.json')}`);
 
         try {
       // Use package-json-merger modifier to add packages

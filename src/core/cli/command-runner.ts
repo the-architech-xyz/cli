@@ -191,17 +191,32 @@ export class CommandRunner {
 
   private async execWithDirectSpawn(command: string, args: string[], options: CommandRunnerOptions): Promise<CommandResult> {
     return new Promise((resolve) => {
-      // Direct spawn without shell - this is the correct, secure approach
-      const child = spawn(command, args, {
-        cwd: options.cwd || process.cwd(),
-        stdio: options.silent ? 'pipe' : 'inherit', // Real-time output for better UX
-        env: { 
-          ...process.env, 
-          ...options.env,
-          CI: 'true',
-          FORCE_COLOR: '1',
-          NODE_ENV: 'production'
-        }
+      // For npx commands, we need to use shell to find npx in PATH
+      const useShell = command === 'npx' || command === 'npm' || command === 'yarn' || command === 'pnpm' || command === 'bun';
+      
+      const child = useShell 
+        ? spawn(command, args, {
+            cwd: options.cwd || process.cwd(),
+            stdio: options.silent ? 'pipe' : 'inherit',
+            shell: process.platform === 'win32' ? 'cmd.exe' : true, // Let Node.js find the shell automatically
+            env: { 
+              ...process.env, 
+              ...options.env,
+              CI: 'true',
+              FORCE_COLOR: '1',
+              NODE_ENV: 'production'
+            }
+          })
+        : spawn(command, args, {
+            cwd: options.cwd || process.cwd(),
+            stdio: options.silent ? 'pipe' : 'inherit', // Real-time output for better UX
+            env: { 
+              ...process.env, 
+              ...options.env,
+              CI: 'true',
+              FORCE_COLOR: '1',
+              NODE_ENV: 'production'
+            }
       });
 
       let stdout = '';
