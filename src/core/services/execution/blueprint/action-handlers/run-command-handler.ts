@@ -10,6 +10,7 @@ import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ArchitechError } from '../../../infrastructure/error/architech-error.js';
 import { CommandRunner } from '../../../../cli/command-runner.js';
+import { TemplateService } from '../../../file-system/template/template-service.js';
 
 export class RunCommandHandler extends BaseActionHandler {
   private commandRunner: CommandRunner;
@@ -38,14 +39,22 @@ export class RunCommandHandler extends BaseActionHandler {
       return { success: false, error: 'RUN_COMMAND action missing command' };
     }
 
-    // Process template command
-    const command = this.processTemplate(action.command, context);
+    // Process template command using the sophisticated template service
+    const command = TemplateService.processTemplate(action.command, context);
 
     try {
       console.log(`  ⚡ Running command: ${command}`);
       
+      // Split command into command and arguments
+      const commandParts = command.split(' ');
+      const [cmd, ...args] = commandParts;
+      
+      if (!cmd) {
+        return { success: false, error: 'Command is empty after processing' };
+      }
+      
       // Execute the command
-      const result = await this.commandRunner.execCommand([command], {
+      const result = await this.commandRunner.execCommand([cmd, ...args], {
         cwd: projectRoot
       });
 

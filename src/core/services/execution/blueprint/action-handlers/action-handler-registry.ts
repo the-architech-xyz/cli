@@ -80,7 +80,7 @@ export class ActionHandlerRegistry {
       type: action.type,
       forEach: action.forEach,
       command: action.command,
-      target: action.target,
+      // target: action.target, // Property doesn't exist in BlueprintAction interface
       packages: action.packages
     });
     
@@ -102,7 +102,7 @@ export class ActionHandlerRegistry {
     }
 
     // DEBUG: Log before executing action
-    console.log(`🔍 DEBUG: Executing Action ${action.type} for target ${action.target || 'N/A'}`);
+    console.log(`🔍 DEBUG: Executing Action ${action.type} for target ${action.path || 'N/A'}`);
 
     try {
       return await handler.handle(action, context, projectRoot, vfs);

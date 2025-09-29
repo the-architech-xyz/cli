@@ -5,7 +5,7 @@
  */
 
 // Adapter System
-export * from './module-management/adapter/adapter-loader.js';
+// export * from './module-management/adapter/adapter-loader.js';
 
 // Blueprint System
 export * from './execution/blueprint/blueprint-executor.js';
@@ -26,10 +26,10 @@ export * from './file-system/template/index.js';
 export * from './infrastructure/error/index.js';
 
 // Module Loader System
-export * from './module-management/module-loader/index.js';
+// export * from './module-management/module-loader/index.js';
 
 // Agent Execution System
-export * from './execution/agent-execution/index.js';
+// export * from './execution/agent-execution/index.js';
 
 // Logging System
 export * from './infrastructure/logging/index.js';
@@ -42,14 +42,14 @@ export * from './file-system/modifiers/modifier-registry.js';
 export * from './file-system/modifiers/modifier-service.js';
 
 // Integration
-export * from './integration/integration-registry.js';
-export * from './integration/integration-executor.js';
+// export * from './integration/integration-registry.js';
+// export * from './integration/integration-executor.js';
 
 // Marketplace
-export * from './marketplace/marketplace-manager.js';
+// export * from './marketplace/marketplace-manager.js';
 
 // Module Management
-export * from './module-management/fetcher/module-fetcher.js';
+// export * from './module-management/fetcher/module-fetcher.js';
 
 // Cache
 export * from './infrastructure/cache/cache-manager.js';

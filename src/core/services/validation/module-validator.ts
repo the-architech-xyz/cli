@@ -122,8 +122,7 @@ export class ModuleValidator {
       if (!adapterResult.success) {
         return {
           valid: false,
-          errors: [`Failed to load adapter: ${adapterResult.error}`],
-          warnings: []
+          errors: [`Failed to load adapter: ${adapterResult.error}`]
         };
       }
       
@@ -131,15 +130,14 @@ export class ModuleValidator {
       
       return {
         valid: true,
-        errors,
-        warnings,
+        errors: errors,
         adapter: adapter
       };
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       errors.push(`Failed to load module ${module.id}: ${errorMessage}`);
-      return { valid: false, errors, warnings: [] };
+      return { valid: false, errors, warnings: [] } as ModuleValidationResult;
     }
   }
 

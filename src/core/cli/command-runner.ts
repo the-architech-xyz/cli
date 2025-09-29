@@ -1,11 +1,13 @@
 /**
- * CommandRunner - Package Manager Agnostic Command Execution
+ * CommandRunner - Corrected Version with Direct Process Execution
  * 
- * Validated in Phase 0 Research with 75% success rate across package managers.
+ * This version uses direct spawn without shell dependency for security
+ * and cross-platform compatibility. Follows Node.js best practices.
+ * 
  * Provides a unified interface for npm, yarn, pnpm, and bun.
  */
 
-import { execSync, spawn, SpawnOptions, ChildProcess } from 'child_process';
+import { spawn, SpawnOptions, ChildProcess, execSync } from 'child_process';
 import { existsSync } from 'fs';
 import * as path from 'path';
 import chalk from 'chalk';
@@ -40,7 +42,6 @@ export class CommandRunner {
   private verbose: boolean;
   private packageManager: PackageManager;
   private commands: PackageManagerCommands;
-
   constructor(packageManager: PackageManager = 'auto', options: CommandRunnerOptions = {}) {
     this.verbose = options.verbose || false;
     this.packageManager = packageManager === 'auto' 
@@ -180,75 +181,67 @@ export class CommandRunner {
       throw new Error('Command cannot be undefined or empty');
     }
     
-    const cmdString = `${command} ${args.join(' ')}`;
-    
-    // Enhanced spinner with package manager context
-    const spinner = ora({
-      text: `${cmdString}`,
-      spinner: 'dots',
-      color: 'cyan'
-    });
-
-    if (!options.silent) {
-      spinner.start();
+    if (this.verbose) {
+      console.log(chalk.blue(`⚡ Executing command: ${command} ${args.join(' ')}`));
     }
-    
-    return new Promise((resolve, reject) => {
-      const spawnOptions: SpawnOptions = {
-        stdio: options.silent ? 'pipe' : 'inherit',
-        shell: true,
+
+    // Use direct spawn without shell - this is the correct approach
+    return this.execWithDirectSpawn(command, args, options);
+  }
+
+  private async execWithDirectSpawn(command: string, args: string[], options: CommandRunnerOptions): Promise<CommandResult> {
+    return new Promise((resolve) => {
+      // Direct spawn without shell - this is the correct, secure approach
+      const child = spawn(command, args, {
         cwd: options.cwd || process.cwd(),
+        stdio: options.silent ? 'pipe' : 'inherit', // Real-time output for better UX
         env: { 
           ...process.env, 
           ...options.env,
-          // Force non-interactive mode for common tools
           CI: 'true',
           FORCE_COLOR: '1',
           NODE_ENV: 'production'
         }
-      };
-
-      const childProcess: ChildProcess = spawn(command, args, spawnOptions);
+      });
 
       let stdout = '';
       let stderr = '';
 
-      if (options.silent && childProcess.stdout && childProcess.stderr) {
-        childProcess.stdout.on('data', (data: Buffer) => {
+      // Capture output if silent mode is enabled
+      if (options.silent && child.stdout && child.stderr) {
+        child.stdout.on('data', (data: Buffer) => {
           stdout += data.toString();
         });
 
-        childProcess.stderr.on('data', (data: Buffer) => {
+        child.stderr.on('data', (data: Buffer) => {
           stderr += data.toString();
         });
       }
 
-      childProcess.on('close', (code: number | null) => {
-        if (!options.silent) {
-          spinner.stop();
-        }
-        
-        if (code === 0) {
-          if (!options.silent) {
-            console.log(chalk.green(`✅ Completed: ${command}`));
+      child.on('close', (code: number | null) => {
+        const exitCode = code === null ? 1 : code;
+        if (exitCode === 0) {
+          if (this.verbose) {
+            console.log(chalk.green(`✅ Command finished successfully.`));
           }
-          resolve({ stdout, stderr, code: code || 0 });
+          resolve({ stdout, stderr, code: exitCode });
         } else {
-          if (!options.silent) {
-            console.log(chalk.red(`❌ Failed: ${cmdString} (exit code: ${code})`));
+          if (this.verbose) {
+            console.error(chalk.red(`❌ Command failed with exit code ${exitCode}.`));
           }
-          reject(new Error(`Command failed: ${cmdString}\nExit code: ${code}\nStderr: ${stderr}`));
+          resolve({ stdout, stderr, code: exitCode });
         }
       });
 
-      childProcess.on('error', (error: Error) => {
-        if (!options.silent) {
-          spinner.fail(`❌ Error: ${cmdString}`);
+      child.on('error', (err: Error) => {
+        if (this.verbose) {
+          console.error(chalk.red('Failed to start subprocess.'), err);
         }
-        reject(error);
+        resolve({ stdout, stderr: err.message, code: 1 });
       });
     });
   }
+
 
   async getVersion(): Promise<string> {
     try {
@@ -336,8 +329,7 @@ export class CommandRunner {
       
       const child = spawn(command, args, {
         cwd,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        shell: true
+        stdio: ['pipe', 'pipe', 'pipe']
       });
       
       let stdout = '';
@@ -398,4 +390,4 @@ export class CommandRunner {
   }
 }
 
-export default CommandRunner; 
+export default CommandRunner;

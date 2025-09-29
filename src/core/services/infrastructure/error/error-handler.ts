@@ -334,8 +334,7 @@ export class ErrorHandler {
       userFriendlyMessage,
       { 
         operation, 
-        traceId,
-        metadata: { verbose, originalError: message }
+        metadata: { traceId, verbose, originalError: message }
       },
       ErrorCode.CRITICAL_ERROR,
       false,

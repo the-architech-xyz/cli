@@ -41,16 +41,16 @@ export class AddScriptHandler extends BaseActionHandler {
       };
     }
 
-    if (!action.name || !action.script) {
+    if (!action.name || !action.command) {
       return { 
         success: false, 
-        error: 'ADD_SCRIPT action missing name or script' 
+        error: 'ADD_SCRIPT action missing name or command' 
       };
     }
 
     const filePath = 'package.json';
     const scriptName = action.name;
-    const scriptCommand = this.processTemplate(action.script, context);
+    const scriptCommand = this.processTemplate(action.command, context);
 
     // Ensure package.json exists in VFS
     if (!vfs.fileExists(filePath)) {

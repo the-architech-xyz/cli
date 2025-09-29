@@ -63,7 +63,7 @@ export class TemplateService {
         project: context.project,
         module: context.module,
         framework: context.framework,
-        paths: context.paths
+        pathHandler: context.pathHandler
       },
       options: options
     });

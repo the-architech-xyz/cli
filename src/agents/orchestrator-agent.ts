@@ -16,7 +16,7 @@ import * as path from 'path';
 import { Logger, ExecutionTracer, LogLevel } from '../core/services/infrastructure/logging/index.js';
 import { ErrorHandler } from '../core/services/infrastructure/error/index.js';
 import { DependencyGraph } from '../core/services/dependency/dependency-graph.js';
-import { ExecutionPlanner } from '../core/services/dependency/execution-planner.js';
+import { ExecutionPlanner, ExecutionPlan } from '../core/services/dependency/execution-planner.js';
 import { SequentialExecutionService } from '../core/services/execution/sequential-execution-service.js';
 import { VirtualFileSystem } from '../core/services/file-system/file-engine/virtual-file-system.js';
 import { SuccessValidator } from '../core/services/validation/success-validator.js';
@@ -44,7 +44,7 @@ export class OrchestratorAgent {
     // Initialize dependency resolution services
     this.dependencyGraph = new DependencyGraph(this.moduleService);
     this.executionPlanner = new ExecutionPlanner(this.dependencyGraph);
-    this.sequentialExecutor = new SequentialExecutionService(this);
+    this.sequentialExecutor = new SequentialExecutionService();
     this.successValidator = new SuccessValidator();
   }
 
@@ -584,7 +584,17 @@ export class OrchestratorAgent {
           operation: 'phase2_adapters'
         });
         
-        const adapterResult = await this.sequentialExecutor.executeBatches(adapterBatches, recipeVFS);
+        // Create a new execution plan with only adapter batches
+        const adapterPlan: ExecutionPlan = {
+          success: true,
+          batches: adapterBatches,
+          totalBatches: adapterBatches.length,
+          estimatedTotalDuration: executionPlan.estimatedTotalDuration,
+          errors: [],
+          warnings: []
+        };
+        
+        const adapterResult = await this.sequentialExecutor.executeBatches(adapterPlan, this, recipeVFS);
         
         if (adapterResult.success) {
           results.push(...adapterResult.batchResults.flatMap(br => br.results.flatMap(r => r.executedModules)));

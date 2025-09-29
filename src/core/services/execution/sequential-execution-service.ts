@@ -6,9 +6,9 @@
  * all analysis and planning intelligence.
  */
 
-import { ExecutionPlan, ExecutionBatch, Module } from '@thearchitech.xyz/types';
+import { Module } from '@thearchitech.xyz/types';
+import { ExecutionPlan, ExecutionBatch } from '../dependency/execution-planner.js';
 import { VirtualFileSystem } from '../file-system/file-engine/virtual-file-system.js';
-import { OrchestratorAgent } from '../../../agents/orchestrator-agent.js';
 
 export interface SequentialExecutionResult {
   success: boolean;
@@ -31,12 +31,12 @@ export interface ModuleExecutionResult {
 }
 
 export class SequentialExecutionService {
-  constructor(private orchestrator: OrchestratorAgent) {}
+  constructor() {}
 
   /**
    * Execute all batches sequentially
    */
-  async executeBatches(plan: ExecutionPlan, vfs?: VirtualFileSystem): Promise<SequentialExecutionResult> {
+  async executeBatches(plan: ExecutionPlan, orchestrator: any, vfs?: VirtualFileSystem): Promise<SequentialExecutionResult> {
     const batchResults: BatchExecutionResult[] = [];
     const errors: string[] = [];
 
@@ -44,9 +44,14 @@ export class SequentialExecutionService {
 
     for (let i = 0; i < plan.batches.length; i++) {
       const batch = plan.batches[i];
+      if (!batch) {
+        console.error(`❌ Batch ${i + 1} is undefined`);
+        errors.push(`Batch ${i + 1} is undefined`);
+        continue;
+      }
       console.log(`🚀 Executing batch ${i + 1}/${plan.batches.length} (${batch.modules.length} modules)`);
       
-      const batchResult = await this.executeBatch(batch, vfs);
+      const batchResult = await this.executeBatch(batch, orchestrator, vfs);
       batchResults.push(batchResult);
       
       if (!batchResult.success) {
@@ -65,7 +70,7 @@ export class SequentialExecutionService {
   /**
    * Execute a single batch sequentially
    */
-  private async executeBatch(batch: ExecutionBatch, vfs?: VirtualFileSystem): Promise<BatchExecutionResult> {
+  private async executeBatch(batch: ExecutionBatch, orchestrator: any, vfs?: VirtualFileSystem): Promise<BatchExecutionResult> {
     const results: ModuleExecutionResult[] = [];
     const errors: string[] = [];
 
@@ -73,10 +78,15 @@ export class SequentialExecutionService {
 
     for (let i = 0; i < batch.modules.length; i++) {
       const module = batch.modules[i];
+      if (!module) {
+        console.error(`    ❌ Module ${i + 1} is undefined`);
+        errors.push(`Module ${i + 1} is undefined`);
+        continue;
+      }
       console.log(`    🔧 Executing module ${i + 1}/${batch.modules.length}: ${module.id}`);
       
       try {
-        const result = await this.orchestrator.executeModule(module, vfs);
+        const result = await orchestrator.executeModule(module, vfs);
         results.push({
           moduleId: module.id,
           success: result.success,
@@ -87,7 +97,7 @@ export class SequentialExecutionService {
         if (!result.success) {
           errors.push(`Module ${module.id} failed: ${result.error}`);
           console.error(`    ❌ Module ${module.id} failed: ${result.error}`);
-          return { success: false, results, errors };
+          return { batchId: `batch-${batch.batchNumber}`, success: false, results, errors };
         }
         
         console.log(`    ✅ Module ${module.id} completed successfully`);
@@ -95,11 +105,11 @@ export class SequentialExecutionService {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         errors.push(`Module ${module.id} failed: ${errorMessage}`);
         console.error(`    ❌ Module ${module.id} failed: ${errorMessage}`);
-        return { success: false, results, errors };
+        return { batchId: `batch-${batch.batchNumber}`, success: false, results, errors };
       }
     }
 
     console.log(`  ✅ Batch completed successfully`);
-    return { success: true, results, errors };
+    return { batchId: `batch-${batch.batchNumber}`, success: true, results, errors };
   }
 }
