@@ -35,6 +35,102 @@ export class BlueprintExecutor {
   }
 
   /**
+   * Expand forEach actions into individual actions
+   */
+  private expandForEachActions(actions: BlueprintAction[], context: ProjectContext): BlueprintAction[] {
+    const expandedActions: BlueprintAction[] = [];
+    
+    for (const action of actions) {
+      if (action.forEach) {
+        console.log(`🔄 Found forEach action: ${action.forEach}`);
+        
+        // Resolve the forEach path to get the array of items
+        const items = this.resolveForEachPath(action.forEach, context);
+        
+        if (Array.isArray(items) && items.length > 0) {
+          console.log(`🔄 Expanded forEach into ${items.length} individual actions`);
+          
+          // Create individual actions for each item
+          for (const item of items) {
+            const expandedAction = this.createExpandedAction(action, item);
+            expandedActions.push(expandedAction);
+          }
+        } else {
+          console.log(`⚠️  forEach path resolved to empty array or invalid value: ${action.forEach}`);
+          // Add the original action without expansion
+          expandedActions.push(action);
+        }
+      } else {
+        // No forEach, add the original action
+        expandedActions.push(action);
+      }
+    }
+    
+    return expandedActions;
+  }
+
+  /**
+   * Resolve a forEach path (e.g., "module.parameters.components") to get the array of items
+   */
+  private resolveForEachPath(path: string, context: ProjectContext): any[] {
+    try {
+      // Split the path by dots and navigate through the context object
+      const pathParts = path.split('.');
+      let current: any = context;
+      
+      for (const part of pathParts) {
+        if (current && typeof current === 'object' && part in current) {
+          current = current[part];
+        } else {
+          console.log(`⚠️  forEach path not found: ${path} (failed at: ${part})`);
+          return [];
+        }
+      }
+      
+      if (Array.isArray(current)) {
+        return current;
+      } else {
+        console.log(`⚠️  forEach path resolved to non-array: ${path} = ${typeof current}`);
+        return [];
+      }
+    } catch (error) {
+      console.log(`⚠️  Error resolving forEach path ${path}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return [];
+    }
+  }
+
+  /**
+   * Create an expanded action by replacing {{item}} placeholders with the actual item value
+   */
+  private createExpandedAction(originalAction: BlueprintAction, item: any): BlueprintAction {
+    // Deep clone the action to avoid modifying the original
+    const expandedAction = JSON.parse(JSON.stringify(originalAction));
+    
+    // Replace {{item}} placeholders in all string properties
+    const itemValue = String(item);
+    
+    // List of properties that might contain {{item}} placeholders
+    const stringProperties = ['command', 'path', 'content', 'template', 'script', 'package', 'envVar', 'envValue'];
+    
+    for (const prop of stringProperties) {
+      if (expandedAction[prop] && typeof expandedAction[prop] === 'string') {
+        expandedAction[prop] = expandedAction[prop].replace(/\{\{item\}\}/g, itemValue);
+      }
+    }
+    
+    // Also check params object for string values
+    if (expandedAction.params && typeof expandedAction.params === 'object') {
+      for (const key in expandedAction.params) {
+        if (typeof expandedAction.params[key] === 'string') {
+          expandedAction.params[key] = expandedAction.params[key].replace(/\{\{item\}\}/g, itemValue);
+        }
+      }
+    }
+    
+    return expandedAction;
+  }
+
+  /**
    * Initialize the modifier registry with available modifiers
    */
   private initializeModifiers(): void {
@@ -129,14 +225,13 @@ export class BlueprintExecutor {
         console.log(`💾 Direct Mode: No VFS needed for ${blueprint.name}`);
       }
       
-      // 3. Execute actions in two phases:
-      // Phase 1: RUN_COMMAND actions (Direct Mode) - these create files on disk
-      // Phase 2: All other actions (VFS Mode if needed)
+      // 3. Expand forEach actions and separate into phases
+      const expandedActions = this.expandForEachActions(blueprint.actions, context);
       
       const runCommandActions: BlueprintAction[] = [];
       const otherActions: BlueprintAction[] = [];
       
-      for (const action of blueprint.actions) {
+      for (const action of expandedActions) {
         if (action.type === 'RUN_COMMAND') {
           runCommandActions.push(action);
         } else {

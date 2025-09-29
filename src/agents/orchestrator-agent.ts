@@ -85,7 +85,24 @@ export class OrchestratorAgent {
         throw new Error(`Dependency graph build failed: ${graphResult.errors.join(', ')}`);
       }
 
-      // 4. Create execution plan
+      // 4. Setup framework and get framework-specific path handler
+      ExecutionTracer.logOperation(traceId, 'Setting up framework');
+      const frameworkSetup = await this.moduleService.setupFramework(recipe, this.pathHandler);
+      if (!frameworkSetup.success) {
+        throw new Error(`Framework setup failed: ${frameworkSetup.error}`);
+      }
+      
+      // Update path handler with framework-specific paths
+      if (frameworkSetup.pathHandler) {
+        this.pathHandler = frameworkSetup.pathHandler;
+        Logger.info('📁 Framework paths configured', {
+          traceId,
+          operation: 'framework_setup',
+          availablePaths: this.pathHandler.getAvailablePaths()
+        });
+      }
+
+      // 5. Create execution plan
       ExecutionTracer.logOperation(traceId, 'Creating execution plan');
       const executionPlan = this.executionPlanner.createExecutionPlan();
       if (!executionPlan.success) {

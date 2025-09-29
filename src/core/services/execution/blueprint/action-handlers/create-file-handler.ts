@@ -53,14 +53,14 @@ export class CreateFileHandler extends BaseActionHandler {
         };
       }
     } else if (action.content) {
-      // Process inline content
-      content = this.processTemplate(action.content, context);
+      // Process inline content using TemplateService for full template support
+      content = TemplateService.processTemplate(action.content, context);
     } else {
       return { success: false, error: 'CREATE_FILE action missing content or template' };
     }
 
-    // Process template path
-    const filePath = this.processTemplate(action.path, context);
+    // Process template path using TemplateService for full path variable support
+    const filePath = TemplateService.processTemplate(action.path, context);
 
     try {
       if (vfs) {

@@ -58,13 +58,6 @@ export class PathService {
   }
 
   /**
-   * Get all available path keys
-   */
-  getAvailablePaths(): string[] {
-    return Object.keys(this.pathMap);
-  }
-
-  /**
    * Resolve a path relative to project root
    */
   resolvePath(relativePath: string): string {
@@ -190,6 +183,13 @@ export class PathService {
    */
   getEnvExamplePath(): string {
     return this.resolvePath('.env.example');
+  }
+
+  /**
+   * Get all available path keys
+   */
+  getAvailablePaths(): string[] {
+    return Object.keys(this.pathMap);
   }
 
   /**
