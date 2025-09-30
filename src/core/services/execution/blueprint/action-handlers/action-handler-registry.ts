@@ -28,9 +28,12 @@ export class ActionHandlerRegistry {
    * Initialize all action handlers
    */
   private initializeHandlers(modifierRegistry: ModifierRegistry): void {
+    // Create EnhanceFileHandler first
+    const enhanceFileHandler = new EnhanceFileHandler(modifierRegistry);
+    
     // Register all specialized handlers
-    this.registerHandler(new CreateFileHandler());
-    this.registerHandler(new EnhanceFileHandler(modifierRegistry));
+    this.registerHandler(new CreateFileHandler(enhanceFileHandler));
+    this.registerHandler(enhanceFileHandler);
     this.registerHandler(new InstallPackagesHandler(modifierRegistry));
     this.registerHandler(new RunCommandHandler());
     this.registerHandler(new AddEnvVarHandler());

@@ -125,32 +125,50 @@ export class ModuleService {
   }
 
   /**
-   * Load adapter for a specific module
+   * Load module (adapter or integration) based on convention
    */
   async loadModuleAdapter(module: Module): Promise<ModuleLoadResult> {
     try {
-      const adapterId = module.id.split('/').pop() || module.id;
-      const adapter = await this.loadAdapter(module.category, adapterId);
+      // Detect module type from ID convention
+      const isIntegration = module.id.startsWith('integrations/');
       
-      if (!adapter) {
+      let moduleData;
+      
+      if (isIntegration) {
+        // Load as integration
+        const integrationName = module.id.replace('integrations/', '');
+        moduleData = await this.loadIntegration(integrationName);
+      } else {
+        // Load as adapter
+        const [category, adapterId] = module.id.split('/');
+        if (!category || !adapterId) {
+          return {
+            success: false,
+            error: `Invalid adapter ID format: ${module.id}. Expected format: category/name`
+          };
+        }
+        moduleData = await this.loadAdapter(category, adapterId);
+      }
+      
+      if (!moduleData) {
         return {
           success: false,
-          error: `Failed to load adapter: ${module.id}`
+          error: `Failed to load module: ${module.id}`
         };
       }
 
       return {
         success: true,
         adapter: {
-          config: adapter.config,
-          blueprint: adapter.blueprint
+          config: moduleData.config,
+          blueprint: moduleData.blueprint
         }
       };
     } catch (error) {
       const errorResult = ErrorHandler.handleAgentError(
         error,
         module.category,
-        'load_adapter'
+        'load_module'
       );
       return {
         success: false,
@@ -200,6 +218,93 @@ export class ModuleService {
   }
 
   /**
+   * Load integration from marketplace
+   */
+  private async loadIntegration(integrationName: string): Promise<any> {
+    const cacheKey = `integrations/${integrationName}`;
+    
+    // Check cache first
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey);
+    }
+
+    try {
+      const { readFileSync } = await import('fs');
+      const { join } = await import('path');
+      
+      // Construct the path to the integration.json file
+      const integrationJsonPath = join(
+        process.cwd(),
+        'node_modules',
+        '@thearchitech.xyz',
+        'marketplace',
+        'integrations',
+        integrationName,
+        'integration.json'
+      );
+      
+      const integrationJsonContent = readFileSync(integrationJsonPath, 'utf-8');
+      const integrationJson = JSON.parse(integrationJsonContent);
+      
+      // Load the blueprint file (compiled .js from dist folder)
+      const blueprintFileName = integrationJson.blueprint?.file || 'blueprint.js';
+      const blueprintFilePath = join(
+        process.cwd(),
+        'node_modules',
+        '@thearchitech.xyz',
+        'marketplace',
+        'dist',
+        'integrations',
+        integrationName,
+        blueprintFileName
+      );
+      
+      const blueprintModule = await import(blueprintFilePath);
+      
+      // Find the blueprint export
+      let blueprint = blueprintModule.default || 
+                      blueprintModule.blueprint || 
+                      blueprintModule[`${integrationName}Blueprint`];
+      
+      if (!blueprint) {
+        const exports = Object.keys(blueprintModule);
+        const blueprintKey = exports.find(key => 
+          key.toLowerCase().includes('blueprint') || 
+          key.toLowerCase().includes(integrationName)
+        );
+        if (blueprintKey) {
+          blueprint = blueprintModule[blueprintKey];
+        }
+      }
+      
+      if (!blueprint) {
+        throw new Error(`No blueprint found in integration ${integrationName}. Available exports: ${Object.keys(blueprintModule).join(', ')}`);
+      }
+      
+      const integration = {
+        config: integrationJson,
+        blueprint: blueprint
+      };
+      
+      // Cache the result
+      this.cache.set(cacheKey, integration);
+      
+      return integration;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      Logger.error(`Failed to load integration ${integrationName}`, {
+        operation: 'load_integration',
+        error: errorMessage,
+        stack: errorStack,
+        integrationName
+      });
+      console.error(`Detailed error for integration ${integrationName}:`, error);
+      return null;
+    }
+  }
+
+  /**
    * Load adapter from marketplace
    */
   private async loadAdapter(category: string, adapterId: string): Promise<any> {
@@ -230,19 +335,22 @@ export class ModuleService {
       const adapterJsonContent = readFileSync(adapterJsonPath, 'utf-8');
       const adapterJson = JSON.parse(adapterJsonContent);
       
-      // Load the blueprint file using the full path since the package exports don't support TypeScript files
-      const blueprintPath = `@thearchitech.xyz/marketplace/adapters/${category}/${adapterId}/${adapterJson.blueprint}`;
+      // Load the compiled blueprint file from dist folder
+      // Convert .ts extension to .js since we now compile blueprints
+      const blueprintFileName = adapterJson.blueprint.replace(/\.ts$/, '.js');
+      const blueprintPath = `@thearchitech.xyz/marketplace/dist/adapters/${category}/${adapterId}/${blueprintFileName}`;
       
-      // Try to import the blueprint file directly from the file system
+      // Import the blueprint file directly from the file system
       const blueprintFilePath = join(
         process.cwd(),
         'node_modules',
         '@thearchitech.xyz',
         'marketplace',
+        'dist',
         'adapters',
         category,
         adapterId,
-        adapterJson.blueprint
+        blueprintFileName
       );
       
       const blueprintModule = await import(blueprintFilePath);

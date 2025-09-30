@@ -191,10 +191,18 @@ function convertGenomeToRecipe(genome: any): Recipe {
 
 /**
  * Extract category from module ID (e.g., 'framework/nextjs' -> 'framework')
+ * Special case: 'integrations/xyz' -> 'integration' (singular to match integration.json)
  */
 function extractCategoryFromId(moduleId: string): string {
   const parts = moduleId.split('/');
-  return parts[0] || 'unknown';
+  const category = parts[0] || 'unknown';
+  
+  // Normalize integrations (plural) to integration (singular) to match integration.json
+  if (category === 'integrations') {
+    return 'integration';
+  }
+  
+  return category;
 }
 
 /**

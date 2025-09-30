@@ -78,14 +78,25 @@ export class OrchestratorAgent {
         operation: 'module_loading'
       });
       
-      // 3. Build dependency graph
+      // 3. Classify modules by type (Convention-Based Architecture)
+      ExecutionTracer.logOperation(traceId, 'Classifying modules by type');
+      const moduleClassification = this.classifyModulesByType(recipe.modules);
+      Logger.info(`📊 Module Classification:`, {
+        traceId,
+        operation: 'module_classification',
+        frameworks: moduleClassification.frameworks.map(m => m.id),
+        adapters: moduleClassification.adapters.map(m => m.id),
+        integrations: moduleClassification.integrations.map(m => m.id)
+      });
+
+      // 4. Build dependency graph
       ExecutionTracer.logOperation(traceId, 'Building dependency graph');
       const graphResult = await this.dependencyGraph.buildGraph(recipe.modules);
       if (!graphResult.success) {
         throw new Error(`Dependency graph build failed: ${graphResult.errors.join(', ')}`);
       }
 
-      // 4. Setup framework and get framework-specific path handler
+      // 5. Setup framework and get framework-specific path handler
       ExecutionTracer.logOperation(traceId, 'Setting up framework');
       const frameworkSetup = await this.moduleService.setupFramework(recipe, this.pathHandler);
       if (!frameworkSetup.success) {
@@ -102,14 +113,22 @@ export class OrchestratorAgent {
         });
       }
 
-      // 5. Create execution plan
+      // 6. Create execution plan
       ExecutionTracer.logOperation(traceId, 'Creating execution plan');
       const executionPlan = this.executionPlanner.createExecutionPlan();
       if (!executionPlan.success) {
         throw new Error(`Execution plan creation failed: ${executionPlan.errors.join(', ')}`);
       }
 
-      // 5. Log execution plan with FULL DETAILS
+      // 7. Enforce hierarchical execution order (Framework -> Adapters -> Integrations)
+      ExecutionTracer.logOperation(traceId, 'Enforcing hierarchical execution order');
+      const hierarchicalPlan = this.enforceHierarchicalOrder(executionPlan, moduleClassification);
+      Logger.info(`🔄 Hierarchical execution plan created`, {
+        traceId,
+        operation: 'hierarchical_ordering'
+      });
+
+      // 8. Log execution plan with FULL DETAILS
       Logger.info(`📋 Execution plan created:`, {
         traceId,
         operation: 'execution_planning'
@@ -120,13 +139,14 @@ export class OrchestratorAgent {
         traceId,
         operation: 'execution_planning',
         data: {
-          totalBatches: executionPlan.batches.length,
-          totalModules: executionPlan.batches.reduce((sum, batch) => sum + batch.modules.length, 0),
-          estimatedDuration: executionPlan.batches.reduce((sum, batch) => sum + batch.estimatedDuration, 0),
-          batches: executionPlan.batches.map(batch => ({
+          totalBatches: hierarchicalPlan.batches.length,
+          totalModules: hierarchicalPlan.batches.reduce((sum: number, batch: any) => sum + batch.modules.length, 0),
+          estimatedDuration: hierarchicalPlan.batches.reduce((sum: number, batch: any) => sum + batch.estimatedDuration, 0),
+          batches: hierarchicalPlan.batches.map((batch: any) => ({
             batchNumber: batch.batchNumber,
             moduleCount: batch.modules.length,
-            moduleIds: batch.modules.map(m => m.id),
+            moduleIds: batch.modules.map((m: Module) => m.id),
+            moduleTypes: batch.modules.map((m: Module) => this.getModuleType(m.id)),
             canExecuteInParallel: batch.canExecuteInParallel,
             estimatedDuration: batch.estimatedDuration,
             dependencies: batch.dependencies
@@ -134,15 +154,15 @@ export class OrchestratorAgent {
         }
       });
       
-      for (const batch of executionPlan.batches) {
-        const moduleIds = batch.modules.map(m => m.id).join(', ');
+      for (const batch of hierarchicalPlan.batches) {
+        const moduleIds = batch.modules.map((m: Module) => m.id).join(', ');
         Logger.info(`  Batch ${batch.batchNumber}: [${moduleIds}] ${batch.canExecuteInParallel ? '(parallel)' : '(sequential)'}`, {
           traceId,
           operation: 'execution_planning'
         });
       }
 
-      // 6. Validate framework module is first
+      // 9. Validate framework module is first
       if (recipe.modules.length === 0) {
         throw new Error('Recipe contains no modules');
       }
@@ -161,9 +181,9 @@ export class OrchestratorAgent {
         operation: 'framework_validation'
       });
 
-      // 7. Execute using unified dependency-driven execution
+      // 10. Execute using unified dependency-driven execution
       ExecutionTracer.logOperation(traceId, 'Executing unified dependency-driven plan');
-      const executionResult = await this.executeUnifiedPlan(recipe, traceId, verbose, executionPlan);
+      const executionResult = await this.executeUnifiedPlan(recipe, traceId, verbose, hierarchicalPlan);
       
       if (executionResult.success) {
         results.push(...executionResult.results);
@@ -181,7 +201,7 @@ export class OrchestratorAgent {
         return { success: false, modulesExecuted: results.length, errors, warnings };
       }
 
-      // 8. Install dependencies (only if all modules succeeded)
+      // 11. Install dependencies (only if all modules succeeded)
       ExecutionTracer.logOperation(traceId, 'Installing dependencies');
       try {
         await this.installDependencies();
@@ -203,7 +223,7 @@ export class OrchestratorAgent {
         };
       }
       
-      // 9. Validate success
+      // 12. Validate success
       ExecutionTracer.logOperation(traceId, 'Validating success');
       // For now, skip success validation as it's not fully implemented
       Logger.info(`✅ Success validation completed`, {
@@ -211,7 +231,7 @@ export class OrchestratorAgent {
         operation: 'success_validation'
       });
 
-      // 10. Complete execution
+      // 13. Complete execution
       ExecutionTracer.endTrace(traceId, true);
       Logger.info(`🎉 Recipe execution completed successfully!`, {
           traceId,
@@ -257,9 +277,6 @@ export class OrchestratorAgent {
     const results: any[] = [];
     const errors: string[] = [];
     
-    // Create recipe-scoped VFS for state persistence
-    const recipeVFS = new VirtualFileSystem(`recipe-${recipe.project.name}`, this.pathHandler.getProjectRoot());
-    
     try {
       Logger.info(`🚀 Executing unified dependency-driven plan with ${executionPlan.batches.length} batches`, {
         traceId,
@@ -276,10 +293,10 @@ export class OrchestratorAgent {
           operation: 'unified_execution'
         });
         
-        // Execute modules in this batch
+        // Execute modules in this batch (each module gets its own VFS lifecycle)
         for (const module of batch.modules) {
           console.log(`🔍 CWD BEFORE module ${module.id}:`, process.cwd());
-          const result = await this.executeModuleWithVFS(module, recipe, recipeVFS, traceId);
+          const result = await this.executeModule(module, recipe, traceId);
           console.log(`🔍 CWD AFTER module ${module.id}:`, process.cwd());
           
           if (result.success) {
@@ -304,13 +321,6 @@ export class OrchestratorAgent {
           operation: 'unified_execution'
         });
       }
-      
-      // Flush VFS to disk after all modules complete
-      await recipeVFS.flushToDisk();
-      Logger.info(`💾 All files written to disk successfully`, {
-        traceId,
-        operation: 'unified_execution'
-      });
 
       return { success: true, results, errors };
 
@@ -326,14 +336,16 @@ export class OrchestratorAgent {
   }
 
   /**
-   * Execute a single module with VFS
+   * Execute a single module with its own transactional VFS
+   * Each blueprint gets: Create VFS → Execute → Flush to Disk
    */
-  private async executeModuleWithVFS(
+  private async executeModule(
     module: Module, 
     recipe: Recipe, 
-    vfs: VirtualFileSystem, 
     traceId: string
   ): Promise<{ success: boolean; error?: string; executedModules?: any[] }> {
+    let blueprintVFS: VirtualFileSystem | null = null;
+    
     try {
       Logger.info(`🔧 Executing module: ${module.id}`, {
         traceId,
@@ -357,21 +369,41 @@ export class OrchestratorAgent {
         pathHandler: this.pathHandler
       };
 
-      // Create blueprint executor for this module
+      // 1. CREATE per-blueprint VFS
+      blueprintVFS = new VirtualFileSystem(
+        `blueprint-${moduleResult.adapter.blueprint.id}`, 
+        this.pathHandler.getProjectRoot()
+      );
+      Logger.info(`📦 Created VFS for blueprint: ${moduleResult.adapter.blueprint.id}`, {
+        traceId,
+        operation: 'module_execution'
+      });
+
+      // 2. EXECUTE blueprint with its dedicated VFS
       const blueprintExecutor = new BlueprintExecutor(
         this.pathHandler.getProjectRoot()
       );
-
-      // Execute the module blueprint
-      const result = await blueprintExecutor.executeBlueprint(moduleResult.adapter.blueprint, projectContext, vfs);
+      const result = await blueprintExecutor.executeBlueprint(
+        moduleResult.adapter.blueprint, 
+        projectContext, 
+        blueprintVFS
+      );
       
       if (result.success) {
+        // 3. FLUSH VFS to disk on success - critical for subsequent modules!
+        await blueprintVFS.flushToDisk();
+        Logger.info(`💾 VFS flushed to disk for blueprint: ${moduleResult.adapter.blueprint.id}`, {
+          traceId,
+          operation: 'module_execution'
+        });
+        
         Logger.info(`✅ Module ${module.id} executed successfully`, {
           traceId,
           operation: 'module_execution'
         });
         return { success: true, executedModules: [module] };
       } else {
+        // DO NOT flush on failure - preserve clean state
         Logger.error(`❌ Module ${module.id} execution failed: ${result.errors?.join(', ') || 'Unknown error'}`, {
           traceId,
           operation: 'module_execution'
@@ -380,7 +412,10 @@ export class OrchestratorAgent {
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      Logger.error(`❌ Module ${module.id} execution error: ${errorMessage}`);
+      Logger.error(`❌ Module ${module.id} execution error: ${errorMessage}`, {
+        traceId,
+        operation: 'module_execution'
+      });
       return { success: false, error: errorMessage };
     }
   }
@@ -458,6 +493,102 @@ export class OrchestratorAgent {
     }
     
     return criticalFailures;
+  }
+
+  /**
+   * Classify modules by type based on ID convention
+   * - Frameworks: category === 'framework'
+   * - Integrations: id starts with 'integrations/'
+   * - Adapters: everything else
+   */
+  private classifyModulesByType(modules: Module[]): {
+    frameworks: Module[];
+    adapters: Module[];
+    integrations: Module[];
+  } {
+    const frameworks: Module[] = [];
+    const adapters: Module[] = [];
+    const integrations: Module[] = [];
+
+    for (const module of modules) {
+      const type = this.getModuleType(module.id);
+      
+      if (type === 'framework') {
+        frameworks.push(module);
+      } else if (type === 'integration') {
+        integrations.push(module);
+      } else {
+        adapters.push(module);
+      }
+    }
+
+    return { frameworks, adapters, integrations };
+  }
+
+  /**
+   * Get module type from ID
+   */
+  private getModuleType(moduleId: string): 'framework' | 'adapter' | 'integration' {
+    if (moduleId.startsWith('integrations/')) {
+      return 'integration';
+    }
+    
+    const category = moduleId.split('/')[0];
+    if (category === 'framework') {
+      return 'framework';
+    }
+    
+    return 'adapter';
+  }
+
+  /**
+   * Enforce hierarchical execution order: Framework -> Adapters -> Integrations
+   */
+  private enforceHierarchicalOrder(
+    executionPlan: any,
+    classification: {
+      frameworks: Module[];
+      adapters: Module[];
+      integrations: Module[];
+    }
+  ): any {
+    const newBatches: any[] = [];
+    let batchNumber = 1;
+
+    // 1. Framework batches (must be first)
+    const frameworkBatches = executionPlan.batches.filter((batch: any) =>
+      batch.modules.every((m: Module) => this.getModuleType(m.id) === 'framework')
+    );
+    for (const batch of frameworkBatches) {
+      newBatches.push({ ...batch, batchNumber: batchNumber++ });
+    }
+
+    // 2. Adapter batches (middle layer)
+    const adapterBatches = executionPlan.batches.filter((batch: any) =>
+      batch.modules.every((m: Module) => this.getModuleType(m.id) === 'adapter')
+    );
+    for (const batch of adapterBatches) {
+      newBatches.push({ ...batch, batchNumber: batchNumber++ });
+    }
+
+    // 3. Integration batches (must be last, sequential)
+    const integrationBatches = executionPlan.batches.filter((batch: any) =>
+      batch.modules.some((m: Module) => this.getModuleType(m.id) === 'integration')
+    );
+    for (const batch of integrationBatches) {
+      // Force integrations to be sequential
+      newBatches.push({ 
+        ...batch, 
+        batchNumber: batchNumber++,
+        canExecuteInParallel: false 
+      });
+    }
+
+    return {
+      ...executionPlan,
+      batches: newBatches,
+      totalBatches: newBatches.length
+    };
   }
 
 }

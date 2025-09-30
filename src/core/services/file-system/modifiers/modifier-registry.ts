@@ -6,7 +6,7 @@
  * specific modifier implementations.
  */
 
-import { ProjectContext } from '@thearchitech.xyz/types';
+import { ProjectContext, AvailableModifier } from '@thearchitech.xyz/types';
 
 // Simple modifier interface for now
 interface ModifierDefinition {
@@ -20,16 +20,16 @@ export class ModifierRegistry {
   [key: string]: ModifierDefinition | any;
 
   /**
-   * Register a new modifier
+   * Register a new modifier (Type-Safe)
    */
-  register(name: string, definition: ModifierDefinition): void {
+  register(name: AvailableModifier, definition: ModifierDefinition): void {
     this.modifiers.set(name, definition);
   }
 
   /**
-   * Get a modifier by name
+   * Get a modifier by name (Type-Safe)
    */
-  get(name: string): ModifierDefinition | null {
+  get(name: AvailableModifier): ModifierDefinition | null {
     return this.modifiers.get(name) || null;
   }
 

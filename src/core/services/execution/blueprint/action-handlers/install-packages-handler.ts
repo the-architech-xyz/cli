@@ -57,10 +57,21 @@ export class InstallPackagesHandler extends BaseActionHandler {
         return { success: false, error: 'package-json-merger modifier not available' };
       }
 
-      // Convert packages array to object with latest version
+      // Convert packages array to object with proper name and version parsing
       const packageObj: Record<string, string> = {};
       action.packages.forEach(pkg => {
-        packageObj[pkg] = 'latest';
+        // Parse package string to extract name and version
+        // Format: "package-name@version" or just "package-name"
+        const lastAtIndex = pkg.lastIndexOf('@');
+        if (lastAtIndex > 0) {
+          // Package has version specified
+          const packageName = pkg.substring(0, lastAtIndex);
+          const packageVersion = pkg.substring(lastAtIndex + 1);
+          packageObj[packageName] = packageVersion;
+        } else {
+          // Package has no version, use latest
+          packageObj[pkg] = 'latest';
+        }
       });
 
       // Prepare parameters for the modifier
