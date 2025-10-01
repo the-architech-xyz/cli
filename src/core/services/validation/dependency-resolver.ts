@@ -213,9 +213,10 @@ export class DependencyResolver {
     // Check for conflicting categories
     const categoryModules = new Map<string, string[]>();
     for (const module of modules) {
-      const modulesInCategory = categoryModules.get(module.category) || [];
+      const category = module.category || 'unknown';
+      const modulesInCategory = categoryModules.get(category) || [];
       modulesInCategory.push(module.id);
-      categoryModules.set(module.category, modulesInCategory);
+      categoryModules.set(category, modulesInCategory);
     }
 
     // Some categories should only have one module

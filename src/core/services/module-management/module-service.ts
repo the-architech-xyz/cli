@@ -5,8 +5,10 @@
  * into a single, cohesive service for module management
  */
 
-import { Module, Recipe, ProjectContext, AdapterConfig, Blueprint } from '@thearchitech.xyz/types';
+import { Module, Genome } from '@thearchitech.xyz/marketplace';
+import { ProjectContext, AdapterConfig, Blueprint } from '@thearchitech.xyz/types';
 import { PathService } from '../path/path-service.js';
+import { MarketplaceService } from '../marketplace/marketplace-service.js';
 import { CacheManagerService } from '../infrastructure/cache/cache-manager.js';
 import { ErrorHandler } from '../infrastructure/error/index.js';
 import { ErrorCode } from '../infrastructure/error/error-types.js';
@@ -61,12 +63,12 @@ export class ModuleService {
    * Setup framework and create decentralized path handler
    */
   async setupFramework(
-    recipe: Recipe,
+    genome: Genome,
     pathHandler: PathService
   ): Promise<FrameworkSetupResult> {
     try {
       // 1. Identify framework module
-      const frameworkModule = recipe.modules.find(m => m.category === 'framework');
+      const frameworkModule = genome.modules.find(m => m.category === 'framework');
       if (!frameworkModule) {
         const error = ErrorHandler.createError(
           'No framework module found in recipe. Framework adapter is required.',
@@ -84,7 +86,7 @@ export class ModuleService {
       // 2. Load framework adapter
       const adapterId = frameworkModule.id.split('/').pop() || frameworkModule.id;
       const frameworkAdapter = await this.loadAdapter(
-        frameworkModule.category,
+        frameworkModule.category || 'framework',
         adapterId
       );
 
@@ -167,7 +169,7 @@ export class ModuleService {
     } catch (error) {
       const errorResult = ErrorHandler.handleAgentError(
         error,
-        module.category,
+        module.category || 'unknown',
         'load_module'
       );
       return {
@@ -181,23 +183,23 @@ export class ModuleService {
    * Create project context for module execution
    */
   createProjectContext(
-    recipe: Recipe,
+    genome: Genome,
     pathHandler: PathService,
     module: Module
   ): ProjectContextResult {
     try {
       // Convert modules array to Record<string, Module>
       const modulesRecord: Record<string, Module> = {};
-      recipe.modules.forEach(mod => {
+      genome.modules.forEach(mod => {
         modulesRecord[mod.id] = mod;
       });
 
       const context: ProjectContext = {
-        project: recipe.project,
+        project: genome.project,
         modules: modulesRecord,
         pathHandler: pathHandler,
         module: module,
-        framework: recipe.project.framework
+        framework: genome.project.framework
       };
 
       return {
@@ -207,7 +209,7 @@ export class ModuleService {
     } catch (error) {
       const errorResult = ErrorHandler.handleAgentError(
         error,
-        module.category,
+        module.category || 'unknown',
         'create_context'
       );
       return {
@@ -229,57 +231,11 @@ export class ModuleService {
     }
 
     try {
-      const { readFileSync } = await import('fs');
-      const { join } = await import('path');
+      const moduleId = `integrations/${integrationName}`;
       
-      // Construct the path to the integration.json file
-      const integrationJsonPath = join(
-        process.cwd(),
-        'node_modules',
-        '@thearchitech.xyz',
-        'marketplace',
-        'integrations',
-        integrationName,
-        'integration.json'
-      );
-      
-      const integrationJsonContent = readFileSync(integrationJsonPath, 'utf-8');
-      const integrationJson = JSON.parse(integrationJsonContent);
-      
-      // Load the blueprint file (compiled .js from dist folder)
-      const blueprintFileName = integrationJson.blueprint?.file || 'blueprint.js';
-      const blueprintFilePath = join(
-        process.cwd(),
-        'node_modules',
-        '@thearchitech.xyz',
-        'marketplace',
-        'dist',
-        'integrations',
-        integrationName,
-        blueprintFileName
-      );
-      
-      const blueprintModule = await import(blueprintFilePath);
-      
-      // Find the blueprint export
-      let blueprint = blueprintModule.default || 
-                      blueprintModule.blueprint || 
-                      blueprintModule[`${integrationName}Blueprint`];
-      
-      if (!blueprint) {
-        const exports = Object.keys(blueprintModule);
-        const blueprintKey = exports.find(key => 
-          key.toLowerCase().includes('blueprint') || 
-          key.toLowerCase().includes(integrationName)
-        );
-        if (blueprintKey) {
-          blueprint = blueprintModule[blueprintKey];
-        }
-      }
-      
-      if (!blueprint) {
-        throw new Error(`No blueprint found in integration ${integrationName}. Available exports: ${Object.keys(blueprintModule).join(', ')}`);
-      }
+      // Load module config and blueprint using centralized services
+      const integrationJson = await MarketplaceService.loadModuleConfig(moduleId);
+      const blueprint = await MarketplaceService.loadModuleBlueprint(moduleId);
       
       const integration = {
         config: integrationJson,
@@ -316,63 +272,11 @@ export class ModuleService {
     }
 
     try {
-      // Use fs to read the adapter.json file
-      const { readFileSync } = await import('fs');
-      const { join } = await import('path');
+      const moduleId = `${category}/${adapterId}`;
       
-      // Construct the path to the adapter.json file
-      const adapterJsonPath = join(
-        process.cwd(),
-        'node_modules',
-        '@thearchitech.xyz',
-        'marketplace',
-        'adapters',
-        category,
-        adapterId,
-        'adapter.json'
-      );
-      
-      const adapterJsonContent = readFileSync(adapterJsonPath, 'utf-8');
-      const adapterJson = JSON.parse(adapterJsonContent);
-      
-      // Load the compiled blueprint file from dist folder
-      // Convert .ts extension to .js since we now compile blueprints
-      const blueprintFileName = adapterJson.blueprint.replace(/\.ts$/, '.js');
-      const blueprintPath = `@thearchitech.xyz/marketplace/dist/adapters/${category}/${adapterId}/${blueprintFileName}`;
-      
-      // Import the blueprint file directly from the file system
-      const blueprintFilePath = join(
-        process.cwd(),
-        'node_modules',
-        '@thearchitech.xyz',
-        'marketplace',
-        'dist',
-        'adapters',
-        category,
-        adapterId,
-        blueprintFileName
-      );
-      
-      const blueprintModule = await import(blueprintFilePath);
-      
-      // Find the blueprint export (it might be a named export or default export)
-      let blueprint = blueprintModule.default || blueprintModule.blueprint || blueprintModule[`${adapterId}Blueprint`];
-      
-      // If we still don't have a blueprint, look for any export that looks like a blueprint
-      if (!blueprint) {
-        const exports = Object.keys(blueprintModule);
-        const blueprintKey = exports.find(key => 
-          key.toLowerCase().includes('blueprint') || 
-          key.toLowerCase().includes(adapterId)
-        );
-        if (blueprintKey) {
-          blueprint = blueprintModule[blueprintKey];
-        }
-      }
-      
-      if (!blueprint) {
-        throw new Error(`No blueprint found in ${blueprintPath}. Available exports: ${Object.keys(blueprintModule).join(', ')}`);
-      }
+      // Load module config and blueprint using centralized services
+      const adapterJson = await MarketplaceService.loadModuleConfig(moduleId);
+      const blueprint = await MarketplaceService.loadModuleBlueprint(moduleId);
       
       const adapter = {
         config: adapterJson,
@@ -422,4 +326,5 @@ export class ModuleService {
       keys: Array.from(this.cache.keys())
     };
   }
+
 }

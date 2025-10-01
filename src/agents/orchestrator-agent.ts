@@ -5,7 +5,8 @@
  * Reads YAML recipe and delegates to appropriate agents
  */
 
-import { Recipe, Module, ExecutionResult, ProjectContext } from '@thearchitech.xyz/types';
+import { Genome, Module } from '@thearchitech.xyz/marketplace';
+import { ExecutionResult, ProjectContext } from '@thearchitech.xyz/types';
 import { ProjectManager } from '../core/services/project/project-manager.js';
 import { PathService } from '../core/services/path/path-service.js';
 import { BlueprintExecutor } from '../core/services/execution/blueprint/blueprint-executor.js';
@@ -20,6 +21,7 @@ import { ExecutionPlanner, ExecutionPlan } from '../core/services/dependency/exe
 import { SequentialExecutionService } from '../core/services/execution/sequential-execution-service.js';
 import { VirtualFileSystem } from '../core/services/file-system/file-engine/virtual-file-system.js';
 import { SuccessValidator } from '../core/services/validation/success-validator.js';
+import { ArchitectureValidator } from '../core/services/validation/architecture-validator.js';
 
 export class OrchestratorAgent {
   private projectManager: ProjectManager;
@@ -31,6 +33,7 @@ export class OrchestratorAgent {
   private executionPlanner: ExecutionPlanner;
   private sequentialExecutor: SequentialExecutionService;
   private successValidator: SuccessValidator;
+  private architectureValidator: ArchitectureValidator;
 
   constructor(projectManager: ProjectManager) {
     this.projectManager = projectManager;
@@ -46,41 +49,69 @@ export class OrchestratorAgent {
     this.executionPlanner = new ExecutionPlanner(this.dependencyGraph);
     this.sequentialExecutor = new SequentialExecutionService();
     this.successValidator = new SuccessValidator();
+    this.architectureValidator = new ArchitectureValidator();
   }
 
   /**
    * Execute a recipe using unified dependency-driven execution
    */
-  async executeRecipe(recipe: Recipe, verbose: boolean = false): Promise<ExecutionResult> {
+  async executeRecipe(genome: Genome, verbose: boolean = false): Promise<ExecutionResult> {
     const traceId = ExecutionTracer.startTrace('orchestrator_execution');
     const results: any[] = [];
     const errors: string[] = [];
     const warnings: string[] = [];
 
     try {
-      Logger.info(`🚀 Starting recipe execution: ${recipe.project.name}`, {
+      Logger.info(`🚀 Starting genome execution: ${genome.project.name}`, {
         traceId,
-        operation: 'recipe_execution'
+        operation: 'genome_execution'
       });
 
-      // 1. Validate recipe
-      ExecutionTracer.logOperation(traceId, 'Validating recipe');
-      const validationResult = this.validateRecipe(recipe);
+      // 1. Validate genome
+      ExecutionTracer.logOperation(traceId, 'Validating genome');
+      const validationResult = this.validateRecipe(genome);
       if (!validationResult.valid) {
-        throw new Error(`Recipe validation failed: ${validationResult.errors.join(', ')}`);
+        throw new Error(`Genome validation failed: ${validationResult.errors.join(', ')}`);
       }
 
       // 2. Load and validate modules
       ExecutionTracer.logOperation(traceId, 'Loading modules');
       // For now, skip module loading validation as it's not implemented
-      Logger.info(`📦 Loading ${recipe.modules.length} modules`, {
+      Logger.info(`📦 Loading ${genome.modules.length} modules`, {
         traceId,
         operation: 'module_loading'
+      });
+
+      // 2.5. ARCHITECTURAL VALIDATION - NEW MANDATORY STEP
+      ExecutionTracer.logOperation(traceId, 'Architectural validation');
+      const architecturalValidation = await this.architectureValidator.validateRecipe(genome, traceId);
+      if (!architecturalValidation.isValid) {
+        const errorMessages = architecturalValidation.errors.map(error => 
+          `  ❌ ${error.message} (Module: ${error.module})`
+        ).join('\n');
+        
+        const warningMessages = architecturalValidation.warnings.map(warning => 
+          `  ⚠️  ${warning.message} (Module: ${warning.module})`
+        ).join('\n');
+        
+        const fullErrorMessage = `Architectural validation failed with ${architecturalValidation.errors.length} errors:\n${errorMessages}${warningMessages ? `\n\nWarnings:\n${warningMessages}` : ''}`;
+        
+        Logger.error(`❌ ${fullErrorMessage}`, {
+          traceId,
+          operation: 'architectural_validation'
+        });
+        
+        throw new Error(fullErrorMessage);
+      }
+      
+      Logger.info('✅ Architectural validation passed - proceeding with generation', {
+        traceId,
+        operation: 'architectural_validation'
       });
       
       // 3. Classify modules by type (Convention-Based Architecture)
       ExecutionTracer.logOperation(traceId, 'Classifying modules by type');
-      const moduleClassification = this.classifyModulesByType(recipe.modules);
+      const moduleClassification = this.classifyModulesByType(genome.modules);
       Logger.info(`📊 Module Classification:`, {
         traceId,
         operation: 'module_classification',
@@ -91,14 +122,14 @@ export class OrchestratorAgent {
 
       // 4. Build dependency graph
       ExecutionTracer.logOperation(traceId, 'Building dependency graph');
-      const graphResult = await this.dependencyGraph.buildGraph(recipe.modules);
+      const graphResult = await this.dependencyGraph.buildGraph(genome.modules);
       if (!graphResult.success) {
         throw new Error(`Dependency graph build failed: ${graphResult.errors.join(', ')}`);
       }
 
       // 5. Setup framework and get framework-specific path handler
       ExecutionTracer.logOperation(traceId, 'Setting up framework');
-      const frameworkSetup = await this.moduleService.setupFramework(recipe, this.pathHandler);
+      const frameworkSetup = await this.moduleService.setupFramework(genome, this.pathHandler);
       if (!frameworkSetup.success) {
         throw new Error(`Framework setup failed: ${frameworkSetup.error}`);
       }
@@ -156,18 +187,15 @@ export class OrchestratorAgent {
       
       for (const batch of hierarchicalPlan.batches) {
         const moduleIds = batch.modules.map((m: Module) => m.id).join(', ');
-        Logger.info(`  Batch ${batch.batchNumber}: [${moduleIds}] ${batch.canExecuteInParallel ? '(parallel)' : '(sequential)'}`, {
-          traceId,
-          operation: 'execution_planning'
-        });
+    
       }
 
       // 9. Validate framework module is first
-      if (recipe.modules.length === 0) {
-        throw new Error('Recipe contains no modules');
+      if (genome.modules.length === 0) {
+        throw new Error('Genome contains no modules');
       }
       
-      const firstModule = recipe.modules[0];
+      const firstModule = genome.modules[0];
       if (!firstModule) {
         throw new Error('First module is undefined');
       }
@@ -183,7 +211,7 @@ export class OrchestratorAgent {
 
       // 10. Execute using unified dependency-driven execution
       ExecutionTracer.logOperation(traceId, 'Executing unified dependency-driven plan');
-      const executionResult = await this.executeUnifiedPlan(recipe, traceId, verbose, hierarchicalPlan);
+      const executionResult = await this.executeUnifiedPlan(genome, traceId, verbose, hierarchicalPlan);
       
       if (executionResult.success) {
         results.push(...executionResult.results);
@@ -269,9 +297,9 @@ export class OrchestratorAgent {
    * Single execution loop that relies on dependency graph for correct ordering
    */
   private async executeUnifiedPlan(
-    recipe: Recipe, 
+    genome: Genome, 
     traceId: string, 
-    verbose: boolean,
+    verbose: boolean, 
     executionPlan: any
   ): Promise<{ success: boolean; results: any[]; errors: string[] }> {
     const results: any[] = [];
@@ -296,7 +324,7 @@ export class OrchestratorAgent {
         // Execute modules in this batch (each module gets its own VFS lifecycle)
         for (const module of batch.modules) {
           console.log(`🔍 CWD BEFORE module ${module.id}:`, process.cwd());
-          const result = await this.executeModule(module, recipe, traceId);
+          const result = await this.executeModule(module, genome, traceId);
           console.log(`🔍 CWD AFTER module ${module.id}:`, process.cwd());
           
           if (result.success) {
@@ -341,7 +369,7 @@ export class OrchestratorAgent {
    */
   private async executeModule(
     module: Module, 
-    recipe: Recipe, 
+    genome: Genome, 
     traceId: string
   ): Promise<{ success: boolean; error?: string; executedModules?: any[] }> {
     let blueprintVFS: VirtualFileSystem | null = null;
@@ -363,9 +391,9 @@ export class OrchestratorAgent {
 
       // Create project context for the blueprint execution
       const projectContext: ProjectContext = {
-        project: recipe.project,
+        project: genome.project,
         module: module,
-        framework: recipe.project.framework,
+        framework: genome.project.framework,
         pathHandler: this.pathHandler
       };
 
@@ -445,29 +473,29 @@ export class OrchestratorAgent {
   /**
    * Validate recipe structure
    */
-  private validateRecipe(recipe: any): { valid: boolean; errors: string[] } {
+  private validateRecipe(genome: any): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
     
-    if (!recipe) {
-      errors.push('Recipe is null or undefined');
+    if (!genome) {
+      errors.push('Genome is null or undefined');
       return { valid: false, errors };
     }
     
-    if (!recipe.project) {
-      errors.push('Recipe must have a project section');
+    if (!genome.project) {
+      errors.push('Genome must have a project section');
     } else {
-      if (!recipe.project.name) {
+      if (!genome.project.name) {
         errors.push('Project must have a name');
       }
-      if (!recipe.project.path) {
+      if (!genome.project.path) {
         errors.push('Project must have a path');
       }
     }
     
-    if (!recipe.modules || !Array.isArray(recipe.modules)) {
-      errors.push('Recipe must have a modules array');
-    } else if (recipe.modules.length === 0) {
-      errors.push('Recipe must have at least one module');
+    if (!genome.modules || !Array.isArray(genome.modules)) {
+      errors.push('Genome must have a modules array');
+    } else if (genome.modules.length === 0) {
+      errors.push('Genome must have at least one module');
     }
     
     return { valid: errors.length === 0, errors };

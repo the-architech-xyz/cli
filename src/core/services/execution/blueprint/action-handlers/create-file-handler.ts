@@ -10,6 +10,7 @@ import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ArchitechError } from '../../../infrastructure/error/architech-error.js';
 import { TemplateService } from '../../../file-system/template/template-service.js';
+import { MarketplaceService } from '../../../marketplace/marketplace-service.js';
 import { promises as fs } from 'fs';
 import { join, dirname, resolve as pathResolve } from 'path';
 
@@ -84,7 +85,7 @@ export class CreateFileHandler extends BaseActionHandler {
     if (action.template) {
       // Load and process template
       try {
-        const templateContent = await this.loadTemplate(action.template, projectRoot);
+        const templateContent = await this.loadTemplate(action.template, projectRoot, context);
         content = TemplateService.processTemplate(templateContent, context);
       } catch (error) {
         return { 
@@ -145,7 +146,7 @@ export class CreateFileHandler extends BaseActionHandler {
       // Get new content from template or content
       let newContent: string;
       if (action.template) {
-        const templateContent = await this.loadTemplate(action.template, projectRoot);
+        const templateContent = await this.loadTemplate(action.template, projectRoot, context);
         newContent = TemplateService.processTemplate(templateContent, context);
       } else if (action.content) {
         newContent = TemplateService.processTemplate(action.content, context);
@@ -258,18 +259,17 @@ export class CreateFileHandler extends BaseActionHandler {
 
   /**
    * Load template content from file
+   * 
+   * The absolute path to a template is always:
+   * [MARKETPLACE_ROOT_PATH] + [RESOLVED_MODULE_ID] + templates/ + [TEMPLATE_FILENAME]
+   * 
+   * Where RESOLVED_MODULE_ID is either:
+   * - integrations/[shortId] for integration modules
+   * - adapters/[shortId] for adapter modules
    */
-  private async loadTemplate(templatePath: string, projectRoot: string): Promise<string> {
-    // Template paths are relative to the marketplace directory
-    // The projectRoot is ./test-full-app, so we need to go up to find marketplace
-    const marketplacePath = join(projectRoot, '..', '..', 'marketplace');
-    const fullTemplatePath = join(marketplacePath, templatePath);
-    
-    try {
-      const content = await fs.readFile(fullTemplatePath, 'utf-8');
-      return content;
-    } catch (error) {
-      throw new Error(`Template file not found: ${fullTemplatePath}`);
-    }
+  private async loadTemplate(templatePath: string, projectRoot: string, context: ProjectContext): Promise<string> {
+    const moduleId = context.module.id;
+    return await MarketplaceService.loadTemplate(moduleId, templatePath);
   }
+
 }

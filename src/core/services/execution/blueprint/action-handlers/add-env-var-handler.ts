@@ -28,7 +28,7 @@ export class AddEnvVarHandler extends BaseActionHandler {
       return { success: false, error: validation.error };
     }
 
-    if (!action.key || !action.value) {
+    if (!action.key || action.value === undefined || action.value === null) {
       return { 
         success: false, 
         error: 'ADD_ENV_VAR action missing key or value' 

@@ -10,12 +10,12 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { createNewCommand } from './commands/new.js';
-import { createNewTsCommand } from './commands/new-ts.js';
 import { createAddCommand } from './commands/add.js';
 import { createScaleCommand } from './commands/scale.js';
 import { createListGenomesCommand } from './commands/list-genomes.js';
 import { createMarketplaceCommand } from './commands/marketplace.js';
 import { displayBanner } from './core/cli/banner.js';
+import { PathService } from './core/services/path/path-service.js';
 
   const program = new Command();
 
@@ -34,7 +34,6 @@ import { displayBanner } from './core/cli/banner.js';
 
 // Add all commands
 program.addCommand(createNewCommand());
-program.addCommand(createNewTsCommand());
 program.addCommand(createAddCommand());
 program.addCommand(createScaleCommand());
 program.addCommand(createListGenomesCommand());
@@ -94,6 +93,9 @@ GitHub: https://github.com/the-architech/cli
  * Main execution function
  */
 async function main(): Promise<void> {
+  // Initialize CLI root path for centralized path resolution
+  PathService.initializeCliRoot();
+  
   program.parse();
 }
 

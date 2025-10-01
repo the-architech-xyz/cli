@@ -208,6 +208,45 @@ export class BlueprintExecutor {
         return await modifier.execute(filePath, params, context);
       }
     });
+
+    // json-merger: Generic deep merge for any JSON file
+    this.modifierRegistry.register('json-merger', {
+      execute: async (filePath: string, params: any, context: ProjectContext, vfs?: VirtualFileSystem) => {
+        if (!vfs) {
+          return { success: false, error: 'VFS required for json-merger' };
+        }
+        const { JsonMergerModifier } = await import('../../file-system/modifiers/json-merger.js');
+        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, context.project.path || '.');
+        const modifier = new JsonMergerModifier(engine);
+        return await modifier.execute(filePath, params, context);
+      }
+    });
+
+    // js-export-wrapper: Wrap exports with higher-order functions (e.g., withSentryConfig)
+    this.modifierRegistry.register('js-export-wrapper', {
+      execute: async (filePath: string, params: any, context: ProjectContext, vfs?: VirtualFileSystem) => {
+        if (!vfs) {
+          return { success: false, error: 'VFS required for js-export-wrapper' };
+        }
+        const { JsExportWrapperModifier } = await import('../../file-system/modifiers/js-export-wrapper.js');
+        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, context.project.path || '.');
+        const modifier = new JsExportWrapperModifier(engine);
+        return await modifier.execute(filePath, params, context);
+      }
+    });
+
+    // jsx-children-wrapper: Wrap {children} with provider components
+    this.modifierRegistry.register('jsx-children-wrapper', {
+      execute: async (filePath: string, params: any, context: ProjectContext, vfs?: VirtualFileSystem) => {
+        if (!vfs) {
+          return { success: false, error: 'VFS required for jsx-children-wrapper' };
+        }
+        const { JsxChildrenWrapperModifier } = await import('../../file-system/modifiers/jsx-children-wrapper.js');
+        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, context.project.path || '.');
+        const modifier = new JsxChildrenWrapperModifier(engine);
+        return await modifier.execute(filePath, params, context);
+      }
+    });
   }
 
   /**
@@ -219,6 +258,9 @@ export class BlueprintExecutor {
    * 2. Pre-populate VFS with existing files from disk
    * 3. Execute all actions on the VFS (in-memory)
    * 4. Return to OrchestratorAgent (VFS flush happens there after successful execution)
+   * 
+   * Note: Blueprint type safety is enforced at compile-time by the marketplace,
+   * so no runtime validation is needed.
    */
   async executeBlueprint(blueprint: Blueprint, context: ProjectContext, vfs: VirtualFileSystem): Promise<BlueprintExecutionResult> {
     console.log(`🎯 Executing blueprint: ${blueprint.name}`);
@@ -233,10 +275,7 @@ export class BlueprintExecutor {
       
       // 2. Pre-populate VFS with existing files (intelligent pre-loading)
       if (analysis.filesToRead.length > 0) {
-        console.log(`🔄 VFS: Pre-loading files for ${blueprint.name}...`);
-        console.log(`🔍 DEBUG VFS: Files to pre-load: [${analysis.filesToRead.join(', ')}]`);
         await vfs.initializeWithFiles(analysis.filesToRead);
-        console.log(`🔍 DEBUG VFS: After pre-loading, VFS contains: [${vfs.getAllFiles().join(', ')}]`);
       }
       
       // 3. Expand forEach actions
@@ -244,7 +283,6 @@ export class BlueprintExecutor {
       
       // 4. Execute all actions on the VFS (unified execution)
       for (const action of expandedActions) {
-        console.log(`  🔧 Executing action: ${action.type}`);
         
         const result = await this.actionHandlerRegistry.handleAction(action, context, context.project.path || '.', vfs);
         
@@ -269,7 +307,6 @@ export class BlueprintExecutor {
           files.push(...result.files);
         }
         
-        console.log(`    ✅ Action completed: ${result.message || action.type}`);
       }
       
       return {
@@ -280,9 +317,7 @@ export class BlueprintExecutor {
       };
       
     } catch (error) {
-      console.error(`🔍 DEBUG CATCH: blueprint = ${blueprint ? blueprint.id : 'undefined'}`);
-      console.error(`🔍 DEBUG CATCH: error = ${error instanceof Error ? error.message : 'Unknown error'}`);
-      console.error(`🔍 DEBUG CATCH: error stack = ${error instanceof Error ? error.stack : 'No stack'}`);
+
       
       const architechError = ArchitechError.internalError(
         `Blueprint execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,

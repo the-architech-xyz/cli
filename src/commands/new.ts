@@ -64,9 +64,8 @@ export function createNewCommand(): Command {
           process.exit(1);
         }
 
-        // PHASE 1: Pre-execution genome validation (temporarily disabled due to validator bug)
-        logger.info('🔍 Skipping genome validation (temporarily disabled)');
-        logger.info(`✅ Genome validation skipped - proceeding with execution`);
+        // PHASE 1: Pre-execution genome validation will be performed by OrchestratorAgent
+        logger.info('🔍 Genome validation will be performed during execution');
         
         logger.info(`📋 Genome: ${recipe.project.name}`);
         logger.info(`📁 Project path: ${recipe.project.path}`);

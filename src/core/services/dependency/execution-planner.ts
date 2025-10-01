@@ -176,14 +176,14 @@ export class ExecutionPlanner {
     // Calculate total duration for the batch
     let totalDuration = 0;
     for (const module of modules) {
-      const categoryDuration = categoryDurations[module.category] || 5000;
+      const categoryDuration = categoryDurations[module.category || 'unknown'] || 5000;
       totalDuration += categoryDuration;
     }
 
     // If modules can run in parallel, take the maximum duration
     if (modules.length > 1) {
       const maxCategoryDuration = Math.max(
-        ...modules.map(m => categoryDurations[m.category] || 5000)
+        ...modules.map(m => categoryDurations[m.category || 'unknown'] || 5000)
       );
       totalDuration = maxCategoryDuration;
     }

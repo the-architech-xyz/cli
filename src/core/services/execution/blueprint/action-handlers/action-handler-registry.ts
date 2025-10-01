@@ -83,8 +83,10 @@ export class ActionHandlerRegistry {
       type: action.type,
       forEach: action.forEach,
       command: action.command,
-      // target: action.target, // Property doesn't exist in BlueprintAction interface
-      packages: action.packages
+      packages: action.packages,
+      key: action.key,
+      value: action.value,
+      name: action.name
     });
     
     // DEBUG: Check for forEach expansion
