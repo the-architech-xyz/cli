@@ -55,7 +55,6 @@ export class AddScriptHandler extends BaseActionHandler {
     // Ensure package.json exists in VFS
     if (!vfs.fileExists(filePath)) {
       vfs.createFile(filePath, '{}');
-      console.log(`  📝 VFS: Created empty package.json (fallback) for script addition`);
     }
 
     const modifier = this.modifierRegistry.get('package-json-merger');
@@ -67,7 +66,6 @@ export class AddScriptHandler extends BaseActionHandler {
     }
 
     try {
-      console.log(`  📝 VFS: Adding script '${scriptName}' to ${filePath}`);
       
       const params = {
         scripts: {
@@ -84,7 +82,6 @@ export class AddScriptHandler extends BaseActionHandler {
         };
       }
 
-      console.log(`  ✅ VFS: Script '${scriptName}' added to ${filePath}`);
       return { 
         success: true, 
         message: `Added script: ${scriptName}`,

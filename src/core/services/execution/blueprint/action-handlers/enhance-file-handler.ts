@@ -56,9 +56,15 @@ export class EnhanceFileHandler extends BaseActionHandler {
     }
 
     try {
-      // Check if file exists in VFS, if not create it (fallback: create)
+      // Check if file exists in VFS, if not try smart fallback
+      let actualFilePath = filePath;
       if (!vfs.fileExists(filePath)) {
-        if (action.fallback === 'create') {
+        // Try smart fallback: check for alternative extensions
+        const fallbackPath = this.findAlternativeFile(filePath, vfs);
+        if (fallbackPath) {
+          actualFilePath = fallbackPath;
+          console.log(`  🔄 Using alternative file: ${fallbackPath} (instead of ${filePath})`);
+        } else if (action.fallback === 'create') {
           // Create empty file for modifier to work with
           vfs.createFile(filePath, '{}');
           console.log(`  📝 Created file (fallback): ${filePath}`);
@@ -68,18 +74,18 @@ export class EnhanceFileHandler extends BaseActionHandler {
       }
 
       // Execute the modifier
-      console.log(`  🔧 Applying modifier '${action.modifier}' to ${filePath}`);
-      const modifierResult = await modifier.execute(filePath, action.params || {}, context, vfs);
+      console.log(`  🔧 Applying modifier '${action.modifier}' to ${actualFilePath}`);
+      const modifierResult = await modifier.execute(actualFilePath, action.params || {}, context, vfs);
 
       if (!modifierResult.success) {
         return { success: false, error: `Modifier execution failed: ${modifierResult.error}` };
       }
 
-      console.log(`  ✨ Enhanced file: ${filePath}`);
+      console.log(`  ✨ Enhanced file: ${actualFilePath}`);
       return { 
         success: true, 
-        files: [filePath],
-        message: `File enhanced with ${action.modifier}: ${filePath}`
+        files: [actualFilePath],
+        message: `File enhanced with ${action.modifier}: ${actualFilePath}`
       };
 
     } catch (error) {
@@ -92,5 +98,38 @@ export class EnhanceFileHandler extends BaseActionHandler {
         error: architechError.getUserMessage() 
       };
     }
+  }
+
+  /**
+   * Find alternative file with different extension
+   * e.g., next.config.js -> next.config.ts
+   */
+  private findAlternativeFile(originalPath: string, vfs: VirtualFileSystem): string | null {
+    const pathParts = originalPath.split('.');
+    if (pathParts.length < 2) return null;
+    
+    const extension = pathParts.pop();
+    const basePath = pathParts.join('.');
+    
+    // Define common extension alternatives
+    const extensionAlternatives: { [key: string]: string[] } = {
+      'js': ['ts', 'mjs', 'cjs'],
+      'ts': ['js', 'mts', 'cts'],
+      'mjs': ['js', 'ts'],
+      'cjs': ['js', 'ts'],
+      'mts': ['ts', 'js'],
+      'cts': ['ts', 'js']
+    };
+    
+    const alternatives = extensionAlternatives[extension || ''] || [];
+    
+    for (const altExt of alternatives) {
+      const alternativePath = `${basePath}.${altExt}`;
+      if (vfs.fileExists(alternativePath)) {
+        return alternativePath;
+      }
+    }
+    
+    return null;
   }
 }

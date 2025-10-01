@@ -103,7 +103,6 @@ export class CreateFileHandler extends BaseActionHandler {
     try {
       // Create file in VFS (unified VFS mode)
       vfs.createFile(filePath, content);
-      console.log(`  📝 Created file: ${filePath}`);
 
       return { 
         success: true, 

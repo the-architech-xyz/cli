@@ -44,11 +44,7 @@ export class InstallPackagesHandler extends BaseActionHandler {
         }
 
         // DEBUG: Log VFS contents before attempting package installation
-        console.log(`🔍 DEBUG INSTALL_PACKAGES: VFS contains files: [${vfs.getAllFiles().join(', ')}]`);
-        console.log(`🔍 DEBUG INSTALL_PACKAGES: Looking for package.json, exists: ${vfs.fileExists('package.json')}`);
-        console.log(`🔍 DEBUG INSTALL_PACKAGES: Current working directory: ${process.cwd()}`);
-        console.log(`🔍 DEBUG INSTALL_PACKAGES: Project root: ${projectRoot}`);
-        console.log(`🔍 DEBUG INSTALL_PACKAGES: Attempting to merge package.json at path: ${pathResolve(projectRoot, 'package.json')}`);
+        // Debug logging removed - use Logger.debug() instead
 
         try {
       // Use package-json-merger modifier to add packages

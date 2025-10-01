@@ -4,7 +4,7 @@
 
 ## 🎯 Overview
 
-The Architech is a **Code Supply Chain** platform that transforms software development from an artisanal process into a component assembly system. It provides pre-verified, specialized components that developers can combine to create robust, maintainable, and production-ready applications.
+The Architech is a **Type-Safe Code Generation Platform** that transforms software development from an artisanal process into a component assembly system. It provides pre-verified, specialized components that developers can combine using TypeScript genomes to create robust, maintainable, and production-ready applications with full compile-time safety.
 
 ## 🎯 Core Principles (The "Triforce")
 
@@ -14,42 +14,65 @@ Our architectural decisions are guided by three fundamental principles:
 2. **Security by Default** - Never corrupt a user's project. Every operation must be safe and predictable
 3. **Open Extensibility** - Architecture must encourage and facilitate community contribution
 
-## 🏛️ Three-Layer Architecture
+## 🏛️ Four-Layer Architecture
 
-The Architech uses a clean three-layer architecture that separates concerns and makes the system maintainable, testable, and extensible.
+The Architech uses a clean four-layer architecture that separates concerns and makes the system maintainable, testable, and extensible.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Layer 3: Blueprint Executor              │
-│                   (Orchestration & Coordination)            │
+│                    Layer 4: Type-Safe Genome System         │
+│                   (TypeScript + Autocomplete)               │
 └─────────────────────┬───────────────────────────────────────┘
                       │
 ┌─────────────────────▼───────────────────────────────────────┐
-│                Layer 2: Blueprint Orchestrator              │
+│                Layer 3: Phase-Oriented CLI                  │
+│              (Beautiful Progress Display)                   │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────────┐
+│                Layer 2: Blueprint Executor                  │
+│              (Orchestration & Coordination)                 │
+└─────────────────────┬───────────────────────────────────────┘
+                      │
+┌─────────────────────▼───────────────────────────────────────┐
+│                Layer 1: Blueprint Orchestrator              │
 │              (Semantic Action Translation)                  │
 └─────────────────────┬───────────────────────────────────────┘
                       │
 ┌─────────────────────▼───────────────────────────────────────┐
-│              Layer 1: File Modification Engine              │
+│              Layer 0: File Modification Engine              │
 │                (Primitive File Operations)                  │
-└─────────────────────┬───────────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────────┐
-│                Layer 0: Blueprint Analyzer                  │
-│              (File Analysis & VFS Pre-population)           │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Layer 3: Blueprint Executor
+### Layer 4: Type-Safe Genome System
+**Purpose**: TypeScript-based project configuration with full autocomplete
+
+**Responsibilities**:
+- Type-safe genome definition
+- IntelliSense support and autocomplete
+- Compile-time validation
+- IDE integration and error checking
+
+### Layer 3: Phase-Oriented CLI
+**Purpose**: Beautiful, progress-oriented user experience
+
+**Responsibilities**:
+- Phase-based progress display
+- Real-time execution feedback
+- Success screen with next steps
+- Verbose mode for debugging
+
+### Layer 2: Blueprint Executor
 **Purpose**: Orchestration and coordination of blueprint execution
 
 **Responsibilities**:
-- Recipe parsing and validation
-- Agent coordination and execution
+- Genome parsing and validation
+- Module coordination and execution
 - Error handling and rollback
 - Progress reporting and logging
 
-### Layer 2: Blueprint Orchestrator
+### Layer 1: Blueprint Orchestrator
 **Purpose**: Translates semantic actions to file primitives
 
 **Responsibilities**:
@@ -58,7 +81,7 @@ The Architech uses a clean three-layer architecture that separates concerns and 
 - Condition evaluation
 - File modification coordination
 
-### Layer 1: File Modification Engine
+### Layer 0: File Modification Engine
 **Purpose**: Core file operations with Contextual, Isolated Virtual File System (VFS)
 
 **Responsibilities**:
@@ -67,16 +90,6 @@ The Architech uses a clean three-layer architecture that separates concerns and 
 - TypeScript AST manipulation with ts-morph
 - Atomic writes to disk
 - In-memory file tracking per blueprint
-
-### Layer 0: Blueprint Analyzer
-**Purpose**: File analysis and VFS pre-population
-
-**Responsibilities**:
-- Analyze blueprints to determine required files
-- Scan actions for file references
-- Extract contextualFiles property
-- Validate required files exist on disk
-- Determine execution strategy (VFS vs simple)
 
 ## 🗂️ Virtual File System (VFS) Architecture
 
@@ -158,6 +171,65 @@ All VFS changes are written to disk atomically:
 - ENHANCE_FILE can auto-create missing files
 - Explicit fallback strategies: 'create', 'skip', 'error'
 - Graceful handling of missing dependencies
+
+## 🧬 TypeScript Genome System
+
+### Genome Interface
+
+```typescript
+export interface Genome {
+  project: {
+    name: string;
+    framework: string;
+    path: string;
+    description?: string;
+    version?: string;
+    author?: string;
+    license?: string;
+  };
+  modules: Module[];
+}
+
+export interface Module {
+  id: string;
+  parameters?: Record<string, any>;
+  features?: Record<string, boolean>;
+}
+```
+
+### Type Safety Benefits
+
+The TypeScript genome system provides:
+
+- **🧬 Full Autocomplete**: IntelliSense for all parameters and options
+- **🎯 Compile-Time Validation**: Catch errors before execution
+- **⚡ Fast Feedback**: Immediate error detection in IDE
+- **🔧 Refactoring Support**: Safe renaming and restructuring
+- **🛡️ Type Safety**: Prevents configuration errors at compile time
+
+### Example Genome
+
+```typescript
+import { defineGenome } from '@thearchitech.xyz/marketplace';
+
+export default defineGenome({
+  project: {
+    name: 'my-saas',
+    framework: 'nextjs',
+    path: './my-saas'
+  },
+  modules: [
+    {
+      id: 'framework/nextjs',
+      parameters: {
+        typescript: true,    // ← Full autocomplete
+        tailwind: true,      // ← Type-safe parameters
+        appRouter: true      // ← IntelliSense support
+      }
+    }
+  ]
+});
+```
 
 ## 🎯 Blueprint System
 

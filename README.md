@@ -18,17 +18,18 @@ Fix three critical problems in modern software development:
 
 ## ✨ Features
 
-### V1: Agent-Based Recipe Executor
-- **📋 Declarative YAML Recipes** - Define your project in simple YAML files
-- **🤖 Specialized Agents** - Each agent handles their domain (framework, database, auth, UI, testing)
-- **🔌 Three-Tier Adapter System** - Agnostic Adapters, Dependent Adapters, and Integration Adapters
-- **🔗 Integration System** - Cross-adapter integrations using "Requester-Provider" pattern
+### V1: Type-Safe Genome System
+- **🧬 TypeScript Genomes** - Define your project with full autocomplete and type safety
+- **🎯 IntelliSense Support** - Complete IDE integration with parameter validation
+- **📋 Phase-Oriented CLI** - Beautiful progress display with clear execution phases
+- **🔌 Modular Adapter System** - 50+ adapters across 12 categories (framework, database, auth, UI, etc.)
+- **🔗 Seamless Integrations** - Automatic connections between adapters with type safety
 - **⚡ CLI-First Approach** - Leverages existing tools like `create-next-app` and `shadcn init`
 - **🏗️ Three-Layer Architecture** - Clean separation of concerns with File Engine, Orchestrator, and Executor
 - **🎯 Semantic Actions** - High-level, intent-driven actions that abstract implementation complexity
-- **🗂️ Contextual, Isolated VFS** - Each blueprint runs in its own sandbox with pre-populated files
+- **🗂️ Virtual File System** - Atomic, transactional file operations with rollback safety
 - **🔄 Smart Fallback Mechanism** - ENHANCE_FILE can auto-create missing files (perfect for API routes)
-- **🛡️ Type-Safe** - Built with TypeScript for reliability and developer experience
+- **🛡️ Compile-Time Safety** - Full TypeScript validation prevents configuration errors
 
 ### V2: Dynamic Module Management (Coming Soon)
 - **➕ Dynamic Module Addition** - Add features to existing projects
@@ -46,77 +47,136 @@ npm install -g @the-architech/cli
 
 ### Create Your First Project
 
-#### Option 1: Using Project Genomes (Recommended)
+#### Option 1: Using Pre-built Genomes (Recommended)
 
 ```bash
 # List available genomes
 architech list-genomes
 
 # Create a SaaS application
-architech new --genome saas-boilerplate --name my-saas
+architech new marketplace/genomes/saas-app.genome.ts
 
 # Create a blog
-architech new --genome blog-pro --name my-blog
+architech new marketplace/genomes/blog-app.genome.ts
 
-# Create a marketplace
-architech new --genome marketplace --name my-marketplace
+# Create an e-commerce app
+architech new marketplace/genomes/ecommerce-app.genome.ts
 
-# Create a dApp
-architech new --genome dapp --name my-dapp
+# Create the ultimate app (showcases all features)
+architech new marketplace/genomes/ultimate-app.genome.ts
 ```
 
-#### Option 2: Using Custom Recipes
+#### Option 2: Create Your Own TypeScript Genome
 
-1. **Create a recipe file** (`my-saas.yaml`):
+1. **Create a genome file** (`my-saas.genome.ts`):
 
-```yaml
-version: "1.0"
-project:
-  name: "my-saas"
-  framework: "nextjs"
-  path: "./my-saas"
-modules:
-  - id: "nextjs"
-    category: "framework"
-    version: "latest"
-    parameters:
-      typescript: true
-      tailwind: true
-      appRouter: true
-  - id: "shadcn-ui"
-    category: "ui"
-    version: "latest"
-    parameters:
-      components: ["button", "input", "card", "dialog"]
-  - id: "drizzle"
-    category: "database"
-    version: "latest"
-    parameters:
-      databaseType: "postgresql"
-      includeMigrations: true
-  - id: "better-auth"
-    category: "auth"
-    version: "latest"
-    parameters:
-      providers: ["github", "google"]
-      sessionStrategy: "jwt"
-  - id: "vitest"
-    category: "testing"
-    version: "latest"
-    parameters:
-      coverage: true
-      ui: true
-options:
-  skipInstall: false
+```typescript
+import { defineGenome } from '@thearchitech.xyz/marketplace';
+
+export default defineGenome({
+  project: {
+    name: 'my-saas',
+    framework: 'nextjs',
+    path: './my-saas',
+    description: 'My awesome SaaS application'
+  },
+  modules: [
+    {
+      id: 'framework/nextjs',
+      parameters: {
+        typescript: true,    // ← Full autocomplete
+        tailwind: true,      // ← Type-safe parameters
+        appRouter: true,     // ← IntelliSense support
+        eslint: true
+      },
+      features: {
+        performance: true,
+        security: true,
+        'api-routes': true
+      }
+    },
+    {
+      id: 'ui/shadcn-ui',
+      parameters: {
+        components: ['button', 'input', 'card', 'dialog'] // ← Autocomplete for components
+      },
+      features: {
+        theming: true,
+        accessibility: true
+      }
+    },
+    {
+      id: 'database/drizzle',
+      parameters: {
+        provider: 'neon',
+        databaseType: 'postgresql'
+      },
+      features: {
+        migrations: true,
+        studio: true,
+        relations: true
+      }
+    },
+    {
+      id: 'auth/better-auth',
+      parameters: {
+        providers: ['github', 'google'],
+        emailPassword: true
+      },
+      features: {
+        'email-verification': true,
+        'password-reset': true,
+        'multi-factor': true
+      }
+    }
+  ]
+});
 ```
 
 2. **Generate your project**:
 
 ```bash
-architech new my-saas.yaml
+architech new my-saas.genome.ts
 ```
 
-3. **Start developing**:
+3. **Experience the beautiful CLI**:
+
+```
+🔍 Validating Genome...
+   ✅ Completed in 45ms
+
+📋 Planning Execution...
+   ✅ Completed in 23ms
+
+🏗️ Setting Up Framework...
+   [1/4] 📦 Installing framework/nextjs...
+   ✅ framework/nextjs
+
+🔧 Installing Adapters...
+   [2/4] 📦 Installing ui/shadcn-ui...
+   ✅ ui/shadcn-ui
+   [3/4] 📦 Installing database/drizzle...
+   ✅ database/drizzle
+   [4/4] 📦 Installing auth/better-auth...
+   ✅ auth/better-auth
+
+🔗 Configuring Integrations...
+   ✅ All integrations configured
+
+✨ Finalizing Project...
+   ✅ Dependencies installed
+
+🎉 Project created successfully!
+
+Next steps:
+  cd my-saas
+  npm install
+  npm run dev
+
+Happy coding! 🎉
+```
+
+4. **Start developing**:
 
 ```bash
 cd my-saas
@@ -192,26 +252,38 @@ npm run dev
 
 ## 📚 Documentation
 
-### Core Architecture
-- **[Architecture Guide](docs/ARCHITECTURE.md)** - Complete architectural documentation
-- **[Design Choices](docs/CHOICES.md)** - Rationale behind design decisions
-
-### Developer Guides
-- **[Adapter Development Guide](docs/ADAPTER_DEVELOPMENT_GUIDE.md)** - Creating custom adapters
-- **[Integration Development Guide](docs/INTEGRATION_DEVELOPMENT_GUIDE.md)** - Creating custom integrations
-- **[Semantic Actions Guide](docs/SEMANTIC_ACTIONS_GUIDE.md)** - High-level AST-based operations
-
-### References
-- **[Recipe Format](docs/RECIPE_FORMAT.md)** - Complete recipe file reference
+### Core Documentation
+- **[Quick Start](docs/QUICK_START.md)** - Get up and running in 5 minutes
+- **[Genome Format](docs/GENOME_FORMAT.md)** - Complete TypeScript genome reference
 - **[CLI Reference](docs/CLI_REFERENCE.md)** - Complete CLI command reference
+- **[Architecture Guide](docs/ARCHITECTURE.md)** - System architecture overview
+
+### Developer Resources
+- **[Modifier Cookbook](marketplace/docs/MODIFIER_COOKBOOK.md)** - Advanced modifier usage guide
+- **[Authoring Guide](marketplace/docs/AUTHORING_GUIDE.md)** - Creating custom adapters
+- **[Adapter Development](marketplace/docs/ADAPTER_DEVELOPMENT_GUIDE.md)** - Advanced adapter creation
+- **[Integration Development](marketplace/docs/INTEGRATION_DEVELOPMENT_GUIDE.md)** - Creating integrations
+- **[Semantic Actions](marketplace/docs/SEMANTIC_ACTIONS_GUIDE.md)** - AST-based operations
 
 ## 🛠️ CLI Commands
 
-### V1 Commands
+### Core Commands
 
 ```bash
-# Create a new project from a recipe
-architech new <recipe.yaml>
+# Create a new project from a TypeScript genome
+architech new <genome.ts> [options]
+
+# List available pre-built genomes
+architech list-genomes
+
+# Add features to existing project (V2)
+architech add <feature-id> [options]
+
+# Scale project to monorepo (V2)
+architech scale [options]
+
+# Explore marketplace (V2)
+architech marketplace [search|featured|categories]
 
 # Show help
 architech --help
@@ -220,14 +292,17 @@ architech --help
 architech --version
 ```
 
-### V2 Commands (Coming Soon)
+### Command Options
 
 ```bash
-# Add features to existing project
-architech add <feature-id> [options]
+# Create with verbose output
+architech new my-app.genome.ts --verbose
 
-# Scale project to monorepo
-architech scale [options]
+# Dry run (show what would be created)
+architech new my-app.genome.ts --dry-run
+
+# Quiet mode (minimal output)
+architech new my-app.genome.ts --quiet
 ```
 
 ## 🔧 Development

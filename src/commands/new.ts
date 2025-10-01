@@ -13,6 +13,7 @@ import { Recipe } from '@thearchitech.xyz/types';
 import { OrchestratorAgent } from '../agents/orchestrator-agent.js';
 import { ProjectManager } from '../core/services/project/project-manager.js';
 import { AgentLogger as Logger } from '../core/cli/logger.js';
+import { EnhancedLogger } from '../core/cli/enhanced-logger.js';
 import { GenomeValidator } from '../core/services/validation/genome-validator.js';
 import { ModuleService } from '../core/services/module-management/module-service.js';
 import { CacheManagerService } from '../core/services/infrastructure/cache/cache-manager.js';
@@ -64,15 +65,14 @@ export function createNewCommand(): Command {
           process.exit(1);
         }
 
-        // PHASE 1: Pre-execution genome validation will be performed by OrchestratorAgent
-        logger.info('🔍 Genome validation will be performed during execution');
-        
-        logger.info(`📋 Genome: ${recipe.project.name}`);
-        logger.info(`📁 Project path: ${recipe.project.path}`);
-        logger.info(`🔧 Modules: ${recipe.modules.length}`);
+        // Initialize enhanced logger
+        const enhancedLogger = new EnhancedLogger({
+          verbose: options.verbose || false,
+          quiet: options.quiet || false
+        });
         
         if (options.dryRun) {
-          logger.info('🔍 Dry run mode - showing what would be created:');
+          enhancedLogger.info('Dry run mode - showing what would be created:');
           showDryRunPreview(recipe, logger);
           return;
         }
@@ -81,22 +81,21 @@ export function createNewCommand(): Command {
         const projectManager = new ProjectManager(recipe.project);
         const orchestrator = new OrchestratorAgent(projectManager);
         
-        // Execute the recipe
-        logger.info('🎯 Starting project creation...');
-        const result = await orchestrator.executeRecipe(recipe, options.verbose);
+        // Execute the recipe with enhanced logging
+        const result = await orchestrator.executeRecipe(recipe, options.verbose, enhancedLogger);
         
         if (result.success) {
-          logger.success(`🎉 Project created successfully!`);
-          logger.info(`✅ ${result.modulesExecuted} modules executed`);
+          enhancedLogger.success('Project created successfully!');
+          enhancedLogger.logNextSteps(recipe.project.path, recipe.project.name);
           
           if (result.warnings && result.warnings.length > 0) {
-            logger.warn('⚠️ Warnings:');
-            result.warnings.forEach(warning => logger.warn(`  - ${warning}`));
+            enhancedLogger.warn('Warnings:');
+            result.warnings.forEach(warning => enhancedLogger.warn(`  - ${warning}`));
           }
         } else {
-          logger.error('💥 Project creation failed:');
+          enhancedLogger.error('Project creation failed:');
           if (result.errors) {
-            result.errors.forEach(error => logger.error(`  - ${error}`));
+            result.errors.forEach(error => enhancedLogger.error(`  - ${error}`));
           }
           process.exit(1);
         }

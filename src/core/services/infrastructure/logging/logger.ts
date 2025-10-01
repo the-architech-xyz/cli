@@ -44,6 +44,7 @@ export class Logger {
   private static level: LogLevel = LogLevel.INFO;
   private static entries: LogEntry[] = [];
   private static maxEntries: number = 1000;
+  private static verbose: boolean = false;
 
   /**
    * Configure logger settings
@@ -51,12 +52,16 @@ export class Logger {
   static configure(options: {
     level?: LogLevel;
     maxEntries?: number;
+    verbose?: boolean;
   }): void {
     if (options.level !== undefined) {
       this.level = options.level;
     }
     if (options.maxEntries !== undefined) {
       this.maxEntries = options.maxEntries;
+    }
+    if (options.verbose !== undefined) {
+      this.verbose = options.verbose;
     }
   }
 
@@ -65,6 +70,13 @@ export class Logger {
    */
   static setLevel(level: LogLevel): void {
     this.level = level;
+  }
+
+  /**
+   * Set verbose mode
+   */
+  static setVerbose(verbose: boolean): void {
+    this.verbose = verbose;
   }
 
   /**
@@ -85,6 +97,10 @@ export class Logger {
    * Log info message
    */
   static info(message: string, context?: LogContext): void {
+    // Only show info messages in verbose mode
+    if (!this.verbose) {
+      return;
+    }
     this.log(LogLevel.INFO, message, context);
   }
 
@@ -92,6 +108,10 @@ export class Logger {
    * Log warning message
    */
   static warn(message: string, context?: LogContext): void {
+    // Only show warnings in verbose mode
+    if (!this.verbose) {
+      return;
+    }
     this.log(LogLevel.WARN, message, context);
   }
 

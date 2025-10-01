@@ -32,21 +32,19 @@ export class VirtualFileSystem {
    */
   async initializeWithFiles(filePaths: string[]): Promise<void> {
     console.log(`🔄 VFS: Initializing with ${filePaths.length} files from disk...`);
-    console.log(`🔍 DEBUG VFS INIT: Project root: ${this.projectRoot}`);
-    console.log(`🔍 DEBUG VFS INIT: Files to load: [${filePaths.join(', ')}]`);
+    // Debug logging removed - use Logger.debug() instead
     
     for (const filePath of filePaths) {
       try {
         const normalizedPath = this.normalizePath(filePath);
         const fullPath = path.join(this.projectRoot, normalizedPath);
         
-        console.log(`🔍 DEBUG VFS INIT: Checking file: ${filePath} -> ${normalizedPath} -> ${fullPath}`);
+        // Debug logging removed - use Logger.debug() instead
         
         // Check if file exists on disk
         if (existsSync(fullPath)) {
           const content = await fs.readFile(fullPath, 'utf-8');
           this.files.set(normalizedPath, content);
-          console.log(`📖 VFS-READ-FROM-DISK: ${fullPath} (${content.length} chars)`);
         } else {
           console.log(`⚠️ VFS: File not found on disk: ${normalizedPath} (${fullPath})`);
         }
@@ -55,8 +53,6 @@ export class VirtualFileSystem {
       }
     }
     
-    console.log(`✅ VFS: Initialized with ${this.files.size} files`);
-    console.log(`🔍 DEBUG VFS INIT: Final VFS files: [${Array.from(this.files.keys()).join(', ')}]`);
   }
 
   /**
@@ -71,7 +67,6 @@ export class VirtualFileSystem {
       try {
         const content = await fs.readFile(fullPath, 'utf-8');
         this.files.set(normalizedPath, content);
-        console.log(`📖 VFS: Lazy loaded ${normalizedPath}`);
       } catch (error) {
         throw new Error(`File not found: ${normalizedPath} (${error instanceof Error ? error.message : 'Unknown error'})`);
       }
@@ -93,16 +88,13 @@ export class VirtualFileSystem {
         const newContent = JSON.parse(content);
         const merged = { ...existing, ...newContent };
         this.files.set(normalizedPath, JSON.stringify(merged, null, 2));
-        console.log(`🔄 VFS-WRITE-IN-MEMORY: ${normalizedPath} (JSON merged)`);
       } catch (error) {
         // If JSON merge fails, overwrite
         this.files.set(normalizedPath, content);
-        console.log(`⚠️ VFS-WRITE-IN-MEMORY: ${normalizedPath} (JSON merge failed, overwrote)`);
       }
     } else {
       // Simple overwrite for non-JSON files
       this.files.set(normalizedPath, content);
-      console.log(`✏️ VFS-WRITE-IN-MEMORY: ${normalizedPath}`);
     }
   }
 
@@ -185,7 +177,6 @@ export class VirtualFileSystem {
         const fullPath = path.join(this.projectRoot, filePath);
         await fs.mkdir(path.dirname(fullPath), { recursive: true });
         await fs.writeFile(fullPath, content, 'utf-8');
-        console.log(`✅ VFS-FLUSH-TO-DISK: ${filePath}`);
       } catch (error) {
         console.error(`❌ VFS-FLUSH-TO-DISK: Failed to flush ${filePath}:`, error);
         throw new Error(`Failed to flush file ${filePath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -200,7 +191,6 @@ export class VirtualFileSystem {
    */
   clear(): void {
     this.files.clear();
-    console.log(`🧹 VFS: Cleared all files`);
   }
 
   /**

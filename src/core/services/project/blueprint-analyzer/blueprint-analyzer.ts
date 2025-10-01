@@ -22,8 +22,7 @@ export class BlueprintAnalyzer {
    */
   analyzeBlueprint(blueprint: Blueprint, context: ProjectContext): BlueprintAnalysis {
     console.log(`🔍 Analyzing blueprint: ${blueprint.name}`);
-    console.log(`🔍 DEBUG: Blueprint ID: ${blueprint.id}`);
-    console.log(`🔍 DEBUG: Total actions: ${blueprint.actions.length}`);
+    // Debug logging removed - use Logger.debug() instead
     
     const filesToRead: string[] = [];
     const filesToCreate: string[] = [];
@@ -41,7 +40,6 @@ export class BlueprintAnalyzer {
     // 3. Determine if VFS is needed based on action types
     const needVFS = this.determineVFSNeed(blueprint.actions);
     
-    console.log(`🎯 VFS Decision: ${needVFS ? 'VFS Mode' : 'Direct Mode'} for ${blueprint.name}`);
     
     return {
       needVFS,
@@ -67,11 +65,7 @@ export class BlueprintAnalyzer {
     
     const needsVFS = actions.some(action => vfsRequiredActions.includes(action.type));
     
-    if (needsVFS) {
-      console.log(`🔧 VFS required: Found ${actions.filter(a => vfsRequiredActions.includes(a.type)).length} VFS-requiring actions`);
-    } else {
-      console.log(`💾 Direct mode: No VFS-requiring actions found`);
-    }
+
     
     return needsVFS;
   }
@@ -107,7 +101,6 @@ export class BlueprintAnalyzer {
         case 'CREATE_FILE':
           if (action.path) {
             filesToCreate.push(action.path);
-            console.log(`📝 Will create: ${action.path}`);
           }
           break;
           
@@ -116,9 +109,6 @@ export class BlueprintAnalyzer {
             // Only add to filesToRead if there's no fallback create option
             if (!action.fallback || action.fallback !== 'create') {
               filesToRead.push(action.path);
-              console.log(`🔧 Will enhance: ${action.path}`);
-            } else {
-              console.log(`🔧 Will enhance (with fallback create): ${action.path}`);
             }
           }
           break;
@@ -127,7 +117,6 @@ export class BlueprintAnalyzer {
         case 'MERGE_CONFIG':
           if (action.path) {
             filesToRead.push(action.path);
-            console.log(`🔄 Will merge: ${action.path}`);
           }
           break;
           
@@ -135,28 +124,24 @@ export class BlueprintAnalyzer {
         case 'PREPEND_TO_FILE':
           if (action.path) {
             filesToRead.push(action.path);
-            console.log(`➕ Will append/prepend to: ${action.path}`);
           }
           break;
           
         case 'ADD_TS_IMPORT':
           if (action.path) {
             filesToRead.push(action.path);
-            console.log(`📦 Will add imports to: ${action.path}`);
           }
           break;
           
         case 'EXTEND_SCHEMA':
           if (action.path) {
             filesToRead.push(action.path);
-            console.log(`🗄️ Will extend schema: ${action.path}`);
           }
           break;
           
         case 'WRAP_CONFIG':
           if (action.path) {
             filesToRead.push(action.path);
-            console.log(`📦 Will wrap config: ${action.path}`);
           }
           break;
           
@@ -164,22 +149,17 @@ export class BlueprintAnalyzer {
         case 'INSTALL_PACKAGES':
         case 'ADD_SCRIPT':
           filesToRead.push('package.json');
-          console.log(`📦 Action ${action.type} requires package.json access`);
           break;
           
         // Actions that don't require file access
         case 'ADD_ENV_VAR':
         case 'RUN_COMMAND':
-          console.log(`⚡ Action ${action.type} doesn't require file access`);
           break;
           
         default:
           // Handle additional package.json actions (using string comparison to avoid TypeScript issues)
           if (action.type === 'ADD_DEPENDENCY' || action.type === 'ADD_DEV_DEPENDENCY') {
             filesToRead.push('package.json');
-            console.log(`📦 Action ${action.type} requires package.json access`);
-          } else {
-            console.warn(`⚠️ Unknown action type: ${action.type}`);
           }
       }
     }
@@ -198,12 +178,7 @@ export class BlueprintAnalyzer {
       allRequiredFiles
     };
     
-    console.log(`✅ Blueprint analysis complete:`, {
-      filesToRead: analysis.filesToRead.length,
-      filesToCreate: analysis.filesToCreate.length,
-      contextualFiles: analysis.contextualFiles.length,
-      totalRequiredFiles: analysis.allRequiredFiles.length
-    });
+   
     
     // DEBUG: Show specific files for Drizzle blueprint
     // Note: blueprint.id is not available in this scope, so we'll check in the main analyzeBlueprint method
@@ -237,11 +212,7 @@ export class BlueprintAnalyzer {
     
     const valid = missingFiles.length === 0;
     
-    if (!valid) {
-      console.warn(`⚠️ Missing required files:`, missingFiles);
-    } else {
-      console.log(`✅ All required files exist on disk`);
-    }
+ 
     
     return {
       valid,
@@ -256,7 +227,6 @@ export class BlueprintAnalyzer {
   private expandForEachAction(action: BlueprintAction, context: ProjectContext): BlueprintAction[] {
     if (!action.forEach) return [action];
     
-    console.log(`🔍 Expanding forEach: ${action.forEach}`);
     
     // Get the array to iterate over from context
     const forEachPath = action.forEach.split('.');
@@ -268,13 +238,11 @@ export class BlueprintAnalyzer {
       if (current && typeof current === 'object' && key in current) {
         current = current[key];
       } else {
-        console.warn(`forEach path not found: ${action.forEach} at key: ${key}`);
         return [action];
       }
     }
     
     if (!Array.isArray(current)) {
-      console.warn(`forEach target is not an array: ${action.forEach}`);
       return [action];
     }
     
@@ -301,7 +269,6 @@ export class BlueprintAnalyzer {
       expandedActions.push(expandedAction);
     }
     
-    console.log(`🔄 Expanded forEach action into ${expandedActions.length} individual actions`);
     return expandedActions;
   }
 }

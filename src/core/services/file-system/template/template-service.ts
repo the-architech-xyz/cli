@@ -56,43 +56,28 @@ export class TemplateService {
     context: ProjectContext, 
     options: TemplateProcessingOptions = {}
   ): string {
-    // DEBUG: Log template processing input
-    console.log(`🔍 DEBUG: TemplateService.processTemplate called:`, {
-      inputTemplate: template,
-      contextVariables: {
-        project: context.project,
-        module: context.module,
-        framework: context.framework,
-        pathHandler: context.pathHandler
-      },
-      options: options
-    });
+    // Debug logging removed - use Logger.debug() instead
     
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
     let processed = template;
     
     // 1. Process path variables first (from decentralized path handler)
     if (opts.processPathVariables && context.pathHandler?.resolveTemplate) {
-      console.log(`🔍 DEBUG: Processing path variables...`);
+      // Debug logging removed - use Logger.debug() instead
       processed = context.pathHandler.resolveTemplate(processed);
-      console.log(`🔍 DEBUG: After path variables:`, processed);
     }
     
     // 2. Process Handlebars-like conditionals {{#if condition}}...{{/if}}
     if (opts.processConditionals) {
-      console.log(`🔍 DEBUG: Processing conditionals...`);
+      // Debug logging removed - use Logger.debug() instead
       processed = this.processConditionals(processed, context, opts);
-      console.log(`🔍 DEBUG: After conditionals:`, processed);
     }
     
     // 3. Process template variables {{variable}}
     if (opts.processVariables) {
-      console.log(`🔍 DEBUG: Processing template variables...`);
+      // Debug logging removed - use Logger.debug() instead
       processed = this.processVariables(processed, context, opts);
-      console.log(`🔍 DEBUG: After template variables:`, processed);
     }
-    
-    console.log(`🔍 DEBUG: Final processed template:`, processed);
     return processed;
   }
 

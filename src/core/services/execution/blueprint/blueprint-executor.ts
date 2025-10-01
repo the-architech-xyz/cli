@@ -292,7 +292,6 @@ export class BlueprintExecutor {
             result.error || 'Action execution failed'
           );
           errors.push(error.getUserMessage());
-          console.log(`    ❌ Action failed: ${error.getDebugMessage()}`);
           
           // FAIL FAST: Return immediately when any action fails
           return {
@@ -317,13 +316,10 @@ export class BlueprintExecutor {
       };
       
     } catch (error) {
-
-      
       const architechError = ArchitechError.internalError(
         `Blueprint execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
         { operation: 'blueprint_execution', moduleId: blueprint?.id || 'unknown' }
       );
-      console.error(`❌ Blueprint execution failed: ${architechError.getDebugMessage()}`);
       
       return { 
         success: false, 

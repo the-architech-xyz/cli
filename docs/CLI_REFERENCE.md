@@ -52,19 +52,19 @@ All commands support these global options:
 
 ### `architech new`
 
-Create a new project from an architech.yaml recipe.
+Create a new project from a TypeScript genome file.
 
 #### Usage
 
 ```bash
-architech new <recipe-file> [options]
+architech new <genome-file> [options]
 ```
 
 #### Arguments
 
 | Argument | Description | Required |
 |----------|-------------|----------|
-| `recipe-file` | Path to the architech.yaml recipe file | ✅ |
+| `genome-file` | Path to the .genome.ts file | ✅ |
 
 #### Options
 
@@ -72,26 +72,126 @@ architech new <recipe-file> [options]
 |--------|-------|-------------|---------|
 | `--dry-run` | `-d` | Show what would be created without executing | `false` |
 | `--verbose` | `-v` | Enable verbose logging | `false` |
-| `--force` | `-f` | Overwrite existing files | `false` |
-| `--skip-install` | `-s` | Skip dependency installation | `false` |
+| `--quiet` | `-q` | Suppress all output except errors | `false` |
 
 #### Examples
 
 ```bash
 # Create a new project
-architech new my-saas.yaml
+architech new my-saas.genome.ts
 
 # Create with verbose logging
-architech new my-saas.yaml --verbose
+architech new my-saas.genome.ts --verbose
 
 # Show what would be created
-architech new my-saas.yaml --dry-run
+architech new my-saas.genome.ts --dry-run
 
-# Overwrite existing files
-architech new my-saas.yaml --force
+# Quiet mode (minimal output)
+architech new my-saas.genome.ts --quiet
+```
 
-# Skip dependency installation
-architech new my-saas.yaml --skip-install
+#### Phase-Oriented Output
+
+The `new` command provides a beautiful, phase-oriented progress display:
+
+```
+🔍 Validating Genome...
+   ✅ Completed in 45ms
+
+📋 Planning Execution...
+   ✅ Completed in 23ms
+
+🏗️ Setting Up Framework...
+   [1/4] 📦 Installing framework/nextjs...
+   ✅ framework/nextjs
+
+🔧 Installing Adapters...
+   [2/4] 📦 Installing ui/shadcn-ui...
+   ✅ ui/shadcn-ui
+   [3/4] 📦 Installing database/drizzle...
+   ✅ database/drizzle
+   [4/4] 📦 Installing auth/better-auth...
+   ✅ auth/better-auth
+
+🔗 Configuring Integrations...
+   ✅ All integrations configured
+
+✨ Finalizing Project...
+   ✅ Dependencies installed
+
+🎉 Project created successfully!
+
+Next steps:
+  cd my-saas
+  npm install
+  npm run dev
+
+Happy coding! 🎉
+```
+
+#### Verbose Mode
+
+Use `--verbose` to see detailed execution information:
+
+```bash
+architech new my-saas.genome.ts --verbose
+```
+
+This shows:
+- Detailed module loading information
+- Blueprint execution details
+- File modification operations
+- Integration configuration steps
+- Debug information for troubleshooting
+
+### `architech list-genomes`
+
+List all available pre-built genome templates.
+
+#### Usage
+
+```bash
+architech list-genomes
+```
+
+#### Description
+
+Shows all available genome templates with their descriptions and complexity levels:
+
+```
+🧬 Available Genome Templates
+
+📱 SaaS Application
+   Description: Complete SaaS application with authentication, payments, and dashboard
+   Complexity: ⭐⭐⭐⭐⭐
+   Path: marketplace/genomes/saas-app.genome.ts
+
+📝 Blog Application
+   Description: Modern blog with CMS, internationalization, and SEO
+   Complexity: ⭐⭐⭐
+   Path: marketplace/genomes/blog-app.genome.ts
+
+🛒 E-commerce Platform
+   Description: Full-stack e-commerce with payments, inventory, and admin panel
+   Complexity: ⭐⭐⭐⭐⭐
+   Path: marketplace/genomes/ecommerce-app.genome.ts
+
+🚀 Ultimate Application
+   Description: Showcases all The Architech capabilities with complete feature sets
+   Complexity: ⭐⭐⭐⭐⭐
+   Path: marketplace/genomes/ultimate-app.genome.ts
+
+💡 Usage: architech new <path-to-genome>
+```
+
+#### Examples
+
+```bash
+# List all available genomes
+architech list-genomes
+
+# Use a genome template
+architech new marketplace/genomes/saas-app.genome.ts
 ```
 
 ### `architech add` (V2 Feature)
@@ -170,21 +270,24 @@ architech scale --apps "web,api" --libs "shared,ui"
 ### Basic Project Creation
 
 ```bash
-# Create a simple Next.js project
-architech new simple-nextjs.yaml
+# List available genome templates
+architech list-genomes
 
-# Create a full-stack SaaS
-architech new saas-boilerplate.yaml --verbose
+# Create a SaaS application
+architech new marketplace/genomes/saas-app.genome.ts
 
-# Create with custom name
-architech new my-recipe.yaml
+# Create a blog application
+architech new marketplace/genomes/blog-app.genome.ts
+
+# Create with custom genome
+architech new my-saas.genome.ts
 ```
 
 ### Development Workflow
 
 ```bash
-# Create project
-architech new my-saas.yaml
+# Create project from genome
+architech new my-saas.genome.ts
 
 # Navigate to project
 cd my-saas
@@ -200,21 +303,24 @@ architech add email/resend
 ### Testing and Validation
 
 ```bash
-# Test recipe without creating files
-architech new my-recipe.yaml --dry-run
+# Test genome without creating files
+architech new my-saas.genome.ts --dry-run
 
 # Validate with verbose output
-architech new my-recipe.yaml --verbose --dry-run
+architech new my-saas.genome.ts --verbose --dry-run
+
+# Quiet mode for CI/CD
+architech new my-saas.genome.ts --quiet
 ```
 
 ## 🔧 Troubleshooting
 
 ### Common Issues
 
-#### 1. Recipe File Not Found
+#### 1. Genome File Not Found
 
 ```bash
-Error: Recipe file 'my-recipe.yaml' not found
+Error: Genome file 'my-saas.genome.ts' not found
 ```
 
 **Solution:**
@@ -224,13 +330,32 @@ Error: Recipe file 'my-recipe.yaml' not found
 
 ```bash
 # Use absolute path
-architech new /path/to/my-recipe.yaml
+architech new /path/to/my-saas.genome.ts
 
 # Check current directory
-ls -la *.yaml
+ls -la *.genome.ts
 ```
 
-#### 2. Module Not Found
+#### 2. TypeScript Compilation Error
+
+```bash
+Error: TypeScript compilation failed
+```
+
+**Solution:**
+- Check TypeScript syntax
+- Verify imports are correct
+- Use IDE to fix type errors
+
+```bash
+# Check TypeScript compilation
+npx tsc --noEmit my-saas.genome.ts
+
+# Use verbose mode for detailed errors
+architech new my-saas.genome.ts --verbose
+```
+
+#### 3. Module Not Found
 
 ```bash
 Error: Module 'invalid-module' not found
@@ -238,15 +363,15 @@ Error: Module 'invalid-module' not found
 
 **Solution:**
 - Check module ID spelling
-- Verify module exists in adapters
-- Check supported modules list
+- Verify module exists in marketplace
+- Use autocomplete in IDE
 
 ```bash
-# List available modules
-architech list-modules
+# List available genomes
+architech list-genomes
 
-# Check module documentation
-architech docs module auth/better-auth
+# Check marketplace modules
+ls marketplace/adapters/
 ```
 
 #### 3. Permission Denied
@@ -313,10 +438,11 @@ cat ~/.architech/logs/error.log
 
 ## 📖 Additional Resources
 
-- [Recipe Format Documentation](./RECIPE_FORMAT.md)
-- [Adapter Development Guide](./ADAPTER_DEVELOPMENT_GUIDE.md)
-- [Available Modules](../src/adapters/)
-- [Example Recipes](../examples/)
+- [Genome Format Documentation](./GENOME_FORMAT.md)
+- [Quick Start Guide](./QUICK_START.md)
+- [Architecture Guide](./ARCHITECTURE.md)
+- [Available Modules](../marketplace/adapters/)
+- [Example Genomes](../marketplace/genomes/)
 
 ## 🤝 Getting Help
 

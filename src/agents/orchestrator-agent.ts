@@ -15,6 +15,7 @@ import { ModuleService } from '../core/services/module-management/module-service
 import { CacheManagerService } from '../core/services/infrastructure/cache/cache-manager.js';
 import * as path from 'path';
 import { Logger, ExecutionTracer, LogLevel } from '../core/services/infrastructure/logging/index.js';
+import { EnhancedLogger } from '../core/cli/enhanced-logger.js';
 import { ErrorHandler } from '../core/services/infrastructure/error/index.js';
 import { DependencyGraph } from '../core/services/dependency/dependency-graph.js';
 import { ExecutionPlanner, ExecutionPlan } from '../core/services/dependency/execution-planner.js';
@@ -55,13 +56,24 @@ export class OrchestratorAgent {
   /**
    * Execute a recipe using unified dependency-driven execution
    */
-  async executeRecipe(genome: Genome, verbose: boolean = false): Promise<ExecutionResult> {
+  async executeRecipe(genome: Genome, verbose: boolean = false, enhancedLogger?: EnhancedLogger): Promise<ExecutionResult> {
     const traceId = ExecutionTracer.startTrace('orchestrator_execution');
     const results: any[] = [];
     const errors: string[] = [];
     const warnings: string[] = [];
 
+    // Configure Logger level based on verbose flag
+    if (verbose) {
+      Logger.setLevel(LogLevel.DEBUG);
+    }
+    Logger.setVerbose(verbose);
+
     try {
+      // Enhanced logging: Start validation phase
+      if (enhancedLogger) {
+        enhancedLogger.startPhase('validating');
+      }
+
       Logger.info(`🚀 Starting genome execution: ${genome.project.name}`, {
         traceId,
         operation: 'genome_execution'
@@ -81,6 +93,11 @@ export class OrchestratorAgent {
         traceId,
         operation: 'module_loading'
       });
+
+      // Complete validation phase
+      if (enhancedLogger) {
+        enhancedLogger.completePhase();
+      }
 
       // 2.5. ARCHITECTURAL VALIDATION - NEW MANDATORY STEP
       ExecutionTracer.logOperation(traceId, 'Architectural validation');
@@ -109,9 +126,16 @@ export class OrchestratorAgent {
         operation: 'architectural_validation'
       });
       
+      // Enhanced logging: Start planning phase
+      if (enhancedLogger) {
+        enhancedLogger.startPhase('planning');
+      }
+
       // 3. Classify modules by type (Convention-Based Architecture)
       ExecutionTracer.logOperation(traceId, 'Classifying modules by type');
       const moduleClassification = this.classifyModulesByType(genome.modules);
+      
+      
       Logger.info(`📊 Module Classification:`, {
         traceId,
         operation: 'module_classification',
@@ -165,6 +189,11 @@ export class OrchestratorAgent {
         operation: 'execution_planning'
       });
       
+      // Complete planning phase
+      if (enhancedLogger) {
+        enhancedLogger.completePhase();
+      }
+      
       // DEBUG: Log the ENTIRE execution plan structure
       Logger.debug(`🔍 COMPLETE EXECUTION PLAN STRUCTURE:`, {
         traceId,
@@ -211,7 +240,18 @@ export class OrchestratorAgent {
 
       // 10. Execute using unified dependency-driven execution
       ExecutionTracer.logOperation(traceId, 'Executing unified dependency-driven plan');
-      const executionResult = await this.executeUnifiedPlan(genome, traceId, verbose, hierarchicalPlan);
+      
+      // Enhanced logging: Start execution phases
+      if (enhancedLogger) {
+        // Count modules by type for progress tracking
+        const totalModules = hierarchicalPlan.batches.reduce((sum: number, batch: any) => sum + batch.modules.length, 0);
+        enhancedLogger.setTotalModules(totalModules);
+        
+        // Start framework phase
+        enhancedLogger.startPhase('framework');
+      }
+      
+      const executionResult = await this.executeUnifiedPlan(genome, traceId, verbose, hierarchicalPlan, enhancedLogger);
       
       if (executionResult.success) {
         results.push(...executionResult.results);
@@ -300,7 +340,8 @@ export class OrchestratorAgent {
     genome: Genome, 
     traceId: string, 
     verbose: boolean, 
-    executionPlan: any
+    executionPlan: any,
+    enhancedLogger?: EnhancedLogger
   ): Promise<{ success: boolean; results: any[]; errors: string[] }> {
     const results: any[] = [];
     const errors: string[] = [];
@@ -324,7 +365,30 @@ export class OrchestratorAgent {
         // Execute modules in this batch (each module gets its own VFS lifecycle)
         for (const module of batch.modules) {
           console.log(`🔍 CWD BEFORE module ${module.id}:`, process.cwd());
-          const result = await this.executeModule(module, genome, traceId);
+          
+          // Enhanced logging: Determine module type and phase
+          if (enhancedLogger) {
+            let phaseKey = 'adapters';
+            if (module.category === 'framework') {
+              phaseKey = 'framework';
+            } else if (module.category === 'integration') {
+              phaseKey = 'integrations';
+            }
+            
+            // Check if we need to transition phases
+            const currentPhase = enhancedLogger['currentPhase'];
+            if (currentPhase !== phaseKey) {
+              if (currentPhase) {
+                enhancedLogger.completePhase();
+              }
+              enhancedLogger.startPhase(phaseKey);
+            }
+            
+            // Log module progress
+            enhancedLogger.logModuleProgress(module.id, 'installing');
+          }
+          
+          const result = await this.executeModule(module, genome, traceId, enhancedLogger);
           console.log(`🔍 CWD AFTER module ${module.id}:`, process.cwd());
           
           if (result.success) {
@@ -333,12 +397,23 @@ export class OrchestratorAgent {
               traceId,
               operation: 'unified_execution'
             });
+            
+            // Enhanced logging: Mark module as completed
+            if (enhancedLogger) {
+              enhancedLogger.logModuleProgress(module.id, 'completed');
+            }
           } else {
             errors.push(`Module ${module.id} failed: ${result.error}`);
             Logger.error(`❌ Module ${module.id} failed: ${result.error}`, {
               traceId,
               operation: 'unified_execution'
             });
+            
+            // Enhanced logging: Mark module as failed
+            if (enhancedLogger) {
+              enhancedLogger.logModuleProgress(module.id, 'failed');
+            }
+            
             return { success: false, results, errors };
           }
         }
@@ -348,6 +423,15 @@ export class OrchestratorAgent {
           traceId,
           operation: 'unified_execution'
         });
+      }
+
+      // Enhanced logging: Complete current phase and start finalizing
+      if (enhancedLogger) {
+        if (enhancedLogger['currentPhase']) {
+          enhancedLogger.completePhase();
+        }
+        enhancedLogger.startPhase('finalizing');
+        enhancedLogger.completePhase();
       }
 
       return { success: true, results, errors };
@@ -370,7 +454,8 @@ export class OrchestratorAgent {
   private async executeModule(
     module: Module, 
     genome: Genome, 
-    traceId: string
+    traceId: string,
+    enhancedLogger?: EnhancedLogger
   ): Promise<{ success: boolean; error?: string; executedModules?: any[] }> {
     let blueprintVFS: VirtualFileSystem | null = null;
     

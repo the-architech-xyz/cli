@@ -53,12 +53,10 @@ export class ActionHandlerRegistry {
     if (typeof handlerOrType === 'string') {
       // String-based registration
       this.handlers.set(handlerOrType, handler!);
-      console.log(`  🔧 Registered handler for action type: ${handlerOrType}`);
     } else {
       // Handler-based registration
       const actionType = handlerOrType.getSupportedActionType();
       this.handlers.set(actionType, handlerOrType);
-      console.log(`  🔧 Registered handler for action type: ${actionType}`);
     }
   }
 
@@ -78,25 +76,6 @@ export class ActionHandlerRegistry {
     projectRoot: string,
     vfs?: VirtualFileSystem
   ): Promise<ActionResult> {
-    // DEBUG: Log the action being processed
-    console.log(`🔍 DEBUG: Processing action:`, {
-      type: action.type,
-      forEach: action.forEach,
-      command: action.command,
-      packages: action.packages,
-      key: action.key,
-      value: action.value,
-      name: action.name
-    });
-    
-    // DEBUG: Check for forEach expansion
-    if (action.forEach) {
-      console.log(`🔍 DEBUG: forEach action detected:`, {
-        forEach: action.forEach,
-        originalAction: action
-      });
-    }
-    
     const handler = this.getHandler(action.type);
     
     if (!handler) {
@@ -105,9 +84,6 @@ export class ActionHandlerRegistry {
         error: `No handler found for action type: ${action.type}` 
       };
     }
-
-    // DEBUG: Log before executing action
-    console.log(`🔍 DEBUG: Executing Action ${action.type} for target ${action.path || 'N/A'}`);
 
     try {
       return await handler.handle(action, context, projectRoot, vfs);
