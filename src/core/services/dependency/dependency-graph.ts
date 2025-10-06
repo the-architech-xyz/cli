@@ -219,13 +219,53 @@ export class DependencyGraph {
 
     for (const [moduleId, node] of this.graph.entries()) {
       for (const dep of node.dependencies) {
-        if (!moduleIds.has(dep)) {
+        // Try to find the dependency by mapping short names to full module IDs
+        const mappedDep = this.mapShortNameToModuleId(dep, modules);
+        if (!moduleIds.has(mappedDep)) {
           missingDeps.push(`${moduleId} requires ${dep}`);
         }
       }
     }
 
     return missingDeps;
+  }
+
+  /**
+   * Map short dependency names to full module IDs
+   */
+  private mapShortNameToModuleId(shortName: string, modules: Module[]): string {
+    // Common mappings for short names to full module IDs
+    const shortNameMap: Record<string, string> = {
+      'nextjs': 'framework/nextjs',
+      'drizzle': 'database/drizzle',
+      'better-auth': 'auth/better-auth',
+      'shadcn-ui': 'ui/shadcn-ui',
+      'tanstack-query': 'data-fetching/tanstack-query',
+      'zustand': 'state/zustand',
+      'vitest': 'testing/vitest',
+      'eslint': 'quality/eslint',
+      'prettier': 'quality/prettier',
+      'forms': 'core/forms'
+    };
+
+    // If it's already a full module ID, return as-is
+    if (shortName.includes('/')) {
+      return shortName;
+    }
+
+    // Check if it's in our mapping
+    if (shortNameMap[shortName]) {
+      return shortNameMap[shortName];
+    }
+
+    // Try to find a module that ends with this short name
+    const matchingModule = modules.find(m => m.id.endsWith(`/${shortName}`));
+    if (matchingModule) {
+      return matchingModule.id;
+    }
+
+    // Return the original short name if no mapping found
+    return shortName;
   }
 
   /**

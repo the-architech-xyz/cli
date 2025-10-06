@@ -71,10 +71,6 @@ export class ExecutionPlanner {
 
       const totalDuration = batches.reduce((sum, batch) => sum + batch.estimatedDuration, 0);
 
-      console.log(`✅ Execution plan created successfully`);
-      console.log(`  📊 Total batches: ${batches.length}`);
-      console.log(`  ⏱️  Estimated duration: ${totalDuration}ms`);
-      console.log(`  🔄 Parallel execution: ${batches.filter(b => b.canExecuteInParallel).length} batches`);
 
       return {
         success: true,

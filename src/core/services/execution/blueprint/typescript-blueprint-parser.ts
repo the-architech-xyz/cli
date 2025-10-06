@@ -6,7 +6,7 @@
  */
 
 import { parse } from '@typescript-eslint/typescript-estree';
-import { Blueprint } from '@thearchitech.xyz/types';
+import { Blueprint, BlueprintActionType } from '@thearchitech.xyz/types';
 
 export class TypeScriptBlueprintParser {
   /**

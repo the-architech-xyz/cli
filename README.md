@@ -41,7 +41,27 @@ Fix three critical problems in modern software development:
 
 ### Installation
 
+#### Option 1: Build from Source (Current Method)
+
 ```bash
+# Clone the repository
+git clone https://github.com/the-architech/cli.git
+cd cli
+
+# Install dependencies
+npm install
+
+# Build the project
+npm run build
+
+# Test the CLI
+node dist/index.js --version
+```
+
+#### Option 2: NPM Package (Coming Soon)
+
+```bash
+# This will be available soon
 npm install -g @the-architech/cli
 ```
 
@@ -53,17 +73,20 @@ npm install -g @the-architech/cli
 # List available genomes
 architech list-genomes
 
+# Create a simple application (recommended for testing)
+architech new /path/to/marketplace/genomes/simple-app.genome.ts
+
 # Create a SaaS application
-architech new marketplace/genomes/saas-app.genome.ts
+architech new /path/to/marketplace/genomes/saas-starter.genome.ts
 
 # Create a blog
-architech new marketplace/genomes/blog-app.genome.ts
+architech new /path/to/marketplace/genomes/blog-app.genome.ts
 
 # Create an e-commerce app
-architech new marketplace/genomes/ecommerce-app.genome.ts
+architech new /path/to/marketplace/genomes/ecommerce-app.genome.ts
 
-# Create the ultimate app (showcases all features)
-architech new marketplace/genomes/ultimate-app.genome.ts
+# Dry run (see what would be created)
+architech new /path/to/marketplace/genomes/simple-app.genome.ts --dry-run
 ```
 
 #### Option 2: Create Your Own TypeScript Genome
@@ -71,9 +94,10 @@ architech new marketplace/genomes/ultimate-app.genome.ts
 1. **Create a genome file** (`my-saas.genome.ts`):
 
 ```typescript
-import { defineGenome } from '@thearchitech.xyz/marketplace';
+import { Genome } from '@thearchitech.xyz/marketplace';
 
-export default defineGenome({
+const mySaaSGenome: Genome = {
+  version: '1.0.0',
   project: {
     name: 'my-saas',
     framework: 'nextjs',
@@ -130,7 +154,9 @@ export default defineGenome({
       }
     }
   ]
-});
+};
+
+export default mySaaSGenome;
 ```
 
 2. **Generate your project**:
@@ -253,7 +279,9 @@ npm run dev
 ## 📚 Documentation
 
 ### Core Documentation
+- **[Installation Guide](docs/INSTALLATION.md)** - Complete installation instructions
 - **[Quick Start](docs/QUICK_START.md)** - Get up and running in 5 minutes
+- **[Working Examples](docs/EXAMPLES.md)** - Real, tested genome examples
 - **[Genome Format](docs/GENOME_FORMAT.md)** - Complete TypeScript genome reference
 - **[CLI Reference](docs/CLI_REFERENCE.md)** - Complete CLI command reference
 - **[Architecture Guide](docs/ARCHITECTURE.md)** - System architecture overview
@@ -271,19 +299,22 @@ npm run dev
 
 ```bash
 # Create a new project from a TypeScript genome
-architech new <genome.ts> [options]
+architech new <genome-file> [options]
 
 # List available pre-built genomes
 architech list-genomes
 
-# Add features to existing project (V2)
-architech add <feature-id> [options]
+# Add features to existing project
+architech add <feature> [options]
 
-# Scale project to monorepo (V2)
+# Scale project to monorepo structure
 architech scale [options]
 
-# Explore marketplace (V2)
+# Explore marketplace
 architech marketplace [search|featured|categories]
+
+# Analyze existing repository
+architech analyze <repo-url> [options]
 
 # Show help
 architech --help
@@ -303,6 +334,12 @@ architech new my-app.genome.ts --dry-run
 
 # Quiet mode (minimal output)
 architech new my-app.genome.ts --quiet
+
+# Analyze with specific output format
+architech analyze https://github.com/user/repo --format typescript
+
+# Analyze local directory
+architech analyze ./my-project --no-clone
 ```
 
 ## 🔧 Development

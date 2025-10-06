@@ -77,7 +77,8 @@ describe('BlueprintExecutor', () => {
         name: 'Test Blueprint',
         actions: [
           {
-            type: 'ENHANCE_FILE',
+            type: BlueprintActionType.ENHANCE_FILE,
+
             path: 'package.json',
             modifier: 'package-json-merger'
           }
@@ -136,7 +137,7 @@ describe('BlueprintExecutor', () => {
         name: 'Test Blueprint',
         actions: [
           {
-            type: 'CREATE_FILE',
+            type: BlueprintActionType.CREATE_FILE,
             path: 'test.txt',
             content: 'Hello World'
           }

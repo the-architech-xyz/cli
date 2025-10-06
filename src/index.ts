@@ -14,6 +14,7 @@ import { createAddCommand } from './commands/add.js';
 import { createScaleCommand } from './commands/scale.js';
 import { createListGenomesCommand } from './commands/list-genomes.js';
 import { createMarketplaceCommand } from './commands/marketplace.js';
+import { createAnalyzeCommand } from './commands/analyze.js';
 import { displayBanner } from './core/cli/banner.js';
 import { PathService } from './core/services/path/path-service.js';
 
@@ -38,6 +39,7 @@ program.addCommand(createAddCommand());
 program.addCommand(createScaleCommand());
 program.addCommand(createListGenomesCommand());
 program.addCommand(createMarketplaceCommand());
+program.addCommand(createAnalyzeCommand());
 
 // Default command (show help)
   program
@@ -48,6 +50,7 @@ program.addCommand(createMarketplaceCommand());
     console.log(chalk.gray('  new           Create a new project from architech.yaml recipe or genome'));
     console.log(chalk.gray('  new-ts        Create a new project from TypeScript genome file'));
     console.log(chalk.gray('  list-genomes  List all available project genome templates'));
+    console.log(chalk.gray('  analyze       Analyze existing repository and detect architecture'));
     console.log(chalk.gray('  add           Add modules to existing project (V2)'));
     console.log(chalk.gray('  scale         Scale project to monorepo (V2)\n'));
     console.log(chalk.yellow('💡 Use "architech new-ts <genome.ts>" for type-safe development!'));
@@ -77,6 +80,8 @@ Examples:
   $ architech new-ts my-genome.ts                 # Create new project from TypeScript genome
   $ architech new my-saas.yaml                    # Create new project from recipe
   $ architech new --genome saas-boilerplate --name my-saas  # Create from genome
+  $ architech analyze https://github.com/user/repo # Analyze existing repository
+  $ architech analyze ./my-project --output genome.ts # Analyze local project
   $ architech list-genomes                        # List available genomes
   $ architech add auth/better-auth                # Add auth module (V2)
   $ architech scale --strategy nx                 # Scale to monorepo (V2)

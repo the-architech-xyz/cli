@@ -7,7 +7,7 @@
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { join, extname } from 'path';
 import * as yaml from 'js-yaml';
-import { Recipe } from '@thearchitech.xyz/types';
+import { Genome } from '@thearchitech.xyz/types';
 
 export interface GenomeInfo {
   id: string;
@@ -59,7 +59,7 @@ export class GenomeRegistry {
    */
   private parseGenomeFile(genomeId: string, filePath: string): GenomeInfo {
     const content = readFileSync(filePath, 'utf-8');
-    const recipe = yaml.load(content) as Recipe;
+    const recipe = yaml.load(content) as Genome;
     
     // Extract metadata from recipe
     const name = this.extractName(recipe, genomeId);
@@ -84,7 +84,7 @@ export class GenomeRegistry {
   /**
    * Extract name from recipe or use genome ID
    */
-  private extractName(recipe: Recipe, genomeId: string): string {
+  private extractName(recipe: Genome, genomeId: string): string {
     if (recipe.project?.name && recipe.project.name !== '{{projectName}}') {
       return recipe.project.name;
     }
@@ -99,7 +99,7 @@ export class GenomeRegistry {
   /**
    * Determine category based on modules
    */
-  private determineCategory(recipe: Recipe): string {
+  private determineCategory(recipe: Genome): string {
     const categories = new Set<string>();
     
     recipe.modules?.forEach((module: any) => {
@@ -119,7 +119,7 @@ export class GenomeRegistry {
   /**
    * Extract tags from modules and features
    */
-  private extractTags(recipe: Recipe): string[] {
+  private extractTags(recipe: Genome): string[] {
     const tags = new Set<string>();
     
     recipe.modules?.forEach((module: any) => {
@@ -144,7 +144,7 @@ export class GenomeRegistry {
   /**
    * Determine complexity based on modules and features
    */
-  private determineComplexity(modules: number, recipe: Recipe): 'simple' | 'intermediate' | 'advanced' {
+  private determineComplexity(modules: number, recipe: Genome): 'simple' | 'intermediate' | 'advanced' {
     if (modules <= 3) return 'simple';
     if (modules <= 6) return 'intermediate';
     return 'advanced';
@@ -199,7 +199,7 @@ export class GenomeRegistry {
   /**
    * Load recipe from genome
    */
-  public loadRecipe(genomeId: string): Recipe | null {
+  public loadRecipe(genomeId: string): Genome | null {
     const genome = this.getGenome(genomeId);
     if (!genome) {
       return null;
@@ -207,7 +207,7 @@ export class GenomeRegistry {
 
     try {
       const content = readFileSync(genome.file, 'utf-8');
-      return yaml.load(content) as Recipe;
+      return yaml.load(content) as Genome;
     } catch (error) {
       console.error(`Failed to load recipe for genome ${genomeId}:`, error);
       return null;
@@ -217,7 +217,7 @@ export class GenomeRegistry {
   /**
    * Create recipe from genome with project name
    */
-  public createRecipe(genomeId: string, projectName: string): Recipe | null {
+  public createRecipe(genomeId: string, projectName: string): Genome | null {
     const recipe = this.loadRecipe(genomeId);
     if (!recipe) {
       return null;
@@ -228,7 +228,7 @@ export class GenomeRegistry {
     const processedString = recipeString.replace(/\{\{projectName\}\}/g, projectName);
     
     try {
-      return JSON.parse(processedString) as Recipe;
+      return JSON.parse(processedString) as Genome;
     } catch (error) {
       console.error(`Failed to process recipe for genome ${genomeId}:`, error);
       return null;

@@ -21,11 +21,14 @@
 ### Install The Architech CLI
 
 ```bash
-# Install globally
-npm install -g @the-architech/cli
+# Clone and build from source (current method)
+git clone https://github.com/the-architech/cli.git
+cd cli
+npm install
+npm run build
 
 # Verify installation
-architech --version
+node dist/index.js --version
 ```
 
 ## 🎯 Your First Project
@@ -34,7 +37,7 @@ architech --version
 
 ```bash
 # List all available genome templates
-architech list-genomes
+node dist/index.js list-genomes
 ```
 
 You'll see something like:
@@ -66,8 +69,11 @@ You'll see something like:
 ### Step 2: Create Your First Project
 
 ```bash
-# Create a blog application (recommended for beginners)
-architech new marketplace/genomes/blog-app.genome.ts
+# Create a simple application (recommended for beginners)
+node dist/index.js new /path/to/marketplace/genomes/simple-app.genome.ts
+
+# Or create a blog application
+node dist/index.js new /path/to/marketplace/genomes/blog-app.genome.ts
 ```
 
 ### Step 3: Experience the Beautiful CLI
@@ -135,9 +141,10 @@ A **genome** is a TypeScript file that defines your project configuration. It pr
 ### Basic Genome Structure
 
 ```typescript
-import { defineGenome } from '@thearchitech.xyz/marketplace';
+import { Genome } from '@thearchitech.xyz/marketplace';
 
-export default defineGenome({
+const myAppGenome: Genome = {
+  version: '1.0.0',
   project: {
     name: 'my-app',           // Project name
     framework: 'nextjs',      // Primary framework
@@ -153,7 +160,9 @@ export default defineGenome({
       }
     }
   ]
-});
+};
+
+export default myAppGenome;
 ```
 
 ### Creating Your Own Genome
@@ -161,9 +170,10 @@ export default defineGenome({
 1. **Create a new file** (`my-saas.genome.ts`):
 
 ```typescript
-import { defineGenome } from '@thearchitech.xyz/marketplace';
+import { Genome } from '@thearchitech.xyz/marketplace';
 
-export default defineGenome({
+const mySaaSGenome: Genome = {
+  version: '1.0.0',
   project: {
     name: 'my-saas',
     framework: 'nextjs',
@@ -186,13 +196,15 @@ export default defineGenome({
       }
     }
   ]
-});
+};
+
+export default mySaaSGenome;
 ```
 
 2. **Generate your project**:
 
 ```bash
-architech new my-saas.genome.ts
+node dist/index.js new my-saas.genome.ts
 ```
 
 ### Type Safety in Action
@@ -232,29 +244,29 @@ TypeScript will catch errors before execution:
 
 ```bash
 # Create a new project
-architech new <genome.ts>
+node dist/index.js new <genome-file>
 
 # List available templates
-architech list-genomes
+node dist/index.js list-genomes
 
 # Show help
-architech --help
+node dist/index.js --help
 
 # Show version
-architech --version
+node dist/index.js --version
 ```
 
 ### Command Options
 
 ```bash
 # Verbose mode (see detailed execution)
-architech new my-app.genome.ts --verbose
+node dist/index.js new my-app.genome.ts --verbose
 
 # Dry run (show what would be created)
-architech new my-app.genome.ts --dry-run
+node dist/index.js new my-app.genome.ts --dry-run
 
 # Quiet mode (minimal output)
-architech new my-app.genome.ts --quiet
+node dist/index.js new my-app.genome.ts --quiet
 ```
 
 ### Verbose Mode
@@ -262,7 +274,7 @@ architech new my-app.genome.ts --quiet
 Use `--verbose` to see detailed execution information:
 
 ```bash
-architech new my-saas.genome.ts --verbose
+node dist/index.js new my-saas.genome.ts --verbose
 ```
 
 This shows:
@@ -277,14 +289,14 @@ This shows:
 ### 1. Explore More Templates
 
 ```bash
+# Try the simple application (recommended)
+node dist/index.js new /path/to/marketplace/genomes/simple-app.genome.ts
+
 # Try the SaaS application
-architech new marketplace/genomes/saas-app.genome.ts
+node dist/index.js new /path/to/marketplace/genomes/saas-starter.genome.ts
 
 # Try the e-commerce platform
-architech new marketplace/genomes/ecommerce-app.genome.ts
-
-# Try the ultimate app (showcases all features)
-architech new marketplace/genomes/ultimate-app.genome.ts
+node dist/index.js new /path/to/marketplace/genomes/ecommerce-app.genome.ts
 ```
 
 ### 2. Customize Your Genome

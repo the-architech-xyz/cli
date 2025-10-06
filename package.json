@@ -48,7 +48,7 @@
   "dependencies": {
     "@better-auth/utils": "^0.2.6",
     "@neondatabase/serverless": "^1.0.1",
-    "@thearchitech.xyz/types": "^1.9.0",
+    "@thearchitech.xyz/types": "^1.11.11",
     "@types/ejs": "^3.1.5",
     "@types/js-yaml": "^4.0.9",
     "@typescript-eslint/parser": "^8.43.0",

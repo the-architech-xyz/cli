@@ -9,7 +9,7 @@ import { Command } from 'commander';
 import { readFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { execSync } from 'child_process';
-import { Recipe } from '@thearchitech.xyz/types';
+import { Genome } from '@thearchitech.xyz/types';
 import { OrchestratorAgent } from '../agents/orchestrator-agent.js';
 import { ProjectManager } from '../core/services/project/project-manager.js';
 import { AgentLogger as Logger } from '../core/cli/logger.js';
@@ -54,11 +54,11 @@ export function createNewCommand(): Command {
           process.exit(1);
         }
         
-        // Convert Genome to Recipe format
-        const recipe = convertGenomeToRecipe(genome);
+        // Convert Genome to proper format
+        const validatedGenome = convertGenomeToRecipe(genome);
         
-        // Validate recipe structure
-        const validation = validateRecipe(recipe);
+        // Validate genome structure
+        const validation = validateRecipe(validatedGenome);
         if (!validation.valid) {
           logger.error('❌ Invalid genome structure:');
           validation.errors.forEach(error => logger.error(`  - ${error}`));
@@ -73,20 +73,20 @@ export function createNewCommand(): Command {
         
         if (options.dryRun) {
           enhancedLogger.info('Dry run mode - showing what would be created:');
-          showDryRunPreview(recipe, logger);
+          showDryRunPreview(validatedGenome, logger);
           return;
         }
         
         // Initialize project manager and orchestrator
-        const projectManager = new ProjectManager(recipe.project);
+        const projectManager = new ProjectManager(validatedGenome.project);
         const orchestrator = new OrchestratorAgent(projectManager);
         
-        // Execute the recipe with enhanced logging
-        const result = await orchestrator.executeRecipe(recipe, options.verbose, enhancedLogger);
+        // Execute the genome with enhanced logging
+        const result = await orchestrator.executeRecipe(validatedGenome, options.verbose, enhancedLogger);
         
         if (result.success) {
           enhancedLogger.success('Project created successfully!');
-          enhancedLogger.logNextSteps(recipe.project.path, recipe.project.name);
+          enhancedLogger.logNextSteps(validatedGenome.project.path, validatedGenome.project.name);
           
           if (result.warnings && result.warnings.length > 0) {
             enhancedLogger.warn('Warnings:');
@@ -158,7 +158,7 @@ async function executeTypeScriptGenome(genomePath: string, logger: Logger): Prom
 /**
  * Convert Genome object to Recipe format
  */
-function convertGenomeToRecipe(genome: any): Recipe {
+function convertGenomeToRecipe(genome: any): Genome {
   // Ensure the genome has the required structure
   if (!genome.project || !genome.modules) {
     throw new Error('Invalid genome structure: missing project or modules');
@@ -253,19 +253,19 @@ function validateRecipe(recipe: any): { valid: boolean; errors: string[] } {
 /**
  * Show dry run preview
  */
-function showDryRunPreview(recipe: Recipe, logger: Logger): void {
-  logger.info(`📋 Project: ${recipe.project.name}`);
-  logger.info(`📁 Path: ${recipe.project.path}`);
+function showDryRunPreview(genome: Genome, logger: Logger): void {
+  logger.info(`📋 Project: ${genome.project.name}`);
+  logger.info(`📁 Path: ${genome.project.path}`);
   logger.info(`🔧 Modules to be executed:`);
   
-  recipe.modules.forEach((module, index) => {
+  genome.modules.forEach((module, index) => {
     logger.info(`  ${index + 1}. ${module.id} (${module.category}) - v${module.version}`);
     if (module.parameters && Object.keys(module.parameters).length > 0) {
       logger.info(`     Parameters: ${JSON.stringify(module.parameters)}`);
     }
   });
   
-  if (recipe.options?.skipInstall) {
+  if (genome.options?.skipInstall) {
     logger.info(`📦 Dependencies: Will be skipped (skipInstall: true)`);
   } else {
     logger.info(`📦 Dependencies: Will be installed automatically`);

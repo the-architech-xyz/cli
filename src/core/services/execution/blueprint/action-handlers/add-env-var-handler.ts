@@ -5,7 +5,7 @@
  * This handler works in both Direct Mode and VFS Mode.
  */
 
-import { BlueprintAction, ProjectContext } from '@thearchitech.xyz/types';
+import { BlueprintAction, ProjectContext, AddEnvVarAction } from '@thearchitech.xyz/types';
 import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file-system.js';
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ArchitechError } from '../../../infrastructure/error/architech-error.js';
@@ -28,22 +28,24 @@ export class AddEnvVarHandler extends BaseActionHandler {
       return { success: false, error: validation.error };
     }
 
-    if (!action.key || action.value === undefined || action.value === null) {
+    // Type guard to narrow the action type
+    const envAction = action as AddEnvVarAction;
+    
+    if (!envAction.key || envAction.value === undefined || envAction.value === null) {
       return { 
         success: false, 
         error: 'ADD_ENV_VAR action missing key or value' 
       };
     }
-
-    const envFilePath = action.path || '.env';
-    const key = action.key;
-    const value = this.processTemplate(action.value, context);
+    
+    const envFilePath = envAction.path || '.env';
+    const key = envAction.key;
+    const value = this.processTemplate(envAction.value, context);
 
     try {
       if (vfs) {
         // VFS Mode - add to VFS
         await this.addEnvVarToVFS(vfs, envFilePath, key, value);
-        console.log(`  🔧 VFS: Added env var ${key}=${value} to ${envFilePath}`);
       } else {
         // Direct Mode - write to disk
         await this.addEnvVarToDisk(projectRoot, envFilePath, key, value);

@@ -269,8 +269,8 @@ export class PathService {
   static async resolveModuleId(moduleId: string): Promise<string> {
     const marketplaceRoot = await this.getMarketplaceRoot();
     
-    // If it's already a full path (starts with 'adapters/' or 'integrations/'), use it as-is
-    if (moduleId.startsWith('adapters/') || moduleId.startsWith('integrations/')) {
+    // If it's already a full path (starts with 'adapters/', 'integrations/', or 'features/'), use it as-is
+    if (moduleId.startsWith('adapters/') || moduleId.startsWith('integrations/') || moduleId.startsWith('features/')) {
       const fullPath = path.join(marketplaceRoot, moduleId);
       try {
         await fs.promises.access(fullPath);
@@ -280,7 +280,7 @@ export class PathService {
       }
     }
     
-    // If it contains a '/' but doesn't start with adapters/integrations, it's likely category/name format
+    // If it contains a '/' but doesn't start with adapters/integrations/features, it's likely category/name format
     if (moduleId.includes('/')) {
       // Try as adapter first (most common case)
       const adapterPath = path.join(marketplaceRoot, 'adapters', moduleId);
@@ -294,7 +294,14 @@ export class PathService {
           await fs.promises.access(integrationPath);
           return `integrations/${moduleId}`;
         } catch {
-          throw new Error(`Module not found: ${moduleId}. Checked paths: ${adapterPath}, ${integrationPath}`);
+          // Try as feature
+          const featurePath = path.join(marketplaceRoot, 'features', moduleId);
+          try {
+            await fs.promises.access(featurePath);
+            return `features/${moduleId}`;
+          } catch {
+            throw new Error(`Module not found: ${moduleId}. Checked paths: ${adapterPath}, ${integrationPath}, ${featurePath}`);
+          }
         }
       }
     }

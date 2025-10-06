@@ -1,7 +1,6 @@
 /**
  * Sequential Execution Service
  * 
- * Replaces parallel execution with reliable sequential execution.
  * Executes modules one by one in a predictable order while preserving
  * all analysis and planning intelligence.
  */

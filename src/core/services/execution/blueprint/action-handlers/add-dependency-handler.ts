@@ -5,7 +5,7 @@
  * This handler REQUIRES VFS mode and uses the Modifier System.
  */
 
-import { BlueprintAction, ProjectContext } from '@thearchitech.xyz/types';
+import { BlueprintAction, ProjectContext, AddDependencyAction } from '@thearchitech.xyz/types';
 import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file-system.js';
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ModifierRegistry } from '../../../file-system/modifiers/modifier-registry.js';
@@ -41,7 +41,10 @@ export class AddDependencyHandler extends BaseActionHandler {
       };
     }
 
-    if (!action.packages || action.packages.length === 0) {
+    // Type guard to narrow the action type
+    const dependencyAction = action as AddDependencyAction;
+    
+    if (!dependencyAction.packages || dependencyAction.packages.length === 0) {
       return { 
         success: false, 
         error: 'ADD_DEPENDENCY action missing packages array' 
@@ -49,13 +52,12 @@ export class AddDependencyHandler extends BaseActionHandler {
     }
 
     const filePath = 'package.json';
-    const packages = action.packages;
-    const isDevDependency = action.isDev || false;
+    const packages = dependencyAction.packages;
+    const isDevDependency = dependencyAction.isDev || false;
 
     // Ensure package.json exists in VFS
     if (!vfs.fileExists(filePath)) {
       vfs.createFile(filePath, '{}');
-      console.log(`  📝 VFS: Created empty package.json (fallback) for dependency addition`);
     }
 
     const modifier = this.modifierRegistry.get('package-json-merger');

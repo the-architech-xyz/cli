@@ -5,7 +5,7 @@
  * This is a "Specialized Worker" in the Executor-Centric architecture.
  */
 
-import { BlueprintAction, ProjectContext } from '@thearchitech.xyz/types';
+import { BlueprintAction, ProjectContext, RunCommandAction } from '@thearchitech.xyz/types';
 import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file-system.js';
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ArchitechError } from '../../../infrastructure/error/architech-error.js';
@@ -37,12 +37,15 @@ export class RunCommandHandler extends BaseActionHandler {
       return { success: false, error: validation.error };
     }
 
-    if (!action.command) {
+    // Type guard to narrow the action type
+    const runAction = action as RunCommandAction;
+    
+    if (!runAction.command) {
       return { success: false, error: 'RUN_COMMAND action missing command' };
     }
 
     // Process template command using the sophisticated template service
-    const command = TemplateService.processTemplate(action.command, context);
+    const command = TemplateService.processTemplate(runAction.command, context);
 
     try {
       console.log(`  ⚡ Running command: ${command}`);
@@ -82,7 +85,7 @@ export class RunCommandHandler extends BaseActionHandler {
     } catch (error) {
       const architechError = ArchitechError.internalError(
         `Command execution error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        { operation: 'run_command', command: action.command }
+        { operation: 'run_command', command: runAction.command }
       );
       return { 
         success: false, 

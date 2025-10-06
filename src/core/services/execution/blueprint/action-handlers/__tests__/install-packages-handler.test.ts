@@ -40,7 +40,7 @@ describe('InstallPackagesHandler', () => {
   describe('handle', () => {
     it('should successfully install packages in VFS mode', async () => {
       const action: BlueprintAction = {
-        type: 'INSTALL_PACKAGES',
+        type: BlueprintActionType.INSTALL_PACKAGES,
         packages: ['react', 'react-dom'],
         isDev: false
       };
@@ -71,7 +71,7 @@ describe('InstallPackagesHandler', () => {
 
     it('should successfully install dev packages', async () => {
       const action: BlueprintAction = {
-        type: 'INSTALL_PACKAGES',
+        type: BlueprintActionType.INSTALL_PACKAGES,
         packages: ['@types/react', '@types/node'],
         isDev: true
       };
@@ -98,7 +98,7 @@ describe('InstallPackagesHandler', () => {
 
     it('should handle package.json that does not exist (modifier handles creation)', async () => {
       const action: BlueprintAction = {
-        type: 'INSTALL_PACKAGES',
+        type: BlueprintActionType.INSTALL_PACKAGES,
         packages: ['react'],
         isDev: false
       };
@@ -125,7 +125,7 @@ describe('InstallPackagesHandler', () => {
 
     it('should return error if VFS is not provided', async () => {
       const action: BlueprintAction = {
-        type: 'INSTALL_PACKAGES',
+        type: BlueprintActionType.INSTALL_PACKAGES,
         packages: ['react'],
         isDev: false
       };
@@ -138,7 +138,7 @@ describe('InstallPackagesHandler', () => {
 
     it('should return error if packages are missing', async () => {
       const action: BlueprintAction = {
-        type: 'INSTALL_PACKAGES',
+        type: BlueprintActionType.INSTALL_PACKAGES,
         isDev: false
       } as any;
 
@@ -150,7 +150,7 @@ describe('InstallPackagesHandler', () => {
 
     it('should return error if modifier is not found', async () => {
       const action: BlueprintAction = {
-        type: 'INSTALL_PACKAGES',
+        type: BlueprintActionType.INSTALL_PACKAGES,
         packages: ['react'],
         isDev: false
       };
@@ -166,7 +166,7 @@ describe('InstallPackagesHandler', () => {
 
     it('should return error if modifier execution fails', async () => {
       const action: BlueprintAction = {
-        type: 'INSTALL_PACKAGES',
+        type: BlueprintActionType.INSTALL_PACKAGES,
         packages: ['react'],
         isDev: false
       };
@@ -185,7 +185,7 @@ describe('InstallPackagesHandler', () => {
 
     it('should handle exceptions with ArchitechError', async () => {
       const action: BlueprintAction = {
-        type: 'INSTALL_PACKAGES',
+        type: BlueprintActionType.INSTALL_PACKAGES,
         packages: ['react'],
         isDev: false
       };

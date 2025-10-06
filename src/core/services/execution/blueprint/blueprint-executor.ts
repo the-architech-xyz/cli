@@ -165,13 +165,11 @@ export class BlueprintExecutor {
         }
         
         try {
-          // Simple CSS enhancement: append new styles to existing CSS file
-          const existingContent = await vfs.readFile(filePath);
           const newContent = params.content || params.styles || '';
           
-          // Append new content to existing content
-          const enhancedContent = existingContent + '\n\n' + newContent;
-          vfs.writeFile(filePath, enhancedContent);
+          // For CSS files, replace content instead of appending to avoid conflicts
+          // This prevents mixing v3 and v4 Tailwind syntax
+          vfs.writeFile(filePath, newContent);
           
           return { 
             success: true, 

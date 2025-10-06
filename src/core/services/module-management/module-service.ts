@@ -133,6 +133,7 @@ export class ModuleService {
     try {
       // Detect module type from ID convention
       const isIntegration = module.id.startsWith('integrations/');
+      const isFeature = module.id.startsWith('features/');
       
       let moduleData;
       
@@ -140,6 +141,10 @@ export class ModuleService {
         // Load as integration
         const integrationName = module.id.replace('integrations/', '');
         moduleData = await this.loadIntegration(integrationName);
+      } else if (isFeature) {
+        // Load as feature
+        const featureName = module.id.replace('features/', '');
+        moduleData = await this.loadFeature(featureName);
       } else {
         // Load as adapter
         const [category, adapterId] = module.id.split('/');
@@ -298,6 +303,47 @@ export class ModuleService {
         adapterId
       });
       console.error(`Detailed error for ${cacheKey}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Load feature from marketplace
+   */
+  private async loadFeature(featureName: string): Promise<any> {
+    const cacheKey = `features/${featureName}`;
+    
+    // Check cache first
+    if (this.cache.has(cacheKey)) {
+      return this.cache.get(cacheKey);
+    }
+
+    try {
+      const moduleId = `features/${featureName}`;
+      
+      // Load feature config and blueprint using centralized services
+      const featureJson = await MarketplaceService.loadModuleConfig(moduleId);
+      const blueprint = await MarketplaceService.loadModuleBlueprint(moduleId);
+      
+      const feature = {
+        config: featureJson,
+        blueprint: blueprint
+      };
+      
+      // Cache the result
+      this.cache.set(cacheKey, feature);
+      
+      return feature;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+      Logger.error(`Failed to load feature ${featureName}`, {
+        operation: 'load_feature',
+        error: errorMessage,
+        stack: errorStack,
+        featureName
+      });
+      console.error(`Detailed error for feature ${featureName}:`, error);
       return null;
     }
   }

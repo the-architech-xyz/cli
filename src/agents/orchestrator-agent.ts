@@ -5,8 +5,8 @@
  * Reads YAML recipe and delegates to appropriate agents
  */
 
-import { Genome, Module } from '@thearchitech.xyz/marketplace';
-import { ExecutionResult, ProjectContext } from '@thearchitech.xyz/types';
+import { Module } from '@thearchitech.xyz/marketplace';
+import { Genome, ExecutionResult, ProjectContext } from '@thearchitech.xyz/types';
 import { ProjectManager } from '../core/services/project/project-manager.js';
 import { PathService } from '../core/services/path/path-service.js';
 import { BlueprintExecutor } from '../core/services/execution/blueprint/blueprint-executor.js';
@@ -23,6 +23,31 @@ import { SequentialExecutionService } from '../core/services/execution/sequentia
 import { VirtualFileSystem } from '../core/services/file-system/file-engine/virtual-file-system.js';
 import { SuccessValidator } from '../core/services/validation/success-validator.js';
 import { ArchitectureValidator } from '../core/services/validation/architecture-validator.js';
+import { HighLevelDependencyResolver } from '../core/services/dependency-resolution/high-level-dependency-resolver.js';
+import { CapabilityRegistryBuilder } from '../core/services/dependency-resolution/capability-registry-builder.js';
+import { ComposableFeatureResolver } from '../core/services/feature-resolution/composable-feature-resolver.js';
+// Import types for dependency resolution
+interface ResolutionError {
+  type: string;
+  module: string;
+  capability?: string;
+  message: string;
+  suggestions: string[];
+  severity: 'error' | 'warning';
+}
+
+interface ResolvedModule {
+  id: string;
+  category: string;
+  version?: string;
+  parameters: Record<string, any>;
+  features?: Record<string, any>;
+  externalFiles?: string[];
+  resolutionPath: string[];
+  capabilities: string[];
+  prerequisites: string[];
+  confidence: number;
+}
 
 export class OrchestratorAgent {
   private projectManager: ProjectManager;
@@ -35,6 +60,9 @@ export class OrchestratorAgent {
   private sequentialExecutor: SequentialExecutionService;
   private successValidator: SuccessValidator;
   private architectureValidator: ArchitectureValidator;
+  private highLevelDependencyResolver: HighLevelDependencyResolver;
+  private capabilityRegistryBuilder: CapabilityRegistryBuilder;
+  private composableFeatureResolver: ComposableFeatureResolver;
 
   constructor(projectManager: ProjectManager) {
     this.projectManager = projectManager;
@@ -51,6 +79,69 @@ export class OrchestratorAgent {
     this.sequentialExecutor = new SequentialExecutionService();
     this.successValidator = new SuccessValidator();
     this.architectureValidator = new ArchitectureValidator();
+    
+    // Initialize high-level dependency resolution
+    this.capabilityRegistryBuilder = new CapabilityRegistryBuilder(this.moduleService);
+    this.highLevelDependencyResolver = new HighLevelDependencyResolver(this.moduleService, {
+      failFast: true,
+      verbose: true
+    });
+    
+    // Initialize composable feature resolver
+    this.composableFeatureResolver = new ComposableFeatureResolver(
+      this.moduleService,
+      this.projectManager.getMarketplacePath()
+    );
+  }
+
+  /**
+   * Determine project stack from genome modules
+   */
+  private determineProjectStack(modules: Module[]): {
+    backend: { database: string; framework: string };
+    frontend: { ui: string; framework: string };
+  } {
+    let database = 'drizzle';
+    let framework = 'nextjs';
+    let ui = 'shadcn';
+
+    // Determine database from modules
+    const dbModule = modules.find(m => m.category === 'adapter' && m.id.includes('drizzle'));
+    if (dbModule) {
+      database = 'drizzle-nextjs'; // Use the full stack identifier
+    } else {
+      const prismaModule = modules.find(m => m.category === 'adapter' && m.id.includes('prisma'));
+      if (prismaModule) {
+        database = 'prisma-nextjs'; // Use the full stack identifier
+      }
+    }
+
+    // Determine framework from modules
+    const nextjsModule = modules.find(m => m.category === 'framework' && m.id.includes('nextjs'));
+    if (nextjsModule) {
+      framework = 'nextjs';
+    }
+
+    // Determine UI from modules
+    const shadcnModule = modules.find(m => m.category === 'adapter' && m.id.includes('shadcn'));
+    if (shadcnModule) {
+      ui = 'shadcn';
+    } else {
+      const muiModule = modules.find(m => m.category === 'adapter' && m.id.includes('mui'));
+      if (muiModule) {
+        ui = 'mui';
+      } else {
+        const chakraModule = modules.find(m => m.category === 'adapter' && m.id.includes('chakra'));
+        if (chakraModule) {
+          ui = 'chakra';
+        }
+      }
+    }
+
+    return {
+      backend: { database, framework },
+      frontend: { ui, framework }
+    };
   }
 
   /**
@@ -86,10 +177,107 @@ export class OrchestratorAgent {
         throw new Error(`Genome validation failed: ${validationResult.errors.join(', ')}`);
       }
 
+      // 1.5. COMPOSABLE FEATURE RESOLUTION - NEW CRITICAL STEP
+      ExecutionTracer.logOperation(traceId, 'Composable feature resolution');
+      Logger.info('🎯 Starting composable feature resolution', {
+        traceId,
+        operation: 'feature_resolution',
+        features: genome.features?.length || 0
+      });
+
+      const resolvedFeatures: Module[] = [];
+      if (genome.features && genome.features.length > 0) {
+        for (const featureId of genome.features) {
+          try {
+            // Determine project stack from genome modules
+            const projectStack = this.determineProjectStack(genome.modules);
+            
+            // Resolve the composable feature
+            const resolvedFeature = await this.composableFeatureResolver.resolveFeature(featureId, projectStack);
+            
+            // Convert to modules
+            const featureModules = await this.composableFeatureResolver.convertToModules(resolvedFeature);
+            resolvedFeatures.push(...featureModules);
+            
+            Logger.info(`✅ Resolved feature: ${featureId}`, {
+              traceId,
+              operation: 'feature_resolution',
+              featureId,
+              modulesCount: featureModules.length
+            });
+          } catch (error) {
+            Logger.error(`❌ Failed to resolve feature: ${featureId}`, {
+              traceId,
+              operation: 'feature_resolution',
+              featureId,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            });
+            throw new Error(`Failed to resolve feature: ${featureId}`);
+          }
+        }
+      }
+
+      // Add resolved features to genome modules
+      const enhancedGenome = {
+        ...genome,
+        modules: [...genome.modules, ...resolvedFeatures]
+      };
+
+      // 1.6. HIGH-LEVEL DEPENDENCY RESOLUTION - NEW CRITICAL STEP
+      ExecutionTracer.logOperation(traceId, 'High-level dependency resolution');
+      Logger.info('🧠 Starting intelligent dependency resolution', {
+        traceId,
+        operation: 'dependency_resolution',
+        initialModules: genome.modules.length
+      });
+
+      const resolutionResult = await this.highLevelDependencyResolver.resolveGenome(enhancedGenome.modules);
+      
+      if (!resolutionResult.success) {
+        const errorMessages = resolutionResult.conflicts.map((conflict: ResolutionError) => 
+          `  ❌ ${conflict.message} (Module: ${conflict.module}${conflict.capability ? `, Capability: ${conflict.capability}` : ''})`
+        ).join('\n');
+        
+        const suggestionMessages = resolutionResult.conflicts
+          .filter((conflict: ResolutionError) => conflict.suggestions.length > 0)
+          .map((conflict: ResolutionError) => `  💡 ${conflict.suggestions.join(', ')}`)
+          .join('\n');
+        
+        const fullErrorMessage = `Dependency resolution failed with ${resolutionResult.conflicts.length} conflicts:\n${errorMessages}${suggestionMessages ? `\n\nSuggestions:\n${suggestionMessages}` : ''}`;
+        
+        Logger.error(`❌ ${fullErrorMessage}`, {
+          traceId,
+          operation: 'dependency_resolution'
+        });
+        
+        throw new Error(fullErrorMessage);
+      }
+
+      // Log resolution results
+      Logger.info('✅ Dependency resolution successful', {
+        traceId,
+        operation: 'dependency_resolution',
+        resolvedModules: resolutionResult.modules.length,
+        executionOrder: resolutionResult.executionOrder.length,
+        warnings: resolutionResult.warnings.length
+      });
+
+      // Log execution order
+      Logger.info('📋 Resolved execution order:', {
+        traceId,
+        operation: 'dependency_resolution',
+        order: resolutionResult.executionOrder.map((m: ResolvedModule) => m.id).join(' → ')
+      });
+
+      // Use resolved modules instead of original genome modules
+      const resolvedGenome = {
+        ...genome,
+        modules: resolutionResult.executionOrder
+      };
+
       // 2. Load and validate modules
       ExecutionTracer.logOperation(traceId, 'Loading modules');
-      // For now, skip module loading validation as it's not implemented
-      Logger.info(`📦 Loading ${genome.modules.length} modules`, {
+      Logger.info(`📦 Loading ${resolvedGenome.modules.length} resolved modules`, {
         traceId,
         operation: 'module_loading'
       });
@@ -101,7 +289,7 @@ export class OrchestratorAgent {
 
       // 2.5. ARCHITECTURAL VALIDATION - NEW MANDATORY STEP
       ExecutionTracer.logOperation(traceId, 'Architectural validation');
-      const architecturalValidation = await this.architectureValidator.validateRecipe(genome, traceId);
+      const architecturalValidation = await this.architectureValidator.validateRecipe(resolvedGenome, traceId);
       if (!architecturalValidation.isValid) {
         const errorMessages = architecturalValidation.errors.map(error => 
           `  ❌ ${error.message} (Module: ${error.module})`
@@ -133,7 +321,7 @@ export class OrchestratorAgent {
 
       // 3. Classify modules by type (Convention-Based Architecture)
       ExecutionTracer.logOperation(traceId, 'Classifying modules by type');
-      const moduleClassification = this.classifyModulesByType(genome.modules);
+      const moduleClassification = this.classifyModulesByType(resolvedGenome.modules);
       
       
       Logger.info(`📊 Module Classification:`, {
@@ -141,19 +329,20 @@ export class OrchestratorAgent {
         operation: 'module_classification',
         frameworks: moduleClassification.frameworks.map(m => m.id),
         adapters: moduleClassification.adapters.map(m => m.id),
-        integrations: moduleClassification.integrations.map(m => m.id)
+        integrations: moduleClassification.integrations.map(m => m.id),
+        features: moduleClassification.features.map(m => m.id)
       });
 
       // 4. Build dependency graph
       ExecutionTracer.logOperation(traceId, 'Building dependency graph');
-      const graphResult = await this.dependencyGraph.buildGraph(genome.modules);
+      const graphResult = await this.dependencyGraph.buildGraph(resolvedGenome.modules);
       if (!graphResult.success) {
         throw new Error(`Dependency graph build failed: ${graphResult.errors.join(', ')}`);
       }
 
       // 5. Setup framework and get framework-specific path handler
       ExecutionTracer.logOperation(traceId, 'Setting up framework');
-      const frameworkSetup = await this.moduleService.setupFramework(genome, this.pathHandler);
+      const frameworkSetup = await this.moduleService.setupFramework(resolvedGenome, this.pathHandler);
       if (!frameworkSetup.success) {
         throw new Error(`Framework setup failed: ${frameworkSetup.error}`);
       }
@@ -220,11 +409,11 @@ export class OrchestratorAgent {
       }
 
       // 9. Validate framework module is first
-      if (genome.modules.length === 0) {
+      if (resolvedGenome.modules.length === 0) {
         throw new Error('Genome contains no modules');
       }
       
-      const firstModule = genome.modules[0];
+      const firstModule = resolvedGenome.modules[0];
       if (!firstModule) {
         throw new Error('First module is undefined');
       }
@@ -389,7 +578,6 @@ export class OrchestratorAgent {
           }
           
           const result = await this.executeModule(module, genome, traceId, enhancedLogger);
-          console.log(`🔍 CWD AFTER module ${module.id}:`, process.cwd());
           
           if (result.success) {
             results.push(result);
@@ -418,7 +606,6 @@ export class OrchestratorAgent {
           }
         }
         
-        console.log(`🔍 CWD AFTER batch ${i + 1}:`, process.cwd());
         Logger.info(`✅ Batch ${i + 1} completed successfully`, {
           traceId,
           operation: 'unified_execution'
@@ -618,10 +805,12 @@ export class OrchestratorAgent {
     frameworks: Module[];
     adapters: Module[];
     integrations: Module[];
+    features: Module[];
   } {
     const frameworks: Module[] = [];
     const adapters: Module[] = [];
     const integrations: Module[] = [];
+    const features: Module[] = [];
 
     for (const module of modules) {
       const type = this.getModuleType(module.id);
@@ -630,20 +819,26 @@ export class OrchestratorAgent {
         frameworks.push(module);
       } else if (type === 'integration') {
         integrations.push(module);
+      } else if (type === 'feature') {
+        features.push(module);
       } else {
         adapters.push(module);
       }
     }
 
-    return { frameworks, adapters, integrations };
+    return { frameworks, adapters, integrations, features };
   }
 
   /**
    * Get module type from ID
    */
-  private getModuleType(moduleId: string): 'framework' | 'adapter' | 'integration' {
+  private getModuleType(moduleId: string): 'framework' | 'adapter' | 'integration' | 'feature' {
     if (moduleId.startsWith('integrations/')) {
       return 'integration';
+    }
+    
+    if (moduleId.startsWith('features/')) {
+      return 'feature';
     }
     
     const category = moduleId.split('/')[0];
@@ -655,7 +850,7 @@ export class OrchestratorAgent {
   }
 
   /**
-   * Enforce hierarchical execution order: Framework -> Adapters -> Integrations
+   * Enforce hierarchical execution order: Framework -> Adapters -> Integrations -> Features
    */
   private enforceHierarchicalOrder(
     executionPlan: any,
@@ -663,6 +858,7 @@ export class OrchestratorAgent {
       frameworks: Module[];
       adapters: Module[];
       integrations: Module[];
+      features: Module[];
     }
   ): any {
     const newBatches: any[] = [];
@@ -684,12 +880,20 @@ export class OrchestratorAgent {
       newBatches.push({ ...batch, batchNumber: batchNumber++ });
     }
 
-    // 3. Integration batches (must be last, sequential)
+    // 3. Integration batches (technical bridges)
     const integrationBatches = executionPlan.batches.filter((batch: any) =>
       batch.modules.some((m: Module) => this.getModuleType(m.id) === 'integration')
     );
     for (const batch of integrationBatches) {
-      // Force integrations to be sequential
+      newBatches.push({ ...batch, batchNumber: batchNumber++ });
+    }
+
+    // 4. Feature batches (must be last, sequential)
+    const featureBatches = executionPlan.batches.filter((batch: any) =>
+      batch.modules.some((m: Module) => this.getModuleType(m.id) === 'feature')
+    );
+    for (const batch of featureBatches) {
+      // Force features to be sequential
       newBatches.push({ 
         ...batch, 
         batchNumber: batchNumber++,

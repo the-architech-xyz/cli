@@ -30,16 +30,21 @@ export class MarketplaceService {
   }
 
   /**
-   * Load module configuration (adapter.json or integration.json)
+   * Load module configuration (adapter.json, integration.json, or feature.json)
    */
   static async loadModuleConfig(moduleId: string): Promise<any> {
     const marketplaceRoot = await PathService.getMarketplaceRoot();
     const resolvedModuleId = await PathService.resolveModuleId(moduleId);
     
     // Determine config file name based on module type
-    const configFileName = resolvedModuleId.startsWith('integrations/') 
-      ? 'integration.json' 
-      : 'adapter.json';
+    let configFileName: string;
+    if (resolvedModuleId.startsWith('integrations/')) {
+      configFileName = 'integration.json';
+    } else if (resolvedModuleId.startsWith('features/')) {
+      configFileName = 'feature.json';
+    } else {
+      configFileName = 'adapter.json';
+    }
     
     const configPath = path.join(marketplaceRoot, resolvedModuleId, configFileName);
     

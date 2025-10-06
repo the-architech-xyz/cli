@@ -24,14 +24,12 @@ export class VirtualFileSystem {
   constructor(blueprintId: string, projectRoot: string) {
     this.blueprintId = blueprintId;
     this.projectRoot = projectRoot;
-    console.log(`🗂️ Created VFS for blueprint: ${blueprintId} in ${projectRoot}`);
   }
 
   /**
    * Initialize VFS with required files from disk
    */
   async initializeWithFiles(filePaths: string[]): Promise<void> {
-    console.log(`🔄 VFS: Initializing with ${filePaths.length} files from disk...`);
     // Debug logging removed - use Logger.debug() instead
     
     for (const filePath of filePaths) {
@@ -109,15 +107,22 @@ export class VirtualFileSystem {
     }
 
     this.files.set(normalizedPath, content);
-    console.log(`📝 VFS: Created ${normalizedPath}`);
   }
 
   /**
-   * Check if file exists in VFS
+   * Check if file exists in VFS or on disk
    */
   fileExists(filePath: string): boolean {
     const normalizedPath = this.normalizePath(filePath);
-    return this.files.has(normalizedPath);
+    
+    // First check VFS memory
+    if (this.files.has(normalizedPath)) {
+      return true;
+    }
+    
+    // If not in VFS, check disk
+    const fullPath = path.join(this.projectRoot, normalizedPath);
+    return existsSync(fullPath);
   }
 
   /**
@@ -170,7 +175,6 @@ export class VirtualFileSystem {
    * Flush all files to disk
    */
   async flushToDisk(): Promise<void> {
-    console.log(`💾 VFS-FLUSH-TO-DISK: Writing ${this.files.size} files...`);
     
     for (const [filePath, content] of this.files) {
       try {
@@ -178,12 +182,10 @@ export class VirtualFileSystem {
         await fs.mkdir(path.dirname(fullPath), { recursive: true });
         await fs.writeFile(fullPath, content, 'utf-8');
       } catch (error) {
-        console.error(`❌ VFS-FLUSH-TO-DISK: Failed to flush ${filePath}:`, error);
         throw new Error(`Failed to flush file ${filePath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
     
-    console.log(`✅ VFS-FLUSH-TO-DISK: Successfully flushed all files to disk`);
   }
 
   /**

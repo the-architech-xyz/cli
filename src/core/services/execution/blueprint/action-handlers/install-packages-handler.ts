@@ -5,7 +5,7 @@
  * This handler REQUIRES VFS mode and is a "Specialized Worker" in the Executor-Centric architecture.
  */
 
-import { BlueprintAction, ProjectContext } from '@thearchitech.xyz/types';
+import { BlueprintAction, ProjectContext, InstallPackagesAction } from '@thearchitech.xyz/types';
 import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file-system.js';
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ModifierRegistry } from '../../../file-system/modifiers/modifier-registry.js';
@@ -35,7 +35,10 @@ export class InstallPackagesHandler extends BaseActionHandler {
       return { success: false, error: validation.error };
     }
 
-    if (!action.packages) {
+    // Type guard to narrow the action type
+    const installAction = action as InstallPackagesAction;
+    
+    if (!installAction.packages) {
       return { success: false, error: 'INSTALL_PACKAGES action missing packages' };
     }
 
@@ -55,7 +58,7 @@ export class InstallPackagesHandler extends BaseActionHandler {
 
       // Convert packages array to object with proper name and version parsing
       const packageObj: Record<string, string> = {};
-      action.packages.forEach(pkg => {
+      installAction.packages.forEach(pkg => {
         // Parse package string to extract name and version
         // Format: "package-name@version" or just "package-name"
         const lastAtIndex = pkg.lastIndexOf('@');
@@ -72,12 +75,12 @@ export class InstallPackagesHandler extends BaseActionHandler {
 
       // Prepare parameters for the modifier
       const params = {
-        dependencies: action.isDev ? {} : packageObj,
-        devDependencies: action.isDev ? packageObj : {}
+        dependencies: installAction.isDev ? {} : packageObj,
+        devDependencies: installAction.isDev ? packageObj : {}
       };
 
       // Execute the modifier on package.json
-      console.log(`  📦 Installing packages: ${action.packages.join(', ')}`);
+      console.log(`  📦 Installing packages: ${installAction.packages.join(', ')}`);
       const modifierResult = await modifier.execute('package.json', params, context, vfs);
 
       if (!modifierResult.success) {
@@ -88,13 +91,13 @@ export class InstallPackagesHandler extends BaseActionHandler {
       return { 
         success: true, 
         files: ['package.json'],
-        message: `Packages installed: ${Object.keys(action.packages).join(', ')}`
+        message: `Packages installed: ${Object.keys(installAction.packages).join(', ')}`
       };
 
     } catch (error) {
       const architechError = ArchitechError.internalError(
         `Package installation error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        { operation: 'install_packages', packages: action.packages }
+        { operation: 'install_packages', packages: installAction.packages }
       );
       return { 
         success: false, 

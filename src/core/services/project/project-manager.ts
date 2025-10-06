@@ -7,7 +7,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { PathService } from '../path/path-service.js';
-import { Recipe, ProjectConfig } from '@thearchitech.xyz/types';
+import { Genome, ProjectConfig } from '@thearchitech.xyz/types';
 
 export class ProjectManager {
   private pathHandler: PathService;
@@ -30,6 +30,14 @@ export class ProjectManager {
    */
   getProjectConfig(): ProjectConfig {
     return this.projectConfig;
+  }
+
+  /**
+   * Get marketplace path
+   */
+  getMarketplacePath(): string {
+    // For now, return a hardcoded path. In production, this should be configurable
+    return '/Users/antoine/Documents/Code/architech/marketplace';
   }
 
   /**

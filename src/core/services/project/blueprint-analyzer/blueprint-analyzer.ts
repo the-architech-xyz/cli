@@ -86,8 +86,8 @@ export class BlueprintAnalyzer {
       if (!action) continue;
       
       // Handle forEach actions by expanding them
-      if (action.forEach) {
-        console.log(`🔄 Found forEach action: ${action.forEach}`);
+      if ((action as any).forEach) {
+        console.log(`🔄 Found forEach action: ${(action as any).forEach}`);
         const expandedActions = this.expandForEachAction(action, context);
         console.log(`🔄 Expanded into ${expandedActions.length} actions`);
         const analysis = this.analyzeActions(expandedActions, context);
@@ -97,51 +97,51 @@ export class BlueprintAnalyzer {
         continue;
       }
       
-      switch (action.type) {
+      switch ((action as any).type) {
         case 'CREATE_FILE':
-          if (action.path) {
-            filesToCreate.push(action.path);
+          if ((action as any).path) {
+            filesToCreate.push((action as any).path);
           }
           break;
           
         case 'ENHANCE_FILE':
-          if (action.path) {
+          if ((action as any).path) {
             // Only add to filesToRead if there's no fallback create option
-            if (!action.fallback || action.fallback !== 'create') {
-              filesToRead.push(action.path);
+            if (!(action as any).fallback || (action as any).fallback !== 'create') {
+              filesToRead.push((action as any).path);
             }
           }
           break;
           
         case 'MERGE_JSON':
         case 'MERGE_CONFIG':
-          if (action.path) {
-            filesToRead.push(action.path);
+          if ((action as any).path) {
+            filesToRead.push((action as any).path);
           }
           break;
           
         case 'APPEND_TO_FILE':
         case 'PREPEND_TO_FILE':
-          if (action.path) {
-            filesToRead.push(action.path);
+          if ((action as any).path) {
+            filesToRead.push((action as any).path);
           }
           break;
           
         case 'ADD_TS_IMPORT':
-          if (action.path) {
-            filesToRead.push(action.path);
+          if ((action as any).path) {
+            filesToRead.push((action as any).path);
           }
           break;
           
         case 'EXTEND_SCHEMA':
-          if (action.path) {
-            filesToRead.push(action.path);
+          if ((action as any).path) {
+            filesToRead.push((action as any).path);
           }
           break;
           
         case 'WRAP_CONFIG':
-          if (action.path) {
-            filesToRead.push(action.path);
+          if ((action as any).path) {
+            filesToRead.push((action as any).path);
           }
           break;
           
@@ -158,7 +158,7 @@ export class BlueprintAnalyzer {
           
         default:
           // Handle additional package.json actions (using string comparison to avoid TypeScript issues)
-          if (action.type === 'ADD_DEPENDENCY' || action.type === 'ADD_DEV_DEPENDENCY') {
+          if ((action as any).type === 'ADD_DEPENDENCY' || (action as any).type === 'ADD_DEV_DEPENDENCY') {
             filesToRead.push('package.json');
           }
       }
@@ -225,11 +225,11 @@ export class BlueprintAnalyzer {
    * Expand forEach actions into multiple individual actions
    */
   private expandForEachAction(action: BlueprintAction, context: ProjectContext): BlueprintAction[] {
-    if (!action.forEach) return [action];
+    if (!(action as any).forEach) return [action];
     
     
     // Get the array to iterate over from context
-    const forEachPath = action.forEach.split('.');
+    const forEachPath = (action as any).forEach.split('.');
     let forEachArray: any[] = [];
     
     // Navigate to the array in the context
@@ -254,16 +254,16 @@ export class BlueprintAnalyzer {
     for (let i = 0; i < forEachArray.length; i++) {
       const item = forEachArray[i];
       const expandedAction: BlueprintAction = {
-        type: action.type,
-        ...(action.command && { command: action.command.replace(/\{\{item\}\}/g, item) }),
-        ...(action.path && { path: action.path.replace(/\{\{item\}\}/g, item) }),
-        ...(action.content && { content: action.content.replace(/\{\{item\}\}/g, item) }),
-        ...(action.template && { template: action.template.replace(/\{\{item\}\}/g, item) }),
-        ...(action.packages && { packages: action.packages }),
-        ...(action.workingDir && { workingDir: action.workingDir }),
-        ...(action.condition && { condition: action.condition }),
-        ...(action.params && { params: action.params }),
-        ...(action.fallback && { fallback: action.fallback })
+        type: (action as any).type,
+        ...((action as any).command && { command: (action as any).command.replace(/\{\{item\}\}/g, item) }),
+        ...((action as any).path && { path: (action as any).path.replace(/\{\{item\}\}/g, item) }),
+        ...((action as any).content && { content: (action as any).content.replace(/\{\{item\}\}/g, item) }),
+        ...((action as any).template && { template: (action as any).template.replace(/\{\{item\}\}/g, item) }),
+        ...((action as any).packages && { packages: (action as any).packages }),
+        ...((action as any).workingDir && { workingDir: (action as any).workingDir }),
+        ...((action as any).condition && { condition: (action as any).condition }),
+        ...((action as any).params && { params: (action as any).params }),
+        ...((action as any).fallback && { fallback: (action as any).fallback })
       };
       
       expandedActions.push(expandedAction);

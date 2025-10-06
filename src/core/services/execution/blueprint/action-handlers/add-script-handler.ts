@@ -5,7 +5,7 @@
  * This handler REQUIRES VFS mode and uses the Modifier System.
  */
 
-import { BlueprintAction, ProjectContext } from '@thearchitech.xyz/types';
+import { BlueprintAction, ProjectContext, AddScriptAction } from '@thearchitech.xyz/types';
 import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file-system.js';
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ModifierRegistry } from '../../../file-system/modifiers/modifier-registry.js';
@@ -41,7 +41,10 @@ export class AddScriptHandler extends BaseActionHandler {
       };
     }
 
-    if (!action.name || !action.command) {
+    // Type guard to narrow the action type
+    const scriptAction = action as AddScriptAction;
+    
+    if (!scriptAction.name || !scriptAction.command) {
       return { 
         success: false, 
         error: 'ADD_SCRIPT action missing name or command' 
@@ -49,8 +52,9 @@ export class AddScriptHandler extends BaseActionHandler {
     }
 
     const filePath = 'package.json';
-    const scriptName = action.name;
-    const scriptCommand = this.processTemplate(action.command, context);
+    
+    const scriptName = scriptAction.name;
+    const scriptCommand = this.processTemplate(scriptAction.command, context);
 
     // Ensure package.json exists in VFS
     if (!vfs.fileExists(filePath)) {

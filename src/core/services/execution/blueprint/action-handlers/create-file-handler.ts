@@ -5,7 +5,7 @@
  * This is a "Specialized Worker" in the Executor-Centric architecture.
  */
 
-import { BlueprintAction, ProjectContext, ConflictResolution, MergeInstructions } from '@thearchitech.xyz/types';
+import { BlueprintAction, ProjectContext, ConflictResolution, MergeInstructions, CreateFileAction } from '@thearchitech.xyz/types';
 import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file-system.js';
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ArchitechError } from '../../../infrastructure/error/architech-error.js';
@@ -32,17 +32,20 @@ export class CreateFileHandler extends BaseActionHandler {
     projectRoot: string,
     vfs: VirtualFileSystem
   ): Promise<ActionResult> {
+    // Type guard to narrow the action type
+    const createAction = action as CreateFileAction;
+    
     const validation = this.validateAction(action);
     if (!validation.valid) {
       return { success: false, error: validation.error };
     }
-
-    if (!action.path) {
+    
+    if (!createAction.path) {
       return { success: false, error: 'CREATE_FILE action missing path' };
     }
 
     // Process template path using TemplateService for full path variable support
-    const filePath = TemplateService.processTemplate(action.path, context);
+    const filePath = TemplateService.processTemplate(createAction.path, context);
 
     // Check if file already exists in VFS
     const fileExists = vfs.fileExists(filePath);
@@ -51,7 +54,7 @@ export class CreateFileHandler extends BaseActionHandler {
       console.log(`🔄 File already exists: ${filePath}, applying conflict resolution...`);
       
       // Apply conflict resolution strategy
-      const conflictResolution = action.conflictResolution || { strategy: 'error' };
+      const conflictResolution = createAction.conflictResolution || { strategy: 'error' };
       
       switch (conflictResolution.strategy) {
         case 'skip':
@@ -69,7 +72,7 @@ export class CreateFileHandler extends BaseActionHandler {
           
         case 'merge':
           console.log(`  🔀 Merging with existing file: ${filePath}`);
-          return await this.handleDelegationMerge(action, context, projectRoot, vfs, filePath);
+          return await this.handleDelegationMerge(action, context, projectRoot, vfs, filePath, createAction);
           
         case 'error':
         default:
@@ -82,20 +85,20 @@ export class CreateFileHandler extends BaseActionHandler {
 
     // Handle both content and template properties
     let content: string;
-    if (action.template) {
+    if (createAction.template) {
       // Load and process template
       try {
-        const templateContent = await this.loadTemplate(action.template, projectRoot, context);
+        const templateContent = await this.loadTemplate(createAction.template, projectRoot, context);
         content = TemplateService.processTemplate(templateContent, context);
       } catch (error) {
         return { 
           success: false, 
-          error: `Failed to load template ${action.template}: ${error instanceof Error ? error.message : 'Unknown error'}` 
+          error: `Failed to load template ${createAction.template}: ${error instanceof Error ? error.message : 'Unknown error'}` 
         };
       }
-    } else if (action.content) {
+    } else if (createAction.content) {
       // Process inline content using TemplateService for full template support
-      content = TemplateService.processTemplate(action.content, context);
+      content = TemplateService.processTemplate(createAction.content, context);
     } else {
       return { success: false, error: 'CREATE_FILE action missing content or template' };
     }
@@ -113,7 +116,7 @@ export class CreateFileHandler extends BaseActionHandler {
     } catch (error) {
       const architechError = ArchitechError.internalError(
         `Failed to create file: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        { operation: 'create_file', filePath: action.path }
+        { operation: 'create_file', filePath: createAction.path }
       );
       return { 
         success: false, 
@@ -131,11 +134,12 @@ export class CreateFileHandler extends BaseActionHandler {
     context: ProjectContext, 
     projectRoot: string,
     vfs: VirtualFileSystem,
-    filePath: string
+    filePath: string,
+    createAction: CreateFileAction
   ): Promise<ActionResult> {
     try {
       // Check if mergeInstructions is defined
-      if (!action.mergeInstructions) {
+      if (!createAction.mergeInstructions) {
         return {
           success: false,
           error: 'Smart merge requires mergeInstructions to be defined'
@@ -144,11 +148,11 @@ export class CreateFileHandler extends BaseActionHandler {
 
       // Get new content from template or content
       let newContent: string;
-      if (action.template) {
-        const templateContent = await this.loadTemplate(action.template, projectRoot, context);
+      if (createAction.template) {
+        const templateContent = await this.loadTemplate(createAction.template, projectRoot, context);
         newContent = TemplateService.processTemplate(templateContent, context);
-      } else if (action.content) {
-        newContent = TemplateService.processTemplate(action.content, context);
+      } else if (createAction.content) {
+        newContent = TemplateService.processTemplate(createAction.content, context);
       } else {
         return {
           success: false,
@@ -158,10 +162,10 @@ export class CreateFileHandler extends BaseActionHandler {
 
       // For js-config-merger, we need to parse the content to extract properties
       let targetProperties: any = null;
-      if (action.mergeInstructions.modifier === 'js-config-merger') {
+      if (createAction.mergeInstructions.modifier === 'js-config-merger') {
         try {
           // Parse the JavaScript content to extract the config object
-          targetProperties = await this.parseJsConfigContent(newContent, action.mergeInstructions.params?.exportName || 'default');
+          targetProperties = await this.parseJsConfigContent(newContent, createAction.mergeInstructions.params?.exportName || 'default');
         } catch (error) {
           return {
             success: false,
@@ -172,14 +176,15 @@ export class CreateFileHandler extends BaseActionHandler {
 
       // Dynamically construct ENHANCE_FILE action
       const enhanceAction: BlueprintAction = {
-        type: 'ENHANCE_FILE',
+        type: BlueprintActionType.ENHANCE_FILE,
+
         path: filePath,
-        modifier: action.mergeInstructions.modifier || 'js-config-merger',
+        modifier: createAction.mergeInstructions.modifier || 'js-config-merger',
         params: {
-          ...action.mergeInstructions.params,
+          ...createAction.mergeInstructions.params,
           content: newContent,
           targetProperties: targetProperties,
-          strategy: action.mergeInstructions.strategy || 'deep-merge'
+          strategy: createAction.mergeInstructions.strategy || 'deep-merge'
         }
       };
 
