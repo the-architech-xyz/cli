@@ -5,7 +5,7 @@
  * Handles package.json merging, tsconfig enhancement, and other file modifications.
  */
 
-import { ProjectContext } from '@thearchitech.xyz/types';
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 import { FileModificationEngine } from '../file-engine/file-modification-engine.js';
 // import { ModifierDefinition } from '@thearchitech.xyz/types'; // Not available in current types
 import * as fs from 'fs/promises';

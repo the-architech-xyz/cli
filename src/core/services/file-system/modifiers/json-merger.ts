@@ -11,7 +11,7 @@
  */
 
 import { BaseModifier, ModifierParams, ModifierResult } from './base-modifier.js';
-import { ProjectContext } from '@thearchitech.xyz/types';
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 
 export interface JsonMergerParams extends ModifierParams {
   merge: Record<string, any>; // The object to deep merge into the target file

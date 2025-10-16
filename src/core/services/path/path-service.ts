@@ -198,19 +198,139 @@ export class PathService {
   }
 
   /**
-   * Resolve template variables in a string (for {{paths.key}} patterns)
+   * Resolve template variables in a string (for ${paths.key} patterns)
+   * CHANGED: Now uses ${} syntax to avoid conflicts with template {{}} syntax
    */
   resolveTemplate(template: string): string {
-    // Replace {{paths.key}} patterns with actual resolved paths
-    return template.replace(/\{\{paths\.([^}]+)\}\}/g, (match, key) => {
+    // Replace ${paths.key} patterns with actual resolved paths
+    // NOTE: Also support legacy {{paths.key}} for backward compatibility during migration
+    
+    // New syntax: ${paths.key}
+    let processed = template.replace(/\$\{paths\.([^}]+)\}/g, (match, key) => {
       try {
-        return this.getPath(key);
+        const resolved = this.getPath(key);
+        return resolved;
       } catch (error) {
-        // If path not found, return the original template variable
-        console.warn(`⚠️ Path '${key}' not found in framework paths, keeping template variable`);
-        return match;
+        console.warn(`⚠️  Path '${key}' not found in pathMap. Available paths: [${Object.keys(this.pathMap).join(', ')}]`);
+        return this.getFallbackPath(key, match);
       }
     });
+    
+    // Legacy syntax: {{paths.key}} (for backward compatibility)
+    processed = processed.replace(/\{\{paths\.([^}]+)\}\}/g, (match, key) => {
+      console.warn(`⚠️  Legacy path syntax {{paths.${key}}} detected. Please update to \${paths.${key}}`);
+      try {
+        const resolved = this.getPath(key);
+        return resolved;
+      } catch (error) {
+        return this.getFallbackPath(key, match);
+      }
+    });
+    
+    return processed;
+  }
+
+  /**
+   * Get fallback path for common keys
+   */
+  private getFallbackPath(key: string, originalMatch: string): string {
+    const commonDefaults: Record<string, string> = {
+      'app_root': 'src/app/',
+      'components': 'src/components/',
+      'shared_library': 'src/lib/',
+      'styles': 'src/styles/',
+      'readme': 'README.md',
+      'source_root': 'src/'
+    };
+    
+    if (commonDefaults[key]) {
+      console.warn(`  ✅ Using fallback default: ${commonDefaults[key]}`);
+      return commonDefaults[key];
+    }
+    
+    console.warn(`  ❌ No fallback available for '${key}', keeping template variable`);
+    return originalMatch;
+  }
+
+  /**
+   * Validate that all ${paths.key} variables in a template exist in the framework paths
+   * Also supports legacy {{paths.key}} syntax
+   * @param template The template string to validate
+   * @param strict If true, throws an error for missing paths. If false, returns validation result
+   * @returns Validation result with missing paths
+   */
+  validatePathVariables(template: string, strict: boolean = false): { valid: boolean; missingPaths: string[] } {
+    // Check both new ${paths.key} and legacy {{paths.key}} syntax
+    const newSyntaxRegex = /\$\{paths\.([^}]+)\}/g;
+    const legacySyntaxRegex = /\{\{paths\.([^}]+)\}\}/g;
+    const missingPaths: string[] = [];
+    
+    // Check new syntax
+    let match;
+    while ((match = newSyntaxRegex.exec(template)) !== null) {
+      const pathKey = match[1];
+      if (pathKey) {
+        try {
+          this.getPath(pathKey);
+        } catch (error) {
+          missingPaths.push(pathKey);
+        }
+      }
+    }
+    
+    // Check legacy syntax
+    while ((match = legacySyntaxRegex.exec(template)) !== null) {
+      const pathKey = match[1];
+      if (pathKey) {
+        try {
+          this.getPath(pathKey);
+        } catch (error) {
+          missingPaths.push(pathKey);
+        }
+      }
+    }
+
+    const valid = missingPaths.length === 0;
+
+    if (!valid && strict) {
+      throw new Error(
+        `Path validation failed. Missing path keys: ${missingPaths.join(', ')}. ` +
+        `Available paths: ${this.getAvailablePaths().join(', ')}`
+      );
+    }
+
+    return { valid, missingPaths };
+  }
+
+  /**
+   * Get all path variables used in a template
+   * Supports both ${paths.key} and legacy {{paths.key}} syntax
+   * @param template The template string to analyze
+   * @returns Array of path keys found in the template
+   */
+  getPathVariablesInTemplate(template: string): string[] {
+    const pathKeys: string[] = [];
+    
+    // Find new syntax: ${paths.key}
+    const newSyntaxRegex = /\$\{paths\.([^}]+)\}/g;
+    let match;
+    while ((match = newSyntaxRegex.exec(template)) !== null) {
+      const pathKey = match[1];
+      if (pathKey && !pathKeys.includes(pathKey)) {
+        pathKeys.push(pathKey);
+      }
+    }
+    
+    // Find legacy syntax: {{paths.key}}
+    const legacySyntaxRegex = /\{\{paths\.([^}]+)\}\}/g;
+    while ((match = legacySyntaxRegex.exec(template)) !== null) {
+      const pathKey = match[1];
+      if (pathKey && !pathKeys.includes(pathKey)) {
+        pathKeys.push(pathKey);
+      }
+    }
+
+    return pathKeys;
   }
 
   // ============================================================================
@@ -259,68 +379,15 @@ export class PathService {
   }
 
   /**
-   * Resolve module ID to full module path
-   * Handles multiple formats:
-   * - Full paths: 'integrations/drizzle-nextjs-integration' -> 'integrations/drizzle-nextjs-integration'
-   * - Adapter short: 'drizzle' -> 'adapters/drizzle' (if exists)
-   * - Adapter category/name: 'framework/nextjs' -> 'adapters/framework/nextjs'
-   * - Integration short: 'drizzle-nextjs-integration' -> 'integrations/drizzle-nextjs-integration'
+   * Resolve module ID to full module path using dumb translation
+   * 
+   * The CLI knows nothing about module types. It just performs simple string transformations.
+   * This is the only "intelligence" in the CLI.
    */
   static async resolveModuleId(moduleId: string): Promise<string> {
-    const marketplaceRoot = await this.getMarketplaceRoot();
-    
-    // If it's already a full path (starts with 'adapters/', 'integrations/', or 'features/'), use it as-is
-    if (moduleId.startsWith('adapters/') || moduleId.startsWith('integrations/') || moduleId.startsWith('features/')) {
-      const fullPath = path.join(marketplaceRoot, moduleId);
-      try {
-        await fs.promises.access(fullPath);
-        return moduleId;
-      } catch {
-        throw new Error(`Module not found: ${moduleId}. Checked path: ${fullPath}`);
-      }
-    }
-    
-    // If it contains a '/' but doesn't start with adapters/integrations/features, it's likely category/name format
-    if (moduleId.includes('/')) {
-      // Try as adapter first (most common case)
-      const adapterPath = path.join(marketplaceRoot, 'adapters', moduleId);
-      try {
-        await fs.promises.access(adapterPath);
-        return `adapters/${moduleId}`;
-      } catch {
-        // Try as integration
-        const integrationPath = path.join(marketplaceRoot, 'integrations', moduleId);
-        try {
-          await fs.promises.access(integrationPath);
-          return `integrations/${moduleId}`;
-        } catch {
-          // Try as feature
-          const featurePath = path.join(marketplaceRoot, 'features', moduleId);
-          try {
-            await fs.promises.access(featurePath);
-            return `features/${moduleId}`;
-          } catch {
-            throw new Error(`Module not found: ${moduleId}. Checked paths: ${adapterPath}, ${integrationPath}, ${featurePath}`);
-          }
-        }
-      }
-    }
-    
-    // Otherwise, it's a short ID - auto-detect whether it's an adapter or integration
-    const integrationPath = path.join(marketplaceRoot, 'integrations', moduleId);
-    try {
-      await fs.promises.access(integrationPath);
-      return `integrations/${moduleId}`;
-    } catch {
-      // Check if it's an adapter
-      const adapterPath = path.join(marketplaceRoot, 'adapters', moduleId);
-      try {
-        await fs.promises.access(adapterPath);
-        return `adapters/${moduleId}`;
-      } catch {
-        throw new Error(`Module not found: ${moduleId}. Checked paths: ${integrationPath}, ${adapterPath}`);
-      }
-    }
+    // Import the dumb translator
+    const { DumbPathTranslator } = await import('./dumb-path-translator.js');
+    return DumbPathTranslator.translateModuleId(moduleId);
   }
 
   /**

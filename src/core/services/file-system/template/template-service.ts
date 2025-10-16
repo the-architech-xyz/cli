@@ -2,14 +2,21 @@
  * Template Service - Centralized Template Processing
  * 
  * Provides unified template processing functionality across the entire CLI.
- * Handles variable substitution, conditional blocks, and path resolution.
+ * Now powered by EJS for robust template processing with zero JSX conflicts.
+ * Handles variable substitution, conditional blocks, loops, and path resolution.
+ * 
+ * Template Syntax (EJS):
+ * - Variables: <%= variable %>
+ * - Conditionals: <% if (condition) { %> ... <% } %>
+ * - Loops: <% array.forEach((item, index) => { %> ... <% }); %>
  */
 
-import { ProjectContext } from '@thearchitech.xyz/types';
+import * as ejs from 'ejs';
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 
 export interface TemplateProcessingOptions {
   /**
-   * Whether to process Handlebars-like conditionals {{#if condition}}...{{/if}}
+   * Whether to process conditionals ({{#if}} or <% if %>)
    * @default true
    */
   processConditionals?: boolean;
@@ -21,22 +28,22 @@ export interface TemplateProcessingOptions {
   processPathVariables?: boolean;
   
   /**
-   * Whether to process template variables {{variable}}
+   * Whether to process template variables ({{var}} or <%= var %>)
    * @default true
    */
   processVariables?: boolean;
   
   /**
-   * Custom variable prefix (default: '{{')
-   * @default '{{'
+   * Whether to validate path variables before processing
+   * @default true
    */
-  variablePrefix?: string;
+  validatePathVariables?: boolean;
   
   /**
-   * Custom variable suffix (default: '}}')
-   * @default '}}'
+   * Whether to throw an error if path validation fails
+   * @default false
    */
-  variableSuffix?: string;
+  strictPathValidation?: boolean;
 }
 
 export class TemplateService {
@@ -44,136 +51,194 @@ export class TemplateService {
     processConditionals: true,
     processPathVariables: true,
     processVariables: true,
-    variablePrefix: '{{',
-    variableSuffix: '}}'
+    validatePathVariables: true,
+    strictPathValidation: false
   };
 
   /**
    * Process a template string with the given context
+   * HYBRID APPROACH:
+   * - EJS (<% %>) for .tpl files with complex React/JSX code
+   * - Simple regex ({{ }}) for blueprint inline strings (backward compatible)
+   * 
+   * Automatically detects which engine to use based on syntax found in template.
    */
   static processTemplate(
     template: string, 
     context: ProjectContext, 
     options: TemplateProcessingOptions = {}
   ): string {
-    // Debug logging removed - use Logger.debug() instead
-    
     const opts = { ...this.DEFAULT_OPTIONS, ...options };
     let processed = template;
     
-    // 1. Process path variables first (from decentralized path handler)
+    // 0. Validate path variables if enabled
+    if (opts.validatePathVariables && context.pathHandler?.validatePathVariables) {
+      const validation = context.pathHandler.validatePathVariables(processed, opts.strictPathValidation);
+      if (!validation.valid) {
+        const errorMessage = `Path validation failed. Missing path keys: ${validation.missingPaths.join(', ')}. ` +
+                           `Available paths: ${context.pathHandler.getAvailablePaths?.()?.join(', ') || 'none'}`;
+        
+        if (opts.strictPathValidation) {
+          throw new Error(errorMessage);
+        } else {
+          console.warn(`⚠️ ${errorMessage}`);
+        }
+      }
+    }
+    
+    // 1. Process path variables first (our custom logic)
     if (opts.processPathVariables && context.pathHandler?.resolveTemplate) {
-      // Debug logging removed - use Logger.debug() instead
       processed = context.pathHandler.resolveTemplate(processed);
     }
     
-    // 2. Process Handlebars-like conditionals {{#if condition}}...{{/if}}
-    if (opts.processConditionals) {
-      // Debug logging removed - use Logger.debug() instead
-      processed = this.processConditionals(processed, context, opts);
+    // 2. Detect template engine based on syntax
+    const hasEJSSyntax = processed.includes('<%');
+    const hasHandlebarsSyntax = processed.includes('{{');
+    
+    if (opts.processVariables || opts.processConditionals) {
+      // STRATEGY 1: Use EJS for templates with EJS syntax (complex .tpl files)
+      if (hasEJSSyntax) {
+        try {
+          // DEBUG: Log context structure
+          console.log('🔍 EJS Context keys:', Object.keys(context));
+          console.log('🔍 Has project?', !!context.project);
+          console.log('🔍 Has modules?', !!context.modules, Array.isArray(context.modules) ? `(${context.modules.length} items)` : '');
+          
+          processed = ejs.render(processed, context, {
+            async: false,
+            compileDebug: true,
+            escape: (str: string) => str,
+            rmWhitespace: false,
+            // NOTE: Removed _with: false to allow direct property access in templates
+            // Templates can use: module.parameters.xxx instead of context.module.parameters.xxx
+          });
+          console.log('✅ EJS processing successful');
+          
+        } catch (error) {
+          console.error('❌ EJS processing failed:', error);
+          console.error('📋 Context snapshot:', JSON.stringify({
+            project: context.project,
+            moduleId: context.module?.id,
+            hasModules: !!context.modules,
+            modulesCount: Array.isArray(context.modules) ? context.modules.length : 'not array'
+          }, null, 2));
+          
+          // Try to extract line number from error
+          if (error instanceof Error && error.message) {
+            console.error('💥 Error details:', error.message);
+          }
+          
+          throw new Error(`EJS template processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+      // STRATEGY 2: Use simple regex for Handlebars syntax (blueprint inline strings)
+      else if (hasHandlebarsSyntax) {
+        processed = this.processSimpleHandlebars(processed, context, opts);
+        console.log('✅ Simple template processing successful');
+      }
     }
     
-    // 3. Process template variables {{variable}}
-    if (opts.processVariables) {
-      // Debug logging removed - use Logger.debug() instead
-      processed = this.processVariables(processed, context, opts);
-    }
     return processed;
   }
 
   /**
-   * Process Handlebars-like conditionals {{#if condition}}...{{/if}}
+   * Process simple Handlebars-style templates (for blueprint inline strings)
+   * Uses clean, simple regex - perfect for non-nested command strings
    */
-  private static processConditionals(
-    template: string, 
-    context: ProjectContext, 
+  private static processSimpleHandlebars(
+    template: string,
+    context: ProjectContext,
     options: Required<TemplateProcessingOptions>
   ): string {
-    const conditionalRegex = new RegExp(
-      `\\{\\{#if\\s+([^}]+)\\}\\}([\\s\\S]*?)\\{\\{/if\\}\\}`,
-      'g'
+    let processed = template;
+
+    // Process simple {{#if condition}}...{{/if}} (non-nested only)
+    processed = processed.replace(
+      /\{\{#if\s+([^}]+)\}\}(.*?)\{\{\/if\}\}/g,
+      (match, condition, content) => {
+        const value = this.getNestedValue(context, condition.trim());
+        return this.isTruthy(value) ? content : '';
+      }
     );
-    
-    return template.replace(conditionalRegex, (match, condition, content) => {
-      const value = this.getNestedValue(context, condition.trim());
-      return this.isTruthy(value) ? content : '';
+
+    // Process simple variable substitution {{variable}} and expressions {{variable || "fallback"}}
+    processed = processed.replace(
+      /\{\{([^{#/}][^}]*?)\}\}/g,
+      (match, variable) => {
+        const trimmedVariable = variable.trim();
+        
+        // Handle JavaScript expressions with || operator
+        if (trimmedVariable.includes('||')) {
+          return this.evaluateExpression(context, trimmedVariable);
+        }
+        
+        // Handle simple variable substitution
+        const value = this.getNestedValue(context, trimmedVariable);
+        return value !== undefined ? String(value) : match;
+      }
+    );
+
+    return processed;
+  }
+
+  /**
+   * Process a template with strict path validation (throws error on missing paths)
+   */
+  static processTemplateWithStrictValidation(
+    template: string, 
+    context: ProjectContext, 
+    options: Omit<TemplateProcessingOptions, 'strictPathValidation'> = {}
+  ): string {
+    return this.processTemplate(template, context, {
+      ...options,
+      strictPathValidation: true
     });
   }
 
   /**
-   * Process template variables {{variable}}
+   * Validate path variables in a template without processing
    */
-  private static processVariables(
+  static validateTemplatePaths(
     template: string, 
-    context: ProjectContext, 
-    options: Required<TemplateProcessingOptions>
-  ): string {
-    const variableRegex = new RegExp(
-      `${this.escapeRegex(options.variablePrefix)}([^}]+)${this.escapeRegex(options.variableSuffix)}`,
-      'g'
-    );
+    context: ProjectContext
+  ): { valid: boolean; missingPaths: string[]; usedPaths: string[] } {
+    if (!context.pathHandler?.validatePathVariables) {
+      return { valid: true, missingPaths: [], usedPaths: [] };
+    }
+
+    const validation = context.pathHandler.validatePathVariables(template, false);
+    const usedPaths: string[] = []; // TODO: Implement path extraction if needed
     
-    return template.replace(variableRegex, (match, variable) => {
-      const trimmedVariable = variable.trim();
-      let value = this.getNestedValue(context, trimmedVariable);
-      
-      // Handle cross-module parameter access for common cases
-      if (value === undefined) {
-        value = this.resolveCrossModuleParameter(context, trimmedVariable);
-      }
-      
-      return value !== undefined ? String(value) : match;
-    });
+    return {
+      valid: validation.valid,
+      missingPaths: validation.missingPaths,
+      usedPaths
+    };
   }
 
   /**
-   * Resolve cross-module parameters for common template variables
+   * REMOVED: Old complex regex-based template processing methods
+   * 
+   * The following methods have been replaced by a HYBRID system:
+   * - Complex .tpl files: Processed by EJS (<% if %>, <%= var %>)
+   * - Simple blueprint strings: Processed by simple regex ({{#if}}, {{var}})
+   * 
+   * Removed methods:
+   * - processConditionals() - Now split: EJS for complex, regex for simple
+   * - processEachLoops() - EJS handles <% forEach %>, regex handles {{#each}}
+   * - processVariables() - EJS handles <%= %>, regex handles {{}}
+   * - resolveCrossModuleParameter() - Merged into getNestedValue()
+   * 
+   * Migration Date: October 11, 2025
+   * Reason: Handlebars conflicted with JSX {{ }}; regex failed on nested structures
+   * Solution: EJS for templates, simple regex for inline strings
    */
-  private static resolveCrossModuleParameter(context: ProjectContext, variable: string): unknown {
-    // Handle common cross-module parameter patterns
-    if (variable === 'module.parameters.databaseType') {
-      return context.databaseModule?.parameters?.databaseType || 
-             context.databaseModule?.parameters?.provider ||
-             'postgresql';
-    }
-    
-    if (variable === 'module.parameters.currency') {
-      const currencies = context.paymentModule?.parameters?.currencies;
-      if (Array.isArray(currencies) && currencies.length > 0) {
-        return currencies[0]; // Return first currency
-      }
-      return context.paymentModule?.parameters?.currency || 'usd';
-    }
-    
-    if (variable === 'module.parameters.provider') {
-      return context.databaseModule?.parameters?.provider || 'postgresql';
-    }
-    
-    if (variable === 'module.parameters.mode') {
-      return context.paymentModule?.parameters?.mode || 'test';
-    }
-    
-    // Handle other common patterns
-    if (variable.startsWith('databaseModule.parameters.')) {
-      const param = variable.replace('databaseModule.parameters.', '');
-      return context.databaseModule?.parameters?.[param];
-    }
-    
-    if (variable.startsWith('paymentModule.parameters.')) {
-      const param = variable.replace('paymentModule.parameters.', '');
-      return context.paymentModule?.parameters?.[param];
-    }
-    
-    if (variable.startsWith('authModule.parameters.')) {
-      const param = variable.replace('authModule.parameters.', '');
-      return context.authModule?.parameters?.[param];
-    }
-    
-    return undefined;
-  }
 
   /**
    * Get nested value from object using dot notation
+   * Used internally by simple regex processor for blueprint strings
+   * 
+   * Example: getNestedValue(context, 'project.name') → 'hello-world'
    */
   private static getNestedValue(obj: unknown, path: string): unknown {
     if (!path) return undefined;
@@ -187,7 +252,50 @@ export class TemplateService {
   }
 
   /**
-   * Check if value is truthy (Handlebars-like logic)
+   * Evaluate JavaScript expressions with || operator
+   * Used by simple regex processor for expressions like {{variable || "fallback"}}
+   */
+  private static evaluateExpression(context: ProjectContext, expression: string): string {
+    try {
+      // Split by || operator
+      const parts = expression.split('||').map(part => part.trim());
+      
+      if (parts.length !== 2) {
+        // If not exactly 2 parts, fall back to simple variable substitution
+        const value = this.getNestedValue(context, expression);
+        return value !== undefined ? String(value) : `{{${expression}}}`;
+      }
+      
+      const [variablePart, fallbackPart] = parts;
+      
+      if (!variablePart || !fallbackPart) {
+        // If parts are missing, fall back to simple variable substitution
+        const value = this.getNestedValue(context, expression);
+        return value !== undefined ? String(value) : `{{${expression}}}`;
+      }
+      
+      // Get the variable value
+      const value = this.getNestedValue(context, variablePart);
+      
+      // If value exists and is truthy, return it
+      if (value !== undefined && value !== null && value !== '') {
+        return String(value);
+      }
+      
+      // Otherwise, return the fallback (remove quotes if present)
+      const fallback = fallbackPart.replace(/^["']|["']$/g, '');
+      return fallback;
+      
+    } catch (error) {
+      // If evaluation fails, return the original expression
+      return `{{${expression}}}`;
+    }
+  }
+
+  /**
+   * Check if value is truthy
+   * Used by simple regex processor for {{#if}} conditionals in blueprint strings
+   * Provides consistent truthiness logic across all template types
    */
   private static isTruthy(value: unknown): boolean {
     if (value === null || value === undefined) return false;
@@ -207,51 +315,50 @@ export class TemplateService {
     return Boolean(value);
   }
 
-  /**
-   * Escape special regex characters
-   */
-  private static escapeRegex(string: string): string {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
 
   /**
-   * Validate template syntax (basic validation)
+   * Validate template syntax using EJS compilation
+   * This provides accurate syntax validation
    */
   static validateTemplate(template: string): { valid: boolean; errors: string[] } {
     const errors: string[] = [];
     
-    // Check for unmatched conditionals
-    const openConditionals = (template.match(/\{\{#if\s+[^}]+\}\}/g) || []).length;
-    const closeConditionals = (template.match(/\{\{\/if\}\}/g) || []).length;
-    
-    if (openConditionals !== closeConditionals) {
-      errors.push(`Unmatched conditionals: ${openConditionals} open, ${closeConditionals} close`);
-    }
-    
-    // Check for malformed variables (basic check)
-    const malformedVariables = template.match(/\{\{[^}]*$/g);
-    if (malformedVariables) {
-      errors.push(`Malformed variables found: ${malformedVariables.join(', ')}`);
-    }
+    try {
+      // Try to compile the template to check for syntax errors
+      ejs.compile(template, {
+        compileDebug: true,
+        client: false,
+      });
+      
+      return {
+        valid: true,
+        errors: []
+      };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown template syntax error';
+      errors.push(`EJS template syntax error: ${errorMessage}`);
     
     return {
-      valid: errors.length === 0,
+        valid: false,
       errors
     };
+    }
   }
 
   /**
    * Extract all variables used in a template
+   * Uses regex to find EJS variable output tags <%= variable %>
    */
   static extractVariables(template: string): string[] {
     const variables = new Set<string>();
     
-    // Extract variables from {{variable}} syntax
-    const variableMatches = template.match(/\{\{([^}]+)\}\}/g);
+    // Extract variables from <%= variable %> and <%- variable %> syntax
+    const variableMatches = template.match(/<%[=-]\s*([^%]+?)\s*%>/g);
     if (variableMatches) {
       variableMatches.forEach(match => {
-        const variable = match.slice(2, -2).trim();
-        if (variable && !variable.startsWith('#if') && !variable.startsWith('/if')) {
+        // Extract the variable name (remove <%= and %>)
+        const variable = match.replace(/<%[=-]\s*/, '').replace(/\s*%>/, '').trim();
+        if (variable) {
           variables.add(variable);
         }
       });
@@ -262,16 +369,19 @@ export class TemplateService {
 
   /**
    * Extract all conditional expressions from a template
+   * Uses regex to find EJS if statements
    */
   static extractConditionals(template: string): string[] {
     const conditionals: string[] = [];
     
-    const conditionalMatches = template.match(/\{\{#if\s+([^}]+)\}\}/g);
+    // Extract conditions from <% if (condition) { %> syntax
+    const conditionalMatches = template.match(/<%\s*if\s*\(([^)]+)\)\s*\{\s*%>/g);
     if (conditionalMatches) {
       conditionalMatches.forEach(match => {
-        const condition = match.match(/\{\{#if\s+([^}]+)\}\}/)?.[1];
-        if (condition) {
-          conditionals.push(condition.trim());
+        // Extract the condition expression
+        const conditionMatch = match.match(/if\s*\(([^)]+)\)/);
+        if (conditionMatch && conditionMatch[1]) {
+          conditionals.push(conditionMatch[1].trim());
         }
       });
     }

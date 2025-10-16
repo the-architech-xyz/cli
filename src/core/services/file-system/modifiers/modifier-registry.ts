@@ -6,7 +6,8 @@
  * specific modifier implementations.
  */
 
-import { ProjectContext, AvailableModifier } from '@thearchitech.xyz/types';
+import { AvailableModifier } from '@thearchitech.xyz/types';
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 
 // Simple modifier interface for now
 interface ModifierDefinition {

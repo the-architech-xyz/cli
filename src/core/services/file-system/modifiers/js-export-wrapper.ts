@@ -16,7 +16,7 @@
  */
 
 import { BaseModifier, ModifierParams, ModifierResult } from './base-modifier.js';
-import { ProjectContext } from '@thearchitech.xyz/types';
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 import { Project, SyntaxKind, VariableDeclarationKind } from 'ts-morph';
 
 export interface JsExportWrapperParams extends ModifierParams {

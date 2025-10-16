@@ -8,6 +8,7 @@
 import { readFile, readdir, stat } from 'fs/promises';
 import { join, extname, basename } from 'path';
 import { Logger } from '../infrastructure/logging/logger.js';
+import { DynamicConnectorResolver } from '../connector/dynamic-connector-resolver.js';
 
 export interface DetectedGenome {
   project: {
@@ -70,7 +71,7 @@ export class GenomeDetector {
       const adapters = this.detectAdapters(analysis);
       
       // 4. Detect integrators
-      const integrators = this.detectIntegrators(analysis, adapters);
+      const integrators = await this.detectIntegrators(analysis, adapters);
       
       // 5. Detect features
       const features = this.detectFeatures(analysis, adapters, integrators);
@@ -459,52 +460,54 @@ export class GenomeDetector {
   }
 
   /**
-   * Detect integrators from analysis
+   * Detect integrators from analysis using dynamic connector resolution
    */
-  private detectIntegrators(analysis: ProjectAnalysis, adapters: DetectedAdapter[]): DetectedAdapter[] {
+  private async detectIntegrators(analysis: ProjectAnalysis, adapters: DetectedAdapter[]): Promise<DetectedAdapter[]> {
     const integrators: DetectedAdapter[] = [];
-    const adapterIds = adapters.map(a => a.id);
-
-    // Database + Framework integrators
-    if (adapterIds.includes('database/drizzle') && adapterIds.includes('framework/nextjs')) {
-      integrators.push({
-        id: 'integrations/drizzle-nextjs-integration',
-        confidence: 85,
-        parameters: {},
-        evidence: ['Drizzle + Next.js integration detected']
+    
+    try {
+      // Convert adapters to modules for connector resolution
+      const currentModules = adapters.map(adapter => ({
+        id: adapter.id,
+        category: this.extractCategoryFromAdapterId(adapter.id),
+        parameters: adapter.parameters || {},
+        features: {},
+        externalFiles: [],
+        config: undefined
+      }));
+      
+      // Use dynamic connector resolver
+      const connectorResolver = new DynamicConnectorResolver();
+      const connectorMatches = await connectorResolver.findMatchingConnectors(currentModules);
+      
+      // Convert matches to DetectedAdapter format
+      for (const match of connectorMatches) {
+        integrators.push({
+          id: match.connectorId,
+          confidence: match.confidence,
+          parameters: match.parameters,
+          evidence: match.evidence
+        });
+      }
+      
+      Logger.info(`🎯 Dynamic connector resolution found ${integrators.length} connectors`, {
+        connectors: integrators.map(i => i.id)
       });
+      
+    } catch (error) {
+      Logger.warn(`Failed to resolve connectors dynamically: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Fallback to empty array if dynamic resolution fails
     }
-
-    if (adapterIds.includes('database/prisma') && adapterIds.includes('framework/nextjs')) {
-      integrators.push({
-        id: 'integrations/prisma-nextjs-integration',
-        confidence: 85,
-        parameters: {},
-        evidence: ['Prisma + Next.js integration detected']
-      });
-    }
-
-    // Auth + Framework integrators
-    if (adapterIds.includes('auth/better-auth') && adapterIds.includes('framework/nextjs')) {
-      integrators.push({
-        id: 'integrations/better-auth-nextjs-integration',
-        confidence: 85,
-        parameters: {},
-        evidence: ['Better Auth + Next.js integration detected']
-      });
-    }
-
-    // UI + Framework integrators
-    if (adapterIds.includes('ui/shadcn-ui') && adapterIds.includes('framework/nextjs')) {
-      integrators.push({
-        id: 'integrations/shadcn-nextjs-integration',
-        confidence: 85,
-        parameters: {},
-        evidence: ['Shadcn/UI + Next.js integration detected']
-      });
-    }
-
+    
     return integrators;
+  }
+
+  /**
+   * Extract category from adapter ID
+   */
+  private extractCategoryFromAdapterId(adapterId: string): string {
+    const parts = adapterId.split('/');
+    return parts[0] || 'unknown';
   }
 
   /**

@@ -1,0 +1,30 @@
+{
+  "$schema": "./architech.config.schema.json",
+  "version": "1.0.0",
+  "defaultMarketplace": "@architech/marketplace",
+  "genomeSources": [
+    {
+      "name": "local-development",
+      "type": "local",
+      "path": "../marketplace",
+      "priority": 1,
+      "enabled": true
+    },
+    {
+      "name": "company-genomes",
+      "type": "local",
+      "path": "../company-genomes",
+      "priority": 2,
+      "enabled": false
+    }
+  ],
+  "genomeAliases": {
+    "company-saas": "company-saas-platform",
+    "internal": "company-internal-app"
+  },
+  "cache": {
+    "enabled": true,
+    "ttl": 3600
+  }
+}
+

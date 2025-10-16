@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Architech Configuration",
+  "description": "Configuration file for The Architech CLI",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Configuration version",
+      "default": "1.0.0"
+    },
+    "defaultMarketplace": {
+      "type": "string",
+      "description": "Default marketplace package",
+      "default": "@architech/marketplace"
+    },
+    "genomeSources": {
+      "type": "array",
+      "description": "Custom genome sources",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Source name"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["local", "git", "npm", "url"],
+            "description": "Source type"
+          },
+          "path": {
+            "type": "string",
+            "description": "Path or URL to genome source"
+          },
+          "priority": {
+            "type": "number",
+            "description": "Priority (lower = higher priority)",
+            "default": 10
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether this source is enabled",
+            "default": true
+          }
+        },
+        "required": ["name", "type", "path", "priority"]
+      }
+    },
+    "genomeAliases": {
+      "type": "object",
+      "description": "Custom genome name aliases",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "cache": {
+      "type": "object",
+      "description": "Cache configuration",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable resolution caching",
+          "default": true
+        },
+        "ttl": {
+          "type": "number",
+          "description": "Cache time-to-live in seconds",
+          "default": 3600
+        }
+      }
+    }
+  },
+  "required": ["version"]
+}
+

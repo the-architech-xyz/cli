@@ -5,7 +5,8 @@
  * This handler REQUIRES VFS mode and uses the Modifier System.
  */
 
-import { BlueprintAction, ProjectContext, AddScriptAction } from '@thearchitech.xyz/types';
+import { BlueprintAction, AddScriptAction } from '@thearchitech.xyz/types';
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file-system.js';
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ModifierRegistry } from '../../../file-system/modifiers/modifier-registry.js';

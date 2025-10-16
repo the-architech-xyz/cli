@@ -13,7 +13,7 @@
  */
 
 import { BaseModifier, ModifierParams, ModifierResult } from './base-modifier.js';
-import { ProjectContext } from '@thearchitech.xyz/types';
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 import { Project, SourceFile, ObjectLiteralExpression, PropertyAssignment, SyntaxKind } from 'ts-morph';
 
 export class JsConfigMergerModifier extends BaseModifier {

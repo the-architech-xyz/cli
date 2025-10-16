@@ -49,6 +49,16 @@ export class ModuleValidator {
         warnings.push(...versionValidation.warnings);
       }
 
+      // Step 4: Validate Constitutional Architecture (if applicable)
+      if (existenceValidation.adapter && this.isConstitutionalModule(existenceValidation.adapter)) {
+        const constitutionalValidation = this.validateConstitutionalArchitecture(existenceValidation.adapter);
+        if (!constitutionalValidation.valid) {
+          errors.push(...constitutionalValidation.errors);
+          return { valid: false, errors, warnings };
+        }
+        warnings.push(...constitutionalValidation.warnings);
+      }
+
       return {
         valid: true,
         errors,
@@ -80,7 +90,7 @@ export class ModuleValidator {
 
     if (!module.category) {
       errors.push('Module category is required');
-    } else if (!['framework', 'ui', 'database', 'auth', 'payment', 'email', 'content', 'testing', 'observability', 'state', 'deployment', 'blockchain', 'tooling'].includes(module.category)) {
+    } else if (!['framework', 'ui', 'database', 'auth', 'payment', 'email', 'content', 'testing', 'observability', 'state', 'deployment', 'blockchain', 'tooling', 'integration', 'feature'].includes(module.category)) {
       errors.push(`Invalid module category: ${module.category}`);
     }
 
@@ -163,6 +173,92 @@ export class ModuleValidator {
 
     return {
       valid: warnings.length === 0,
+      warnings
+    };
+  }
+
+  /**
+   * Check if module supports Constitutional Architecture
+   */
+  private isConstitutionalModule(adapter: any): boolean {
+    return (
+      adapter &&
+      adapter.config &&
+      adapter.config.parameters &&
+      adapter.config.parameters.features &&
+      adapter.config.internal_structure
+    );
+  }
+
+  /**
+   * Validate Constitutional Architecture structure
+   */
+  private validateConstitutionalArchitecture(adapter: any): { valid: boolean; errors: string[]; warnings: string[] } {
+    const errors: string[] = [];
+    const warnings: string[] = [];
+
+    const config = adapter.config;
+    const parameters = config.parameters;
+    const internalStructure = config.internal_structure;
+
+    // Validate parameters.features structure
+    if (!parameters.features || typeof parameters.features !== 'object') {
+      errors.push('Constitutional Architecture requires parameters.features object');
+    } else {
+      // Validate each feature has default value
+      for (const [featureName, featureConfig] of Object.entries(parameters.features)) {
+        if (typeof featureConfig !== 'object' || featureConfig === null) {
+          errors.push(`Feature ${featureName} must be an object`);
+          continue;
+        }
+
+        const feature = featureConfig as any;
+        if (typeof feature.default !== 'boolean') {
+          errors.push(`Feature ${featureName} must have a boolean default value`);
+        }
+      }
+    }
+
+    // Validate internal_structure
+    if (!internalStructure || typeof internalStructure !== 'object') {
+      errors.push('Constitutional Architecture requires internal_structure object');
+    } else {
+      // Validate core capabilities
+      if (!internalStructure.core || !Array.isArray(internalStructure.core)) {
+        errors.push('internal_structure must have a core array');
+      }
+
+      // Validate optional capabilities
+      if (internalStructure.optional) {
+        for (const [capabilityName, capability] of Object.entries(internalStructure.optional)) {
+          const cap = capability as any;
+          
+          // Validate prerequisites
+          if (cap.prerequisites && !Array.isArray(cap.prerequisites)) {
+            errors.push(`Capability ${capabilityName} prerequisites must be an array`);
+          }
+
+          // Validate provides
+          if (cap.provides && !Array.isArray(cap.provides)) {
+            errors.push(`Capability ${capabilityName} provides must be an array`);
+          }
+
+          // Validate templates
+          if (cap.templates && !Array.isArray(cap.templates)) {
+            errors.push(`Capability ${capabilityName} templates must be an array`);
+          }
+        }
+      }
+    }
+
+    // Validate provides array at root level
+    if (config.provides && !Array.isArray(config.provides)) {
+      warnings.push('Module provides should be an array of capabilities');
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors,
       warnings
     };
   }

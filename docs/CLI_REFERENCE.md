@@ -52,7 +52,7 @@ All commands support these global options:
 
 ### `architech new`
 
-Create a new project from a TypeScript genome file.
+Create a new project from a TypeScript genome file using Constitutional Architecture.
 
 #### Usage
 
@@ -77,18 +77,27 @@ architech new <genome-file> [options]
 #### Examples
 
 ```bash
-# Create a new project
+# Create a simple SaaS with Constitutional Architecture
 architech new my-saas.genome.ts
 
-# Create with verbose logging
+# Create with verbose logging to see capability resolution
 architech new my-saas.genome.ts --verbose
 
-# Show what would be created
+# Show what would be created (dry run)
 architech new my-saas.genome.ts --dry-run
 
 # Quiet mode (minimal output)
 architech new my-saas.genome.ts --quiet
 ```
+
+#### Constitutional Architecture Features
+
+The `new` command leverages Constitutional Architecture to:
+
+- **🤖 Intelligent Defaults** - Only specify what you want to change
+- **🎯 Capability Resolution** - Automatically resolve dependencies and conflicts
+- **⚡ Dynamic Blueprints** - Blueprints adapt to your configuration
+- **🧬 Type Safety** - Full TypeScript support with autocomplete
 
 #### Phase-Oriented Output
 
@@ -97,6 +106,12 @@ The `new` command provides a beautiful, phase-oriented progress display:
 ```
 🔍 Validating Genome...
    ✅ Completed in 45ms
+
+🧠 Resolving Capabilities...
+   🎯 Analyzing business capabilities...
+   🔗 Resolving dependencies...
+   ⚠️  Detecting conflicts...
+   ✅ Capabilities resolved successfully!
 
 📋 Planning Execution...
    ✅ Completed in 23ms

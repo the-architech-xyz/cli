@@ -6,7 +6,8 @@
  * Isolated VFS" architecture.
  */
 
-import { Blueprint, BlueprintAction, ProjectContext } from '@thearchitech.xyz/types';
+import { Blueprint, BlueprintAction } from '@thearchitech.xyz/types';
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 
 export interface BlueprintAnalysis {
   needVFS: boolean;  // ← NEW: The key VFS decision

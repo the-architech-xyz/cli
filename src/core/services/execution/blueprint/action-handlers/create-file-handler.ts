@@ -5,7 +5,8 @@
  * This is a "Specialized Worker" in the Executor-Centric architecture.
  */
 
-import { BlueprintAction, ProjectContext, ConflictResolution, MergeInstructions, CreateFileAction } from '@thearchitech.xyz/types';
+import { BlueprintAction, ConflictResolution, MergeInstructions, CreateFileAction, BlueprintActionType, ModifierType } from '@thearchitech.xyz/types';
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file-system.js';
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ArchitechError } from '../../../infrastructure/error/architech-error.js';
@@ -33,7 +34,7 @@ export class CreateFileHandler extends BaseActionHandler {
     vfs: VirtualFileSystem
   ): Promise<ActionResult> {
     // Type guard to narrow the action type
-    const createAction = action as CreateFileAction;
+    const createAction = action as CreateFileAction & { context?: Record<string, any> };
     
     const validation = this.validateAction(action);
     if (!validation.valid) {
@@ -47,14 +48,33 @@ export class CreateFileHandler extends BaseActionHandler {
     // Process template path using TemplateService for full path variable support
     const filePath = TemplateService.processTemplate(createAction.path, context);
 
+    // Handle both content and template properties first
+    let content: string;
+    if (createAction.template) {
+      // Load and process template with action context
+      try {
+        content = await this.loadTemplate(createAction.template, projectRoot, context, createAction.context);
+      } catch (error) {
+        return { 
+          success: false, 
+          error: `Failed to load template ${createAction.template}: ${error instanceof Error ? error.message : 'Unknown error'}` 
+        };
+      }
+    } else if (createAction.content) {
+      // Process inline content using TemplateService for full template support
+      content = TemplateService.processTemplate(createAction.content, context);
+    } else {
+      return { success: false, error: 'CREATE_FILE action missing content or template' };
+    }
+
     // Check if file already exists in VFS
     const fileExists = vfs.fileExists(filePath);
     
     if (fileExists) {
       console.log(`🔄 File already exists: ${filePath}, applying conflict resolution...`);
       
-      // Apply conflict resolution strategy
-      const conflictResolution = createAction.conflictResolution || { strategy: 'error' };
+      // Apply conflict resolution strategy - default to 'replace' for CREATE_FILE actions
+      const conflictResolution = createAction.conflictResolution || { strategy: 'replace', priority: 1 };
       
       switch (conflictResolution.strategy) {
         case 'skip':
@@ -67,8 +87,20 @@ export class CreateFileHandler extends BaseActionHandler {
           
         case 'replace':
           console.log(`  🔄 Replacing existing file: ${filePath}`);
-          // Continue with normal file creation (will overwrite)
-          break;
+          // Use writeFile for replacement instead of createFile
+          try {
+            vfs.writeFile(filePath, content);
+            return { 
+              success: true, 
+              files: [filePath],
+              message: `File replaced: ${filePath}`
+            };
+          } catch (error) {
+            return { 
+              success: false, 
+              error: `Failed to replace file: ${error instanceof Error ? error.message : 'Unknown error'}` 
+            };
+          }
           
         case 'merge':
           console.log(`  🔀 Merging with existing file: ${filePath}`);
@@ -81,26 +113,6 @@ export class CreateFileHandler extends BaseActionHandler {
             error: `File already exists: ${filePath}` 
           };
       }
-    }
-
-    // Handle both content and template properties
-    let content: string;
-    if (createAction.template) {
-      // Load and process template
-      try {
-        const templateContent = await this.loadTemplate(createAction.template, projectRoot, context);
-        content = TemplateService.processTemplate(templateContent, context);
-      } catch (error) {
-        return { 
-          success: false, 
-          error: `Failed to load template ${createAction.template}: ${error instanceof Error ? error.message : 'Unknown error'}` 
-        };
-      }
-    } else if (createAction.content) {
-      // Process inline content using TemplateService for full template support
-      content = TemplateService.processTemplate(createAction.content, context);
-    } else {
-      return { success: false, error: 'CREATE_FILE action missing content or template' };
     }
 
     try {
@@ -149,8 +161,7 @@ export class CreateFileHandler extends BaseActionHandler {
       // Get new content from template or content
       let newContent: string;
       if (createAction.template) {
-        const templateContent = await this.loadTemplate(createAction.template, projectRoot, context);
-        newContent = TemplateService.processTemplate(templateContent, context);
+        newContent = await this.loadTemplate(createAction.template, projectRoot, context, (createAction as any).context);
       } else if (createAction.content) {
         newContent = TemplateService.processTemplate(createAction.content, context);
       } else {
@@ -179,7 +190,7 @@ export class CreateFileHandler extends BaseActionHandler {
         type: BlueprintActionType.ENHANCE_FILE,
 
         path: filePath,
-        modifier: createAction.mergeInstructions.modifier || 'js-config-merger',
+        modifier: (createAction.mergeInstructions.modifier as ModifierType) || ModifierType.JS_CONFIG_MERGER,
         params: {
           ...createAction.mergeInstructions.params,
           content: newContent,
@@ -262,7 +273,7 @@ export class CreateFileHandler extends BaseActionHandler {
   }
 
   /**
-   * Load template content from file
+   * Load template content from file and render with merged context
    * 
    * The absolute path to a template is always:
    * [MARKETPLACE_ROOT_PATH] + [RESOLVED_MODULE_ID] + templates/ + [TEMPLATE_FILENAME]
@@ -271,9 +282,38 @@ export class CreateFileHandler extends BaseActionHandler {
    * - integrations/[shortId] for integration modules
    * - adapters/[shortId] for adapter modules
    */
-  private async loadTemplate(templatePath: string, projectRoot: string, context: ProjectContext): Promise<string> {
+  private async loadTemplate(templatePath: string, projectRoot: string, context: ProjectContext, actionContext?: Record<string, any>): Promise<string> {
     const moduleId = context.module.id;
-    return await MarketplaceService.loadTemplate(moduleId, templatePath);
+    const templateContent = await MarketplaceService.loadTemplate(moduleId, templatePath);
+    
+    // Merge action context with global context for template rendering
+    const mergedContext = this.mergeTemplateContext(context, actionContext);
+    
+    // Render template with merged context
+    return TemplateService.processTemplate(templateContent, mergedContext);
+  }
+
+  /**
+   * Merge action context with global project context for template rendering
+   */
+  private mergeTemplateContext(projectContext: ProjectContext, actionContext?: Record<string, any>): ProjectContext {
+    if (!actionContext) {
+      return projectContext;
+    }
+
+    // Create a deep copy of the project context to avoid mutations
+    const mergedContext = JSON.parse(JSON.stringify(projectContext));
+    
+    // Merge action context into the global context
+    // Action context takes precedence over global context
+    Object.assign(mergedContext, actionContext);
+    
+    // Ensure features array is properly merged
+    if (actionContext.features && Array.isArray(actionContext.features)) {
+      mergedContext.features = actionContext.features;
+    }
+    
+    return mergedContext;
   }
 
 }

@@ -6,6 +6,7 @@
 
 import { Genome, Module } from '@thearchitech.xyz/marketplace';
 import { ModuleArtifacts } from '@thearchitech.xyz/types';
+import { convertGenomeModulesToModules } from '../module-management/genome-module-converter.js';
 import { Logger, ExecutionTracer } from '../infrastructure/logging/index.js';
 // ModuleArtifacts will be imported dynamically at runtime
 
@@ -93,13 +94,14 @@ export class ArchitectureValidator {
       operation: 'file_ownership_validation'
     });
     
-    // Load artifacts for all modules
-    const moduleArtifacts = await this.loadModuleArtifacts(genome.modules, traceId);
+    // Convert genome modules to CLI format and load artifacts
+    const convertedModules = convertGenomeModulesToModules(genome.modules);
+    const moduleArtifacts = await this.loadModuleArtifacts(convertedModules, traceId);
     
     // Build ownership map from adapters
     const ownershipMap = new Map<string, string>();
     for (const [moduleId, artifacts] of moduleArtifacts) {
-      const module = genome.modules.find(m => m.id === moduleId);
+      const module = convertedModules.find(m => m.id === moduleId);
       if (!module || this.getModuleType(module) !== 'adapter') continue;
       
       for (const fileArtifact of artifacts.creates) {
@@ -114,7 +116,7 @@ export class ArchitectureValidator {
     
     // Validate integrators
     for (const [moduleId, artifacts] of moduleArtifacts) {
-      const module = genome.modules.find(m => m.id === moduleId);
+      const module = convertedModules.find(m => m.id === moduleId);
       if (!module || this.getModuleType(module) !== 'integration') continue;
       
       const adapterDependencies = this.getAdapterDependencies(module);
@@ -164,7 +166,8 @@ export class ArchitectureValidator {
       operation: 'create_conflict_detection'
     });
     
-    const moduleArtifacts = await this.loadModuleArtifacts(genome.modules, traceId);
+    const convertedModules = convertGenomeModulesToModules(genome.modules);
+    const moduleArtifacts = await this.loadModuleArtifacts(convertedModules, traceId);
     const createMap = new Map<string, string[]>();
     
     // Collect all create paths
@@ -212,9 +215,10 @@ export class ArchitectureValidator {
       operation: 'dependency_validation'
     });
     
-    const moduleIds = new Set(genome.modules.map(m => m.id));
+    const convertedModules = convertGenomeModulesToModules(genome.modules);
+    const moduleIds = new Set(convertedModules.map(m => m.id));
     
-    for (const module of genome.modules) {
+    for (const module of convertedModules) {
       const dependencies = this.extractDependencies(module);
       if (dependencies.length > 0) {
         for (const dependency of dependencies) {

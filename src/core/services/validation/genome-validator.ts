@@ -9,10 +9,12 @@
  */
 
 import { Module } from '@thearchitech.xyz/types';
-import { Genome } from '@thearchitech.xyz/marketplace/types';
+import { Genome } from '@thearchitech.xyz/types';
 import { ModuleValidator } from './module-validator.js';
 import { DependencyResolver } from './dependency-resolver.js';
 import { ParameterValidator } from './parameter-validator.js';
+import { BlueprintConflictValidator } from './blueprint-conflict-validator.js';
+import { CrossFeatureValidator } from './cross-feature-validator.js';
 import { ModuleService } from '../module-management/module-service.js';
 
 export interface GenomeValidationResult {
@@ -27,11 +29,15 @@ export class GenomeValidator {
   private moduleValidator: ModuleValidator;
   private dependencyResolver: DependencyResolver;
   private parameterValidator: ParameterValidator;
+  private conflictValidator: BlueprintConflictValidator;
+  private crossFeatureValidator: CrossFeatureValidator;
 
   constructor(private moduleService: ModuleService) {
     this.moduleValidator = new ModuleValidator(moduleService);
     this.dependencyResolver = new DependencyResolver(moduleService);
     this.parameterValidator = new ParameterValidator(moduleService);
+    this.conflictValidator = new BlueprintConflictValidator();
+    this.crossFeatureValidator = new CrossFeatureValidator(moduleService);
   }
 
   /**
@@ -87,6 +93,31 @@ export class GenomeValidator {
 
         warnings.push(...dependencyResult.warnings);
         console.log(`  ✅ Dependencies resolved successfully`);
+      }
+
+      // Step 4.5: Validate cross-feature prerequisites (NEW)
+      console.log(`  🔍 Validating cross-feature prerequisites...`);
+      const crossFeatureResult = await this.crossFeatureValidator.validateGenome(genome);
+      if (!crossFeatureResult.valid) {
+        errors.push(...crossFeatureResult.errors);
+        return { valid: false, errors, warnings, validatedModules, executionOrder: [] };
+      }
+      warnings.push(...crossFeatureResult.warnings);
+      console.log(`  ✅ Cross-feature prerequisites validated successfully`);
+
+      // Step 5: Validate blueprint conflict resolution
+      if (validatedModules.length > 0) {
+        console.log(`  🔍 Validating blueprint conflict resolution...`);
+        const conflictResult = await this.validateBlueprintConflicts(validatedModules);
+        
+        if (!conflictResult.valid) {
+          errors.push(...conflictResult.errors);
+          console.log(`  ❌ Blueprint conflict validation failed: ${conflictResult.missingConflictResolution} actions missing conflict resolution`);
+        } else {
+          console.log(`  ✅ Blueprint conflict validation passed`);
+        }
+        
+        warnings.push(...conflictResult.warnings);
       }
 
       const success = errors.length === 0;
@@ -167,6 +198,46 @@ export class GenomeValidator {
     return {
       valid: errors.length === 0,
       errors
+    };
+  }
+
+  /**
+   * Validate blueprint conflict resolution for all modules
+   */
+  private async validateBlueprintConflicts(modules: Module[]): Promise<{ valid: boolean; errors: string[]; warnings: string[]; missingConflictResolution: number }> {
+    const allErrors: string[] = [];
+    const allWarnings: string[] = [];
+    let totalMissingConflictResolution = 0;
+
+    for (const module of modules) {
+      try {
+        // Load the module to get its blueprint
+        const moduleResult = await this.moduleService.loadModuleAdapter(module);
+        if (!moduleResult.success || !moduleResult.adapter) {
+          allErrors.push(`Failed to load module ${module.id} for conflict validation`);
+          continue;
+        }
+
+        const blueprint = moduleResult.adapter.blueprint;
+        const conflictResult = this.conflictValidator.validateBlueprint(blueprint);
+        
+        if (!conflictResult.valid) {
+          allErrors.push(`Module ${module.id}: ${conflictResult.errors.join('; ')}`);
+        }
+        
+        allWarnings.push(...conflictResult.warnings);
+        totalMissingConflictResolution += conflictResult.missingConflictResolution;
+        
+      } catch (error) {
+        allErrors.push(`Error validating conflicts for module ${module.id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+
+    return {
+      valid: allErrors.length === 0,
+      errors: allErrors,
+      warnings: allWarnings,
+      missingConflictResolution: totalMissingConflictResolution
     };
   }
 }

@@ -45,7 +45,26 @@ export class TypeScriptBlueprintParser {
    */
   private static findBlueprintExport(ast: any): any {
     for (const node of ast.body) {
-      if (node.type === 'ExportNamedDeclaration' && node.declaration) {
+      if (node.type === 'ExportDefaultDeclaration') {
+        // Handle export default
+        if (node.declaration && node.declaration.type === 'Identifier') {
+          // Find the variable declaration
+          for (const bodyNode of ast.body) {
+            if (bodyNode.type === 'VariableDeclaration') {
+              for (const declarator of bodyNode.declarations) {
+                if (declarator.id.type === 'Identifier' && 
+                    declarator.id.name === node.declaration.name &&
+                    declarator.id.name.endsWith('Blueprint')) {
+                  return declarator.init;
+                }
+              }
+            }
+          }
+        } else if (node.declaration && node.declaration.type === 'ObjectExpression') {
+          // Direct object export
+          return node.declaration;
+        }
+      } else if (node.type === 'ExportNamedDeclaration' && node.declaration) {
         const declaration = node.declaration;
         if (declaration.type === 'VariableDeclaration') {
           for (const declarator of declaration.declarations) {
@@ -89,6 +108,9 @@ export class TypeScriptBlueprintParser {
     switch (node.type) {
       case 'Literal':
         return node.value;
+      
+      case 'Identifier':
+        return node.name;
       
       case 'ArrayExpression':
         return node.elements.map((element: any) => 
@@ -134,6 +156,35 @@ export class TypeScriptBlueprintParser {
         const consequent = this.astValueToJavaScript(node.consequent);
         const alternate = this.astValueToJavaScript(node.alternate);
         return test ? consequent : alternate;
+      
+      case 'MemberExpression':
+        // Handle member expressions like BlueprintActionType.CREATE_FILE
+        const object = this.astValueToJavaScript(node.object);
+        const property = this.astValueToJavaScript(node.property);
+        
+        // Map enum values to their string equivalents
+        if (object === 'BlueprintActionType') {
+          switch (property) {
+            case 'CREATE_FILE': return 'CREATE_FILE';
+            case 'ENHANCE_FILE': return 'ENHANCE_FILE';
+            case 'INSTALL_PACKAGES': return 'INSTALL_PACKAGES';
+            case 'ADD_SCRIPT': return 'ADD_SCRIPT';
+            case 'ADD_ENV_VAR': return 'ADD_ENV_VAR';
+            case 'RUN_COMMAND': return 'RUN_COMMAND';
+            case 'APPEND_TO_FILE': return 'APPEND_TO_FILE';
+            case 'PREPEND_TO_FILE': return 'PREPEND_TO_FILE';
+            case 'MERGE_JSON': return 'MERGE_JSON';
+            case 'MERGE_CONFIG': return 'MERGE_CONFIG';
+            case 'ADD_TS_IMPORT': return 'ADD_TS_IMPORT';
+            case 'EXTEND_SCHEMA': return 'EXTEND_SCHEMA';
+            case 'WRAP_CONFIG': return 'WRAP_CONFIG';
+            case 'ADD_DEPENDENCY': return 'ADD_DEPENDENCY';
+            case 'ADD_DEV_DEPENDENCY': return 'ADD_DEV_DEPENDENCY';
+            default: return `${object}.${property}`;
+          }
+        }
+        
+        return `${object}.${property}`;
       
       default:
         console.warn(`Unhandled AST node type: ${node.type}`);

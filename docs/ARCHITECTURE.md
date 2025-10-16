@@ -1,10 +1,10 @@
-# 🏗️ The Architech - Architecture Guide
+# 🏗️ The Architech - Constitutional Architecture Guide
 
-> **Complete architectural documentation for The Architech CLI**
+> **Complete architectural documentation for The Architech CLI's Constitutional Architecture**
 
 ## 🎯 Overview
 
-The Architech is a **Type-Safe Code Generation Platform** that transforms software development from an artisanal process into a component assembly system. It provides pre-verified, specialized components that developers can combine using TypeScript genomes to create robust, maintainable, and production-ready applications with full compile-time safety.
+The Architech implements a revolutionary **Constitutional Architecture** that transforms software development from an artisanal process into an intelligent component assembly system. It provides pre-verified, capability-based modules that developers can combine using TypeScript genomes to create robust, maintainable, and production-ready applications with full compile-time safety and intelligent dependency resolution.
 
 ## 🎯 Core Principles (The "Triforce")
 
@@ -14,82 +14,95 @@ Our architectural decisions are guided by three fundamental principles:
 2. **Security by Default** - Never corrupt a user's project. Every operation must be safe and predictable
 3. **Open Extensibility** - Architecture must encourage and facilitate community contribution
 
-## 🏛️ Four-Layer Architecture
+## 🏛️ Constitutional Architecture
 
-The Architech uses a clean four-layer architecture that separates concerns and makes the system maintainable, testable, and extensible.
+The Architech implements a revolutionary **Constitutional Architecture** that organizes modules around business capabilities rather than technical implementation. This creates a more intuitive, maintainable, and powerful system.
+
+### 🎯 Core Architectural Principles
+
+1. **Defaults are Implicit, Overrides are Explicit** - Modules define sensible defaults, users only specify what they want to change
+2. **Business Capability Hierarchy** - Modules are organized around what they do, not how they do it
+3. **Intelligent Dependency Resolution** - The system automatically resolves prerequisites and conflicts
+4. **Dynamic Blueprint Functions** - Blueprints are TypeScript functions that generate actions based on configuration
+
+### 🏗️ Constitutional Architecture Layers
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Layer 4: Type-Safe Genome System         │
-│                   (TypeScript + Autocomplete)               │
+│                Layer 4: Constitutional Genome System        │
+│              (TypeScript + Business Capabilities)           │
 └─────────────────────┬───────────────────────────────────────┘
                       │
 ┌─────────────────────▼───────────────────────────────────────┐
-│                Layer 3: Phase-Oriented CLI                  │
-│              (Beautiful Progress Display)                   │
+│                Layer 3: Orchestrator Agent                  │
+│            (Configuration Merging & Coordination)           │
 └─────────────────────┬───────────────────────────────────────┘
                       │
 ┌─────────────────────▼───────────────────────────────────────┐
-│                Layer 2: Blueprint Executor                  │
-│              (Orchestration & Coordination)                 │
+│                Layer 2: Blueprint Preprocessor              │
+│              (Dynamic Blueprint Execution)                  │
 └─────────────────────┬───────────────────────────────────────┘
                       │
 ┌─────────────────────▼───────────────────────────────────────┐
-│                Layer 1: Blueprint Orchestrator              │
-│              (Semantic Action Translation)                  │
+│                Layer 1: Blueprint Executor                  │
+│              (Action Execution & VFS Management)            │
 └─────────────────────┬───────────────────────────────────────┘
                       │
 ┌─────────────────────▼───────────────────────────────────────┐
-│              Layer 0: File Modification Engine              │
-│                (Primitive File Operations)                  │
+│              Layer 0: Intelligent Template System           │
+│            (Context-Aware Template Rendering)               │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Layer 4: Type-Safe Genome System
-**Purpose**: TypeScript-based project configuration with full autocomplete
+### Layer 4: Constitutional Genome System
+**Purpose**: TypeScript-based project configuration with business capability awareness
 
 **Responsibilities**:
-- Type-safe genome definition
-- IntelliSense support and autocomplete
-- Compile-time validation
-- IDE integration and error checking
+- Type-safe genome definition with capability support
+- Business capability configuration and validation
+- IntelliSense support for capabilities and prerequisites
+- Compile-time validation of capability dependencies
+- IDE integration with capability autocomplete
 
-### Layer 3: Phase-Oriented CLI
-**Purpose**: Beautiful, progress-oriented user experience
-
-**Responsibilities**:
-- Phase-based progress display
-- Real-time execution feedback
-- Success screen with next steps
-- Verbose mode for debugging
-
-### Layer 2: Blueprint Executor
-**Purpose**: Orchestration and coordination of blueprint execution
+### Layer 3: Orchestrator Agent
+**Purpose**: Intelligent coordination and configuration merging
 
 **Responsibilities**:
-- Genome parsing and validation
-- Module coordination and execution
+- Configuration merging (defaults + user overrides)
+- Capability dependency resolution
+- Prerequisite validation and conflict detection
+- Module classification and execution ordering
+- Enhanced logging with phase tracking
+
+### Layer 2: Blueprint Preprocessor
+**Purpose**: Dynamic blueprint execution and capability-based generation
+
+**Responsibilities**:
+- Load and execute dynamic blueprint functions
+- Merge configuration with blueprint context
+- Generate static action arrays from blueprint functions
+- Support both legacy and dynamic blueprint patterns
+- Capability-based action generation
+
+### Layer 1: Blueprint Executor
+**Purpose**: Action execution with intelligent VFS management
+
+**Responsibilities**:
+- Execute preprocessed action arrays
+- VFS lifecycle management per blueprint
+- Action handler registry and routing
+- forEach action expansion
 - Error handling and rollback
-- Progress reporting and logging
 
-### Layer 1: Blueprint Orchestrator
-**Purpose**: Translates semantic actions to file primitives
-
-**Responsibilities**:
-- Action type routing and validation
-- Template variable processing
-- Condition evaluation
-- File modification coordination
-
-### Layer 0: File Modification Engine
-**Purpose**: Core file operations with Contextual, Isolated Virtual File System (VFS)
+### Layer 0: Intelligent Template System
+**Purpose**: Context-aware template rendering with capability support
 
 **Responsibilities**:
-- File creation, reading, writing in VFS
-- JSON merging with deep-merge
-- TypeScript AST manipulation with ts-morph
-- Atomic writes to disk
-- In-memory file tracking per blueprint
+- Context merging (global + action-specific)
+- Capability-based conditional rendering
+- Template variable processing with business context
+- File modification with intelligent fallbacks
+- Atomic VFS operations
 
 ## 🗂️ Virtual File System (VFS) Architecture
 
@@ -171,6 +184,92 @@ All VFS changes are written to disk atomically:
 - ENHANCE_FILE can auto-create missing files
 - Explicit fallback strategies: 'create', 'skip', 'error'
 - Graceful handling of missing dependencies
+
+## 🏛️ Constitutional Architecture System
+
+### Business Capability Hierarchy
+
+The Constitutional Architecture organizes modules around **business capabilities** rather than technical implementation. This creates a more intuitive and maintainable system.
+
+#### Module Structure
+
+Each module defines its capabilities through a structured `feature.json`:
+
+```json
+{
+  "id": "feature:auth-ui/shadcn",
+  "provides": ["authentication", "user-management", "security"],
+  "parameters": {
+    "features": {
+      "passwordReset": { "default": true },
+      "mfa": { "default": false },
+      "socialLogins": { "default": false },
+      "profileManagement": { "default": true }
+    }
+  },
+  "internal_structure": {
+    "core": ["loginForm", "signupForm", "profileManagement"],
+    "optional": {
+      "passwordReset": {
+        "prerequisites": ["core"],
+        "provides": ["password-reset"],
+        "templates": ["password-reset-form.tpl"]
+      },
+      "mfa": {
+        "prerequisites": ["core"],
+        "provides": ["multi-factor-auth"],
+        "templates": ["mfa-setup.tpl", "mfa-verify.tpl"]
+      }
+    }
+  }
+}
+```
+
+#### Capability Resolution
+
+The system automatically resolves:
+- **Prerequisites**: What capabilities must be available before this one
+- **Conflicts**: Multiple modules providing the same capability
+- **Dependencies**: Required modules and their order
+- **Validation**: Ensures all prerequisites are met
+
+#### Dynamic Blueprint Functions
+
+Blueprints are now TypeScript functions that generate actions based on configuration:
+
+```typescript
+export default function generateBlueprint(config: MergedConfiguration): BlueprintAction[] {
+  const actions: BlueprintAction[] = [];
+  
+  // Always generate core actions
+  actions.push(...generateCoreActions());
+  
+  // Conditionally generate capability-specific actions
+  if (config.activeFeatures.includes('passwordReset')) {
+    actions.push(...generatePasswordResetActions());
+  }
+  
+  if (config.activeFeatures.includes('mfa')) {
+    actions.push(...generateMFAActions());
+  }
+  
+  return actions;
+}
+```
+
+### Intelligent Template Context
+
+Templates receive rich context about capabilities and configuration:
+
+```handlebars
+{{#if context.hasPasswordReset}}
+  <PasswordResetForm />
+{{/if}}
+
+{{#if context.hasMFA}}
+  <MFASetup />
+{{/if}}
+```
 
 ## 🧬 TypeScript Genome System
 

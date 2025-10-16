@@ -15,7 +15,7 @@ export class ProjectManager {
 
   constructor(projectConfig: ProjectConfig) {
     this.projectConfig = projectConfig;
-    this.pathHandler = new PathService(projectConfig.path, projectConfig.name);
+    this.pathHandler = new PathService(projectConfig.path || './', projectConfig.name);
   }
 
   /**

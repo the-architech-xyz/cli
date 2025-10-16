@@ -7,6 +7,10 @@
 import { CapabilityRegistry, ModuleProvider, ModuleConsumer, CapabilityConflict } from '@thearchitech.xyz/types';
 import { ModuleService } from '../module-management/module-service.js';
 import { Logger } from '../infrastructure/logging/logger.js';
+import { PathService } from '../path/path-service.js';
+import { MarketplaceService } from '../marketplace/marketplace-service.js';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 export class CapabilityRegistryBuilder {
   constructor(private moduleService: ModuleService) {}
@@ -82,15 +86,61 @@ export class CapabilityRegistryBuilder {
    * Scan marketplace for all modules
    */
   private async scanMarketplace(): Promise<any[]> {
-    // This would scan the actual marketplace directory
-    // For now, return mock modules
-    return [
-      { id: 'framework/nextjs', path: 'adapters/framework/nextjs' },
-      { id: 'database/drizzle', path: 'adapters/database/drizzle' },
-      { id: 'auth/better-auth', path: 'adapters/auth/better-auth' },
-      { id: 'integrations/drizzle-nextjs-integration', path: 'integrations/drizzle-nextjs-integration' },
-      { id: 'features/teams-dashboard', path: 'features/teams-dashboard/nextjs-shadcn' }
-    ];
+    const modules: any[] = [];
+    const marketplaceRoot = await PathService.getMarketplaceRoot();
+    
+    // Scan adapters
+    const adaptersPath = path.join(marketplaceRoot, 'adapters');
+    if (await this.directoryExists(adaptersPath)) {
+      const adapterCategories = await fs.readdir(adaptersPath);
+      for (const category of adapterCategories) {
+        const categoryPath = path.join(adaptersPath, category);
+        if (await this.isDirectory(categoryPath)) {
+          const adapters = await fs.readdir(categoryPath);
+          for (const adapter of adapters) {
+            if (await this.isDirectory(path.join(categoryPath, adapter))) {
+              modules.push({
+                id: `${category}/${adapter}`,
+                path: `adapters/${category}/${adapter}`,
+                type: 'adapter'
+              });
+            }
+          }
+        }
+      }
+    }
+    
+    // Scan connectors
+    const connectorsPath = path.join(marketplaceRoot, 'connectors');
+    if (await this.directoryExists(connectorsPath)) {
+      const connectors = await fs.readdir(connectorsPath);
+      for (const connector of connectors) {
+        if (await this.isDirectory(path.join(connectorsPath, connector))) {
+          modules.push({
+            id: `connectors/${connector}`,
+            path: `connectors/${connector}`,
+            type: 'connector'
+          });
+        }
+      }
+    }
+    
+    // Scan features
+    const featuresPath = path.join(marketplaceRoot, 'features');
+    if (await this.directoryExists(featuresPath)) {
+      const features = await fs.readdir(featuresPath);
+      for (const feature of features) {
+        if (await this.isDirectory(path.join(featuresPath, feature))) {
+          modules.push({
+            id: `features/${feature}`,
+            path: `features/${feature}`,
+            type: 'feature'
+          });
+        }
+      }
+    }
+    
+    return modules;
   }
 
   /**
@@ -98,12 +148,35 @@ export class CapabilityRegistryBuilder {
    */
   private async loadModuleConfig(module: any): Promise<any> {
     try {
-      // This would load the actual adapter.json or feature.json
-      // For now, return mock configs based on module ID
-      return this.getMockConfig(module.id);
+      // Use MarketplaceService to load the actual configuration
+      return await MarketplaceService.loadModuleConfig(module.id);
     } catch (error) {
       Logger.warn(`Failed to load config for ${module.id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return null;
+    }
+  }
+
+  /**
+   * Check if directory exists
+   */
+  private async directoryExists(dirPath: string): Promise<boolean> {
+    try {
+      const stat = await fs.stat(dirPath);
+      return stat.isDirectory();
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Check if path is a directory
+   */
+  private async isDirectory(dirPath: string): Promise<boolean> {
+    try {
+      const stat = await fs.stat(dirPath);
+      return stat.isDirectory();
+    } catch {
+      return false;
     }
   }
 

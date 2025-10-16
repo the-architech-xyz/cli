@@ -15,12 +15,14 @@
 
 ## 🎯 Overview
 
-The Architech uses **TypeScript genome files** as the primary interface for project generation. These files provide:
+The Architech uses **TypeScript genome files** with **Constitutional Architecture** as the primary interface for project generation. These files provide:
 
 - **🧬 Type Safety**: Full compile-time validation of all configurations
 - **🎯 IntelliSense**: Complete IDE support with autocomplete
 - **⚡ Fast Feedback**: Immediate error detection and suggestions
 - **🔧 Refactoring**: Safe renaming and restructuring with IDE support
+- **🏛️ Constitutional Architecture**: Business capability-based module organization
+- **🤖 Intelligent Defaults**: Sensible defaults with explicit overrides only
 
 ### Key Principles
 
@@ -195,6 +197,142 @@ Each module's parameters are fully typed:
     }
   }
 }
+```
+
+## 🏛️ Constitutional Architecture Examples
+
+### Simple Authentication with Capabilities
+
+```typescript
+import { defineGenome } from '@thearchitech.xyz/marketplace';
+
+export default defineGenome({
+  project: {
+    name: 'my-saas',
+    framework: 'nextjs',
+    path: './my-saas'
+  },
+  modules: [
+    {
+      id: 'framework/nextjs',
+      parameters: {
+        typescript: true,
+        tailwind: true,
+        appRouter: true
+      }
+    },
+    {
+      id: 'feature:auth-ui/shadcn',
+      parameters: {
+        // Only specify what you want to change from defaults
+        mfa: true,  // ← Enable multi-factor authentication
+        socialLogins: ['github', 'google']  // ← Add social login providers
+        // passwordReset: true (already default)
+        // profileManagement: true (already default)
+      }
+    }
+  ]
+});
+```
+
+### Advanced E-commerce with Business Capabilities
+
+```typescript
+import { defineGenome } from '@thearchitech.xyz/marketplace';
+
+export default defineGenome({
+  project: {
+    name: 'ecommerce-platform',
+    framework: 'nextjs',
+    path: './ecommerce-platform'
+  },
+  modules: [
+    // Core Framework
+    {
+      id: 'framework/nextjs',
+      parameters: {
+        typescript: true,
+        tailwind: true,
+        appRouter: true
+      }
+    },
+    
+    // Authentication with Enterprise Features
+    {
+      id: 'feature:auth-ui/shadcn',
+      parameters: {
+        mfa: true,
+        socialLogins: ['github', 'google', 'microsoft'],
+        accountSettingsPage: true
+      }
+    },
+    
+    // Payment Processing with Advanced Features
+    {
+      id: 'feature:payments/frontend/shadcn',
+      parameters: {
+        subscriptions: true,  // ← Enable subscription management
+        invoicing: true,      // ← Enable invoice generation
+        analytics: true       // ← Enable payment analytics
+        // webhooks: true (already default)
+      }
+    },
+    
+    // Team Management with Enterprise Features
+    {
+      id: 'feature:teams-management/frontend/shadcn',
+      parameters: {
+        advanced: true,   // ← Advanced team features
+        analytics: true,  // ← Team analytics
+        billing: true     // ← Team billing integration
+      }
+    }
+  ]
+});
+```
+
+### AI-Powered Application
+
+```typescript
+import { defineGenome } from '@thearchitech.xyz/marketplace';
+
+export default defineGenome({
+  project: {
+    name: 'ai-chat-app',
+    framework: 'nextjs',
+    path: './ai-chat-app'
+  },
+  modules: [
+    {
+      id: 'framework/nextjs',
+      parameters: {
+        typescript: true,
+        tailwind: true,
+        appRouter: true
+      }
+    },
+    
+    // AI Chat with Advanced Features
+    {
+      id: 'feature:ai-chat/frontend/shadcn',
+      parameters: {
+        media: true,    // ← File upload and media support
+        voice: true,    // ← Voice input/output
+        advanced: true  // ← Advanced AI features
+      }
+    },
+    
+    // AI Backend with Enterprise Features
+    {
+      id: 'feature:ai-chat/backend/vercel-ai-nextjs',
+      parameters: {
+        streaming: true,  // ← Real-time streaming
+        advanced: true,   // ← Advanced AI capabilities
+        enterprise: true  // ← Enterprise features
+      }
+    }
+  ]
+});
 ```
 
 ## 📚 Examples

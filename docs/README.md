@@ -1,27 +1,32 @@
 # The Architech Documentation
 
-Welcome to The Architech documentation! This guide covers the modern, intelligent application generator that transforms weeks of work into minutes.
+Welcome to The Architech documentation! This guide covers the revolutionary **Constitutional Architecture** application generator that transforms weeks of work into minutes with intelligent, capability-based code generation.
 
 ## 🚀 Quick Start
 
-The Architech is an AI-powered application generator with two main workflows:
+The Architech implements a revolutionary **Constitutional Architecture** that organizes modules around business capabilities rather than technical implementation. This creates a more intuitive, maintainable, and powerful system.
 
-1. **Single App Creation** (`create` command) - Generate individual applications
-2. **Enterprise Monorepo** (`architech` command) - Create enterprise-grade monorepos using Turborepo
+### Key Features
+
+- **🏛️ Constitutional Architecture** - Business capability-based module organization
+- **🤖 Intelligent Defaults** - Sensible defaults with explicit overrides only
+- **🧬 Type Safety** - Full TypeScript support with autocomplete
+- **⚡ Dynamic Blueprints** - Blueprints adapt to your configuration
+- **🎯 Capability Resolution** - Automatic dependency and conflict resolution
 
 ## 📚 Documentation Index
 
 ### 🏗️ Architecture & Design
 
-- **[Architecture Overview](./architecture-overview.md)** - High-level system architecture and component relationships
-- **[Question Generation System](./question-generation-system.md)** - Modern, intelligent approach to gathering user input
-- **[Plugin Architecture](./plugin-architecture.md)** - Clean separation between plugins and agents
+- **[Constitutional Architecture](./CONSTITUTIONAL_ARCHITECTURE.md)** - Revolutionary capability-based architecture
+- **[Architecture Overview](./ARCHITECTURE.md)** - Complete system architecture and component relationships
+- **[Genome Format](./GENOME_FORMAT.md)** - TypeScript genome configuration with capabilities
 
 ### 🔧 Development Guides
 
-- **[Plugin Development](./plugin-development.md)** - How to create new plugins (needs update for new architecture)
-- **[User Guide](./user-guide.md)** - How to use The Architech CLI (needs update for new workflows)
-- **[Structure Service](./structure-service.md)** - Project structure management and unified interfaces
+- **[Examples & Tutorials](./EXAMPLES.md)** - Real-world examples with Constitutional Architecture
+- **[CLI Reference](./CLI_REFERENCE.md)** - Complete CLI command reference
+- **[Genome Format](./GENOME_FORMAT.md)** - TypeScript genome configuration guide
 
 ### 📖 Reference
 
@@ -94,34 +99,91 @@ architech my-monorepo
 
 ### Example Workflows
 
-#### E-commerce Store
-```bash
-architech create my-store
-# Follows guided approach with recommendations:
-# - Database: Drizzle + Neon
-# - Auth: Better Auth
-# - UI: Shadcn UI
-# - Payments: Stripe
+#### Simple SaaS with Constitutional Architecture
+```typescript
+// my-saas.genome.ts
+export default defineGenome({
+  project: {
+    name: 'my-saas',
+    framework: 'nextjs',
+    path: './my-saas'
+  },
+  modules: [
+    {
+      id: 'framework/nextjs',
+      parameters: { typescript: true, tailwind: true }
+    },
+    {
+      id: 'feature:auth-ui/shadcn',
+      parameters: {
+        mfa: true,  // ← Only specify what you want to change
+        socialLogins: ['github', 'google']
+        // passwordReset: true (already default)
+        // profileManagement: true (already default)
+      }
+    }
+  ]
+});
 ```
 
-#### Blog Platform
-```bash
-architech create my-blog
-# Follows guided approach with recommendations:
-# - Database: Drizzle + Neon
-# - Auth: Better Auth
-# - UI: Shadcn UI
-# - Email: Resend
+#### Advanced E-commerce Platform
+```typescript
+// ecommerce.genome.ts
+export default defineGenome({
+  project: {
+    name: 'ecommerce-platform',
+    framework: 'nextjs',
+    path: './ecommerce-platform'
+  },
+  modules: [
+    {
+      id: 'framework/nextjs',
+      parameters: { typescript: true, tailwind: true }
+    },
+    {
+      id: 'feature:auth-ui/shadcn',
+      parameters: {
+        mfa: true,
+        socialLogins: ['github', 'google', 'microsoft'],
+        accountSettingsPage: true
+      }
+    },
+    {
+      id: 'feature:payments/frontend/shadcn',
+      parameters: {
+        subscriptions: true,  // ← Enable subscription management
+        invoicing: true,      // ← Enable invoice generation
+        analytics: true       // ← Enable payment analytics
+      }
+    }
+  ]
+});
 ```
 
-#### Dashboard Application
-```bash
-architech create my-dashboard
-# Follows guided approach with recommendations:
-# - Database: Prisma + Supabase
-# - Auth: Clerk
-# - UI: MUI
-# - Email: Resend
+#### AI-Powered Application
+```typescript
+// ai-chat.genome.ts
+export default defineGenome({
+  project: {
+    name: 'ai-chat-app',
+    framework: 'nextjs',
+    path: './ai-chat-app'
+  },
+  modules: [
+    {
+      id: 'framework/nextjs',
+      parameters: { typescript: true, tailwind: true }
+    },
+    {
+      id: 'feature:ai-chat/frontend/shadcn',
+      parameters: {
+        media: true,    // ← File upload and media support
+        voice: true,    // ← Voice input/output
+        advanced: true  // ← Advanced AI features
+      }
+    }
+  ]
+});
 ```
 
 ## 🎨 Project Types

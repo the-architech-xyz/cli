@@ -127,6 +127,8 @@ export class ExecutionPlanner {
       if (currentBatch.length === 0) {
         // This should not happen if the graph is acyclic
         console.warn(`⚠️ No nodes with in-degree 0 found, but ${remainingNodes.size} nodes remain`);
+        console.warn(`Remaining nodes:`, Array.from(remainingNodes.keys()));
+        console.warn(`In-degree counts:`, Array.from(inDegreeCounts.entries()));
         break;
       }
 

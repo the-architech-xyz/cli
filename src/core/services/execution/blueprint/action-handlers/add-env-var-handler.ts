@@ -5,7 +5,8 @@
  * This handler works in both Direct Mode and VFS Mode.
  */
 
-import { BlueprintAction, ProjectContext, AddEnvVarAction } from '@thearchitech.xyz/types';
+import { BlueprintAction, AddEnvVarAction } from '@thearchitech.xyz/types';
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file-system.js';
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ArchitechError } from '../../../infrastructure/error/architech-error.js';

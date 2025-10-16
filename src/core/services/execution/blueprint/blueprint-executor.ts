@@ -8,12 +8,14 @@
  * - Manages VFS lifecycle
  */
 
-import { Blueprint, BlueprintExecutionResult, ProjectContext, BlueprintAction } from '@thearchitech.xyz/types';
+import { Blueprint, BlueprintExecutionResult, BlueprintAction } from '@thearchitech.xyz/types';
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 import { VirtualFileSystem } from '../../file-system/file-engine/virtual-file-system.js';
 import { ModifierRegistry } from '../../file-system/modifiers/modifier-registry.js';
 import { PackageJsonMergerModifier } from '../../file-system/modifiers/package-json-merger.js';
 import { TsconfigEnhancerModifier } from '../../file-system/modifiers/tsconfig-enhancer.js';
 import { JsConfigMergerModifier } from '../../file-system/modifiers/js-config-merger.js';
+import { YamlMergerModifier } from '../../file-system/modifiers/yaml-merger.js';
 import { BlueprintAnalyzer } from '../../project/blueprint-analyzer/index.js';
 import { ActionHandlerRegistry } from './action-handlers/index.js';
 import { ArchitechError, ArchitechErrorCode } from '../../infrastructure/error/architech-error.js';
@@ -41,7 +43,12 @@ export class BlueprintExecutor {
   private expandForEachActions(actions: BlueprintAction[], context: ProjectContext): BlueprintAction[] {
     const expandedActions: BlueprintAction[] = [];
     
-    for (const action of actions) {
+    
+    for (let i = 0; i < actions.length; i++) {
+      const action = actions[i];
+      if (!action) continue;
+      
+      
       if (action.forEach) {
         console.log(`🔄 Found forEach action: ${action.forEach}`);
         
@@ -167,9 +174,43 @@ export class BlueprintExecutor {
         try {
           const newContent = params.content || params.styles || '';
           
-          // For CSS files, replace content instead of appending to avoid conflicts
-          // This prevents mixing v3 and v4 Tailwind syntax
-          vfs.writeFile(filePath, newContent);
+          // Check if file exists
+          if (!vfs.fileExists(filePath)) {
+            // File doesn't exist, create it with the new content
+            vfs.writeFile(filePath, newContent);
+            return { 
+              success: true, 
+              message: `CSS file created: ${filePath}` 
+            };
+          }
+          
+          // File exists - intelligently merge content
+          const existingContent = await vfs.readFile(filePath);
+          
+          // Check what type of content we're adding
+          const isImport = newContent.trim().startsWith('@import');
+          const isTailwindDirective = newContent.trim().startsWith('@tailwind');
+          const isLayerDirective = newContent.trim().startsWith('@layer');
+          
+          // Check if content already exists
+          if (existingContent.includes(newContent.trim())) {
+            return { 
+              success: true, 
+              message: `CSS already contains this content: ${filePath}` 
+            };
+          }
+          
+          let mergedContent: string;
+          
+          if (isImport || isTailwindDirective || isLayerDirective) {
+            // Prepend directives and imports at the top
+            mergedContent = newContent + '\n' + existingContent;
+          } else {
+            // Append other CSS rules at the bottom
+            mergedContent = existingContent + '\n' + newContent;
+          }
+          
+          await vfs.writeFile(filePath, mergedContent);
           
           return { 
             success: true, 
@@ -203,6 +244,17 @@ export class BlueprintExecutor {
         const { TsModuleEnhancerModifier } = await import('../../file-system/modifiers/ts-module-enhancer.js');
         const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, context.project.path || '.');
         const modifier = new TsModuleEnhancerModifier(engine);
+        return await modifier.execute(filePath, params, context);
+      }
+    });
+
+    this.modifierRegistry.register('yaml-merger', {
+      execute: async (filePath: string, params: any, context: ProjectContext, vfs?: VirtualFileSystem) => {
+        if (!vfs) {
+          return { success: false, error: 'VFS required for yaml-merger' };
+        }
+        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, context.project.path || '.');
+        const modifier = new YamlMergerModifier(engine);
         return await modifier.execute(filePath, params, context);
       }
     });
@@ -248,6 +300,74 @@ export class BlueprintExecutor {
   }
 
   /**
+   * Execute a list of actions directly (for preprocessed blueprints)
+   * 
+   * This method is used when blueprints have been preprocessed into static action arrays.
+   * It skips the blueprint analysis and directly executes the provided actions.
+   */
+  async executeActions(actions: BlueprintAction[], context: ProjectContext, vfs: VirtualFileSystem): Promise<BlueprintExecutionResult> {
+    console.log(`🎯 Executing ${actions.length} preprocessed actions`);
+    
+    const files: string[] = [];
+    const errors: string[] = [];
+    const warnings: string[] = [];
+    
+    try {
+      // 1. Expand forEach actions
+      const expandedActions = this.expandForEachActions(actions, context);
+      
+      // 2. Execute all actions on the VFS (unified execution)
+      for (let i = 0; i < expandedActions.length; i++) {
+        const action = expandedActions[i];
+        if (!action) continue;
+        const actionPath = 'path' in action ? action.path : 'N/A';
+        
+        const result = await this.actionHandlerRegistry.handleAction(action, context, context.project.path || '.', vfs);
+        
+        if (!result.success) {
+          const error = ArchitechError.blueprintExecutionFailed(
+            'preprocessed',
+            result.error || 'Action execution failed'
+          );
+          errors.push(error.getUserMessage());
+          
+          // FAIL FAST: Return immediately when any action fails
+          return {
+            success: false,
+            files,
+            errors,
+            warnings
+          };
+        }
+        
+        if (result.files) {
+          files.push(...result.files);
+        }
+      }
+      
+      return {
+        success: errors.length === 0,
+        files,
+        errors,
+        warnings
+      };
+      
+    } catch (error) {
+      const architechError = ArchitechError.internalError(
+        `Action execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        { operation: 'action_execution', moduleId: 'preprocessed' }
+      );
+      
+      return { 
+        success: false, 
+        files,
+        errors: [architechError.getUserMessage()],
+        warnings
+      };
+    }
+  }
+
+  /**
    * Execute a blueprint with per-blueprint transactional VFS
    * Each blueprint receives its own dedicated VFS instance from OrchestratorAgent
    * 
@@ -280,7 +400,10 @@ export class BlueprintExecutor {
       const expandedActions = this.expandForEachActions(blueprint.actions, context);
       
       // 4. Execute all actions on the VFS (unified execution)
-      for (const action of expandedActions) {
+      for (let i = 0; i < expandedActions.length; i++) {
+        const action = expandedActions[i];
+        if (!action) continue;
+        const actionPath = 'path' in action ? action.path : 'N/A';
         
         const result = await this.actionHandlerRegistry.handleAction(action, context, context.project.path || '.', vfs);
         

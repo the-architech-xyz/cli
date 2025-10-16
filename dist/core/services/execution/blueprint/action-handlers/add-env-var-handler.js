@@ -1,0 +1,109 @@
+/**
+ * Add Environment Variable Handler
+ *
+ * Handles ADD_ENV_VAR actions by adding environment variables to .env files.
+ * This handler works in both Direct Mode and VFS Mode.
+ */
+import { BaseActionHandler } from './base-action-handler.js';
+import { ArchitechError } from '../../../infrastructure/error/architech-error.js';
+import { promises as fs } from 'fs';
+import { join } from 'path';
+export class AddEnvVarHandler extends BaseActionHandler {
+    getSupportedActionType() {
+        return 'ADD_ENV_VAR';
+    }
+    async handle(action, context, projectRoot, vfs) {
+        const validation = this.validateAction(action);
+        if (!validation.valid) {
+            return { success: false, error: validation.error };
+        }
+        // Type guard to narrow the action type
+        const envAction = action;
+        if (!envAction.key || envAction.value === undefined || envAction.value === null) {
+            return {
+                success: false,
+                error: 'ADD_ENV_VAR action missing key or value'
+            };
+        }
+        const envFilePath = envAction.path || '.env';
+        const key = envAction.key;
+        const value = this.processTemplate(envAction.value, context);
+        try {
+            if (vfs) {
+                // VFS Mode - add to VFS
+                await this.addEnvVarToVFS(vfs, envFilePath, key, value);
+            }
+            else {
+                // Direct Mode - write to disk
+                await this.addEnvVarToDisk(projectRoot, envFilePath, key, value);
+                console.log(`  🔧 Disk: Added env var ${key}=${value} to ${envFilePath}`);
+            }
+            return {
+                success: true,
+                message: `Added environment variable: ${key}`,
+                files: [envFilePath]
+            };
+        }
+        catch (error) {
+            const architechError = ArchitechError.internalError(`Failed to add environment variable: ${error instanceof Error ? error.message : 'Unknown error'}`, { operation: 'add_env_var', filePath: envFilePath, key });
+            return {
+                success: false,
+                error: architechError.getUserMessage()
+            };
+        }
+    }
+    /**
+     * Add environment variable to VFS
+     */
+    async addEnvVarToVFS(vfs, filePath, key, value) {
+        let content = '';
+        // Read existing content if file exists
+        if (vfs.fileExists(filePath)) {
+            content = await vfs.readFile(filePath);
+        }
+        // Add or update the environment variable
+        const lines = content.split('\n');
+        const keyIndex = lines.findIndex(line => line.startsWith(`${key}=`));
+        const newLine = `${key}=${value}`;
+        if (keyIndex >= 0) {
+            // Update existing variable
+            lines[keyIndex] = newLine;
+        }
+        else {
+            // Add new variable
+            lines.push(newLine);
+        }
+        // Write back to VFS
+        vfs.writeFile(filePath, lines.join('\n'));
+    }
+    /**
+     * Add environment variable to disk
+     */
+    async addEnvVarToDisk(projectRoot, filePath, key, value) {
+        const fullPath = join(projectRoot, filePath);
+        let content = '';
+        try {
+            // Read existing content if file exists
+            content = await fs.readFile(fullPath, 'utf-8');
+        }
+        catch (error) {
+            // File doesn't exist, start with empty content
+            content = '';
+        }
+        // Add or update the environment variable
+        const lines = content.split('\n');
+        const keyIndex = lines.findIndex(line => line.startsWith(`${key}=`));
+        const newLine = `${key}=${value}`;
+        if (keyIndex >= 0) {
+            // Update existing variable
+            lines[keyIndex] = newLine;
+        }
+        else {
+            // Add new variable
+            lines.push(newLine);
+        }
+        // Write back to disk
+        await fs.writeFile(fullPath, lines.join('\n'), 'utf-8');
+    }
+}
+//# sourceMappingURL=add-env-var-handler.js.map

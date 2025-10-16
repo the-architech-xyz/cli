@@ -5,7 +5,8 @@
  * This handler REQUIRES VFS mode and is a "Specialized Worker" in the Executor-Centric architecture.
  */
 
-import { BlueprintAction, ProjectContext, InstallPackagesAction } from '@thearchitech.xyz/types';
+import { BlueprintAction, InstallPackagesAction } from '@thearchitech.xyz/types';
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file-system.js';
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ModifierRegistry } from '../../../file-system/modifiers/modifier-registry.js';

@@ -8,6 +8,10 @@
 import { Command } from 'commander';
 import { GenomeRegistry } from '../core/services/module-management/genome/genome-registry.js';
 import { AgentLogger as Logger } from '../core/cli/logger.js';
+import { GenomeResolverFactory } from '../core/services/genome-resolution/index.js';
+import { PathService } from '../core/services/path/path-service.js';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 export function createListGenomesCommand(): Command {
   const command = new Command('list-genomes');
@@ -24,8 +28,11 @@ export function createListGenomesCommand(): Command {
       try {
         logger.info('🧬 Available Project Genomes\n');
         
-        const genomeRegistry = new GenomeRegistry();
-        let genomes = genomeRegistry.getAllGenomes();
+        // Use new resolver to list TypeScript genomes
+        const resolver = GenomeResolverFactory.createDefault();
+        
+        // Try to list from local marketplace
+        let genomes = await listLocalMarketplaceGenomes(logger, options.verbose || false);
         
         // Apply filters
         if (options.category) {
@@ -37,7 +44,12 @@ export function createListGenomesCommand(): Command {
         }
         
         if (options.search) {
-          genomes = genomeRegistry.searchGenomes(options.search);
+          const searchLower = options.search.toLowerCase();
+          genomes = genomes.filter((g: any) => 
+            g.id.toLowerCase().includes(searchLower) ||
+            g.description.toLowerCase().includes(searchLower) ||
+            g.tags.some((tag: string) => tag.toLowerCase().includes(searchLower))
+          );
         }
         
         if (genomes.length === 0) {
@@ -58,7 +70,7 @@ export function createListGenomesCommand(): Command {
         Object.entries(groupedGenomes).forEach(([category, categoryGenomes]) => {
           logger.info(`📁 ${category.toUpperCase()}`);
           
-          categoryGenomes.forEach(genome => {
+          (categoryGenomes as any[]).forEach((genome: any) => {
             const complexityIcon = getComplexityIcon(genome.complexity);
             const modulesText = `${genome.modules} module${genome.modules !== 1 ? 's' : ''}`;
             
@@ -112,4 +124,70 @@ function getComplexityIcon(complexity: string): string {
     default:
       return '⚪';
   }
+}
+
+/**
+ * List genomes from local marketplace (TypeScript .genome.ts files)
+ */
+async function listLocalMarketplaceGenomes(logger: Logger, verbose: boolean): Promise<any[]> {
+  try {
+    const marketplaceRoot = await PathService.getMarketplaceRoot();
+    const genomesDir = path.join(marketplaceRoot, 'genomes', 'official');
+    
+    const files = await fs.readdir(genomesDir);
+    const genomeFiles = files.filter(f => f.endsWith('.genome.ts'));
+    
+    const genomes = [];
+    
+    for (const file of genomeFiles) {
+      const genomePath = path.join(genomesDir, file);
+      const content = await fs.readFile(genomePath, 'utf-8');
+      
+      // Extract metadata from file
+      const id = file.replace('.genome.ts', '').replace(/^\d+-/, '');
+      const descMatch = content.match(/\* \n \* (.+)/);
+      const useCaseMatch = content.match(/\* Use Case: (.+)/);
+      const stackMatch = content.match(/\* Stack: (.+)/);
+      
+      // Count modules
+      const moduleMatches = content.match(/\{\s*\n?\s*id:/g);
+      const moduleCount = moduleMatches?.length || 0;
+      
+      // Determine complexity
+      let complexity = 'simple';
+      if (moduleCount > 8) complexity = 'advanced';
+      else if (moduleCount > 3) complexity = 'intermediate';
+      
+      // Determine category from use case
+      let category = 'web';
+      if (useCaseMatch?.[1]?.includes('SaaS')) category = 'saas';
+      if (useCaseMatch?.[1]?.includes('blog')) category = 'content';
+      if (useCaseMatch?.[1]?.includes('AI')) category = 'ai';
+      if (useCaseMatch?.[1]?.includes('Web3') || useCaseMatch?.[1]?.includes('blockchain')) category = 'blockchain';
+      
+      genomes.push({
+        id,
+        file,
+        description: descMatch?.[1] || 'No description',
+        category,
+        tags: [category],
+        modules: moduleCount,
+        complexity,
+        stack: stackMatch?.[1] || ''
+      });
+    }
+    
+    return genomes;
+  } catch (error) {
+    logger.warn(`Could not load local marketplace genomes: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    return [];
+  }
+}
+
+/**
+ * Parse feature specification (future use)
+ */
+function parseFeatureSpec(featureArg: string): any | null {
+  // For future add command
+  return null;
 }

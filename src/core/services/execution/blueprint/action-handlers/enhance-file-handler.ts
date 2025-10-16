@@ -5,11 +5,13 @@
  * This handler REQUIRES VFS mode and is a "Specialized Worker" in the Executor-Centric architecture.
  */
 
-import { BlueprintAction, ProjectContext, EnhanceFileAction, AvailableModifier } from '@thearchitech.xyz/types';
+import { BlueprintAction, EnhanceFileAction, AvailableModifier } from '@thearchitech.xyz/types';
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file-system.js';
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ModifierRegistry } from '../../../file-system/modifiers/modifier-registry.js';
 import { ArchitechError } from '../../../infrastructure/error/architech-error.js';
+import { TemplateService } from '../../../file-system/template/template-service.js';
 
 export class EnhanceFileHandler extends BaseActionHandler {
   private modifierRegistry: ModifierRegistry;
@@ -49,8 +51,13 @@ export class EnhanceFileHandler extends BaseActionHandler {
       return { success: false, error: 'ENHANCE_FILE requires VFS mode' };
     }
 
-    // Process template path
-    const filePath = this.processTemplate(enhanceAction.path, context);
+    // CRITICAL FIX: Use TemplateService for full path variable support
+    const originalPath = enhanceAction.path;
+    const filePath = TemplateService.processTemplate(enhanceAction.path, context);
+    
+    if (originalPath !== filePath) {
+      console.log(`  🔄 Path resolved: ${originalPath} → ${filePath}`);
+    }
 
     // Get the modifier from registry
     const modifier = this.modifierRegistry.get(enhanceAction.modifier as AvailableModifier);
@@ -67,9 +74,10 @@ export class EnhanceFileHandler extends BaseActionHandler {
         if (fallbackPath) {
           actualFilePath = fallbackPath;
           console.log(`  🔄 Using alternative file: ${fallbackPath} (instead of ${filePath})`);
-        } else if (enhanceAction.fallback === 'create') {
-          // Create empty file for modifier to work with
-          vfs.createFile(filePath, '{}');
+        } else if (enhanceAction.fallback === 'create' || !enhanceAction.fallback) {
+          // CRITICAL FIX: Use RESOLVED filePath, not original
+          // The filePath was already resolved via TemplateService.processTemplate above
+          vfs.createFile(filePath, '');
           console.log(`  📝 Created file (fallback): ${filePath}`);
         } else {
           return { success: false, error: `File ${filePath} does not exist and no fallback specified` };

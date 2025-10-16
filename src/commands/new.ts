@@ -9,6 +9,7 @@ import { Command } from 'commander';
 import { readFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { execSync } from 'child_process';
+import inquirer from 'inquirer';
 import { Genome } from '@thearchitech.xyz/types';
 import { OrchestratorAgent } from '../agents/orchestrator-agent.js';
 import { ProjectManager } from '../core/services/project/project-manager.js';
@@ -18,24 +19,70 @@ import { GenomeValidator } from '../core/services/validation/genome-validator.js
 import { ModuleService } from '../core/services/module-management/module-service.js';
 import { CacheManagerService } from '../core/services/infrastructure/cache/cache-manager.js';
 import { ErrorHandler } from '../core/services/infrastructure/error/index.js';
+import { GenomeResolverFactory } from '../core/services/genome-resolution/index.js';
 
 export function createNewCommand(): Command {
   const command = new Command('new');
   
   command
-    .description('Create a new project from a TypeScript genome file')
-    .argument('<genome-file>', 'Path to .genome.ts file')
+    .description('Create a new project from a genome')
+    .argument('[project-name]', 'Project name (optional, for interactive mode)')
+    .option('-g, --genome <genome>', 'Genome name or path to .genome.ts file')
+    .option('-l, --list', 'List available genomes before choosing', false)
     .option('-d, --dry-run', 'Show what would be created without executing', false)
     .option('-v, --verbose', 'Enable verbose logging', false)
     .option('-q, --quiet', 'Suppress all output except errors', false)
-    .action(async (genomeFile: string, options: { dryRun?: boolean; verbose?: boolean; quiet?: boolean }) => {
+    .action(async (projectName: string | undefined, options: { 
+      genome?: string;
+      list?: boolean;
+      dryRun?: boolean; 
+      verbose?: boolean; 
+      quiet?: boolean;
+    }) => {
       const logger = new Logger(options.verbose);
       
       try {
-        logger.info(`🚀 Creating new project from TypeScript genome: ${genomeFile}`);
+        // Handle --list flag
+        if (options.list) {
+          await showGenomeList(logger);
+          return;
+        }
+
+        // Determine genome input (from --genome flag or positional arg for backward compat)
+        let genomeInput = options.genome || projectName;
+
+        // If no genome specified, show interactive picker
+        if (!genomeInput) {
+          genomeInput = await promptForGenome(logger);
+        }
+
+        if (!genomeInput) {
+          logger.error('❌ No genome specified');
+          logger.info('💡 Use: architech new --genome <name> or architech new <path>');
+          logger.info('💡 Or run: architech new --list');
+          process.exit(1);
+        }
+
+        logger.info(`🚀 Creating new project with genome: ${genomeInput}`);
         
-        // Resolve the genome file path
-        const genomePath = resolve(process.cwd(), genomeFile);
+        // GENOME RESOLUTION LAYER (NEW!)
+        logger.info('🔍 Resolving genome...');
+        const resolver = GenomeResolverFactory.createDefault();
+        const resolved = await resolver.resolve(genomeInput, { 
+          verbose: options.verbose 
+        });
+
+        logger.info(`✅ Resolved genome: ${resolved.name}`);
+        logger.info(`📁 Source: ${resolved.source}`);
+        if (resolved.metadata) {
+          logger.info(`📊 Complexity: ${resolved.metadata.complexity} (${resolved.metadata.moduleCount} modules)`);
+          if (resolved.metadata.estimatedTime) {
+            logger.info(`⏱️  Estimated time: ${resolved.metadata.estimatedTime}`);
+          }
+        }
+        
+        // Use resolved path for execution
+        const genomePath = resolved.path;
         
         // Check if file exists
         try {
@@ -86,16 +133,16 @@ export function createNewCommand(): Command {
         
         if (result.success) {
           enhancedLogger.success('Project created successfully!');
-          enhancedLogger.logNextSteps(validatedGenome.project.path, validatedGenome.project.name);
+          enhancedLogger.logNextSteps(validatedGenome.project.path || './', validatedGenome.project.name);
           
           if (result.warnings && result.warnings.length > 0) {
             enhancedLogger.warn('Warnings:');
-            result.warnings.forEach(warning => enhancedLogger.warn(`  - ${warning}`));
+            result.warnings.forEach((warning: string) => enhancedLogger.warn(`  - ${warning}`));
           }
         } else {
           enhancedLogger.error('Project creation failed:');
           if (result.errors) {
-            result.errors.forEach(error => enhancedLogger.error(`  - ${error}`));
+            result.errors.forEach((error: string) => enhancedLogger.error(`  - ${error}`));
           }
           process.exit(1);
         }
@@ -138,7 +185,9 @@ async function executeTypeScriptGenome(genomePath: string, logger: Logger): Prom
     `;
     
     // Execute with tsx
-    const result = execSync(`tsx -e "${wrapperCode}"`, {
+    // Escape double quotes and backslashes to prevent shell interpretation issues
+    const escapedWrapperCode = wrapperCode.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    const result = execSync(`tsx -e "${escapedWrapperCode}"`, {
       encoding: 'utf-8',
       cwd: process.cwd(),
       stdio: 'pipe'
@@ -259,7 +308,7 @@ function showDryRunPreview(genome: Genome, logger: Logger): void {
   logger.info(`🔧 Modules to be executed:`);
   
   genome.modules.forEach((module, index) => {
-    logger.info(`  ${index + 1}. ${module.id} (${module.category}) - v${module.version}`);
+    logger.info(`  ${index + 1}. ${module.id}`);
     if (module.parameters && Object.keys(module.parameters).length > 0) {
       logger.info(`     Parameters: ${JSON.stringify(module.parameters)}`);
     }
@@ -270,4 +319,95 @@ function showDryRunPreview(genome: Genome, logger: Logger): void {
   } else {
     logger.info(`📦 Dependencies: Will be installed automatically`);
   }
+}
+
+/**
+ * Show list of available genomes
+ */
+async function showGenomeList(logger: Logger): Promise<void> {
+  logger.info('📚 Available Genomes:\n');
+  
+  const resolver = GenomeResolverFactory.createDefault();
+  const genomes = await resolver.getAvailableGenomes();
+  
+  logger.info('🟢 Simple (Quick start, minimal setup):');
+  logger.info('  • hello-world, minimal');
+  logger.info('');
+  
+  logger.info('🟡 Intermediate (Common use cases):');
+  logger.info('  • saas-starter, saas, full-saas');
+  logger.info('  • blog, blog-starter');
+  logger.info('  • ai-app, ai-chat, ai-powered');
+  logger.info('');
+  
+  logger.info('🔴 Advanced (Full-featured):');
+  logger.info('  • web3, dapp, blockchain');
+  logger.info('  • showcase, ultimate, demo');
+  logger.info('');
+  
+  logger.info('💡 Usage:');
+  logger.info('  architech new --genome hello-world');
+  logger.info('  architech new --genome saas-starter');
+  logger.info('  architech new /path/to/custom.genome.ts\n');
+}
+
+/**
+ * Interactive genome picker
+ */
+async function promptForGenome(logger: Logger): Promise<string> {
+  logger.info('🎯 Choose a genome for your project:\n');
+  
+  const answers = await inquirer.prompt([
+    {
+      type: 'list',
+      name: 'genome',
+      message: 'Select a genome:',
+      choices: [
+        {
+          name: '🟢 Hello World - Minimal Next.js starter (60 seconds)',
+          value: 'hello-world',
+          short: 'hello-world'
+        },
+        {
+          name: '🟡 SaaS Starter - Full-featured SaaS platform (10 minutes)',
+          value: 'saas-starter',
+          short: 'saas-starter'
+        },
+        {
+          name: '🟡 Blog - Modern blog with CMS (5 minutes)',
+          value: 'blog',
+          short: 'blog'
+        },
+        {
+          name: '🟡 AI App - AI-powered application (8 minutes)',
+          value: 'ai-app',
+          short: 'ai-app'
+        },
+        {
+          name: '🔴 Web3 DApp - Blockchain application (12 minutes)',
+          value: 'web3',
+          short: 'web3'
+        },
+        {
+          name: '🔴 Ultimate Showcase - Everything enabled (15 minutes)',
+          value: 'showcase',
+          short: 'showcase'
+        },
+        {
+          name: '📁 Use custom genome file path...',
+          value: '__custom__',
+          short: 'custom'
+        }
+      ]
+    },
+    {
+      type: 'input',
+      name: 'customPath',
+      message: 'Enter path to custom genome file:',
+      when: (answers) => answers.genome === '__custom__',
+      validate: (input) => input.length > 0 || 'Path cannot be empty'
+    }
+  ]);
+
+  return answers.customPath || answers.genome;
 } 

@@ -536,8 +536,33 @@ export class HighLevelDependencyResolver {
   private async resolveCapabilityRequirements(capabilities: string[]): Promise<Module[]> {
     const modules: Module[] = [];
     
-    // This would look up capability providers in the registry
-    // For now, return empty array
+    for (const capability of capabilities) {
+      // Look up capability providers in the registry
+      const providers = this.capabilityRegistry[capability];
+      
+      if (!providers || providers.providers.length === 0) {
+        Logger.warn(`No providers found for capability: ${capability}`);
+        continue;
+      }
+      
+      // For now, take the first provider (highest confidence)
+      // In a real implementation, you might want to choose based on confidence or user preference
+      const provider = providers.providers[0];
+      if (provider) {
+        const module: Module = {
+          id: provider.moduleId,
+          category: this.getModuleCategory(provider.moduleId),
+          version: provider.capabilityVersion,
+          parameters: {}
+        };
+        
+        // Avoid duplicates
+        if (!modules.find(m => m.id === module.id)) {
+          modules.push(module);
+        }
+      }
+    }
+    
     return modules;
   }
 
@@ -570,10 +595,32 @@ export class HighLevelDependencyResolver {
    * Get module category from ID
    */
   private getModuleCategory(moduleId: string): 'framework' | 'adapter' | 'integrator' | 'feature' {
+    // Validate module ID format
+    this.validateModuleId(moduleId);
+    
     if (moduleId.startsWith('framework/')) return 'framework';
     if (moduleId.startsWith('integrations/')) return 'integrator';
+    if (moduleId.startsWith('connector:')) return 'integrator'; // Connectors are treated as integrators
     if (moduleId.startsWith('features/')) return 'feature';
     return 'adapter';
+  }
+
+  /**
+   * Validate module ID format and reject invalid types
+   */
+  private validateModuleId(moduleId: string): void {
+    const validPrefixes = ['framework/', 'adapter/', 'integrations/', 'features/', 'connector:', 'ui/', 'database/', 'auth/', 'payment/', 'email/', 'testing/', 'quality/', 'observability/', 'deployment/', 'state/', 'core/', 'data-fetching/', 'content/', 'services/', 'blockchain/'];
+    
+    // Check for legacy capability: prefix
+    if (moduleId.startsWith('capability:')) {
+      throw new Error(`Invalid module type found: 'capability:'. The capability module type has been deprecated. Please use proper integration modules instead. Found: ${moduleId}`);
+    }
+    
+    // Check if module ID has a valid prefix
+    const hasValidPrefix = validPrefixes.some(prefix => moduleId.startsWith(prefix));
+    if (!hasValidPrefix) {
+      Logger.warn(`Module ID '${moduleId}' does not start with a recognized prefix. Valid prefixes: ${validPrefixes.join(', ')}`);
+    }
   }
 
   /**

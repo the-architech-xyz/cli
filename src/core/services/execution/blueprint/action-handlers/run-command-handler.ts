@@ -5,7 +5,8 @@
  * This is a "Specialized Worker" in the Executor-Centric architecture.
  */
 
-import { BlueprintAction, ProjectContext, RunCommandAction } from '@thearchitech.xyz/types';
+import { BlueprintAction, RunCommandAction } from '@thearchitech.xyz/types';
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file-system.js';
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ArchitechError } from '../../../infrastructure/error/architech-error.js';

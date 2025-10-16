@@ -5,7 +5,8 @@
  * This is the central dispatcher in the Executor-Centric architecture.
  */
 
-import { BlueprintAction, ProjectContext } from '@thearchitech.xyz/types';
+import { BlueprintAction } from '@thearchitech.xyz/types';
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file-system.js';
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { CreateFileHandler } from './create-file-handler.js';

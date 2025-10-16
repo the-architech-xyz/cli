@@ -47,29 +47,29 @@ describe('TemplateService', () => {
     });
 
     it('should process nested variables', () => {
-      const template = 'Framework: {{module.parameters.typescript}}';
+      const template = 'Framework: {{context..typescript}}';
       const result = TemplateService.processTemplate(template, mockContext);
       expect(result).toBe('Framework: true');
     });
 
     it('should process conditionals', () => {
-      const template = '{{#if module.parameters.typescript}}TypeScript enabled{{/if}}';
+      const template = '{{#if context..typescript}}TypeScript enabled{{/if}}';
       const result = TemplateService.processTemplate(template, mockContext);
       expect(result).toBe('TypeScript enabled');
     });
 
     it('should skip conditionals when false', () => {
-      const template = '{{#if module.parameters.tailwind}}Tailwind enabled{{/if}}';
+      const template = '{{#if context..tailwind}}Tailwind enabled{{/if}}';
       const result = TemplateService.processTemplate(template, mockContext);
       expect(result).toBe('');
     });
 
     it('should handle complex conditionals', () => {
       const template = `
-        {{#if module.parameters.typescript}}
+        {{#if context..typescript}}
         import React from 'react';
         {{/if}}
-        {{#if module.parameters.tailwind}}
+        {{#if context..tailwind}}
         import './globals.css';
         {{/if}}
       `;
@@ -104,11 +104,11 @@ describe('TemplateService', () => {
 
   describe('processTemplate with options', () => {
     it('should skip conditionals when disabled', () => {
-      const template = '{{#if module.parameters.typescript}}TypeScript{{/if}}';
+      const template = '{{#if context..typescript}}TypeScript{{/if}}';
       const result = TemplateService.processTemplate(template, mockContext, {
         processConditionals: false
       });
-      expect(result).toBe('{{#if module.parameters.typescript}}TypeScript{{/if}}');
+      expect(result).toBe('{{#if context..typescript}}TypeScript{{/if}}');
     });
 
     it('should skip variables when disabled', () => {

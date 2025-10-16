@@ -5,7 +5,7 @@
  * All specific modifiers should extend this class to ensure consistency.
  */
 
-import { ProjectContext } from '@thearchitech.xyz/types';
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 import { FileModificationEngine } from '../file-engine/file-modification-engine.js';
 
 export interface ModifierParams {
