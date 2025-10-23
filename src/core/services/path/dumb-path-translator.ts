@@ -7,6 +7,7 @@
 
 import * as path from 'path';
 import * as fs from 'fs';
+import { PathService } from './path-service.js';
 
 export class DumbPathTranslator {
   private static marketplaceRoot: string | null = null;
@@ -106,51 +107,15 @@ export class DumbPathTranslator {
   }
 
   /**
-   * Get marketplace root directory
+   * Get marketplace root directory (delegates to PathService)
    */
   private static async getMarketplaceRoot(): Promise<string> {
     if (this.marketplaceRoot) {
       return this.marketplaceRoot;
     }
 
-    // Find marketplace root by looking for package.json with @thearchitech.xyz/marketplace
-    let currentDir = process.cwd();
-    const maxDepth = 10;
-    let depth = 0;
-
-    while (depth < maxDepth) {
-      const packageJsonPath = path.join(currentDir, 'package.json');
-      
-      try {
-        const packageJson = JSON.parse(await fs.promises.readFile(packageJsonPath, 'utf-8'));
-        if (packageJson.name === '@thearchitech.xyz/marketplace') {
-          this.marketplaceRoot = currentDir;
-          return this.marketplaceRoot;
-        }
-      } catch {
-        // Continue searching
-      }
-
-      // Also check for marketplace directory
-      const marketplaceDir = path.join(currentDir, 'marketplace');
-      const marketplacePackageJson = path.join(marketplaceDir, 'package.json');
-      try {
-        const packageJson = JSON.parse(await fs.promises.readFile(marketplacePackageJson, 'utf-8'));
-        if (packageJson.name === '@thearchitech.xyz/marketplace') {
-          this.marketplaceRoot = marketplaceDir;
-          return this.marketplaceRoot;
-        }
-      } catch {
-        // Continue searching
-      }
-
-      const parentDir = path.dirname(currentDir);
-      if (parentDir === currentDir) break; // Reached root
-      
-      currentDir = parentDir;
-      depth++;
-    }
-
-    throw new Error('Marketplace root not found. Please run from within the architech workspace.');
+    // Delegate to PathService for centralized path resolution
+    this.marketplaceRoot = await PathService.getMarketplaceRoot();
+    return this.marketplaceRoot;
   }
 }

@@ -7,7 +7,7 @@
 import { readFile, readdir } from 'fs/promises';
 import { join, extname, basename } from 'path';
 import { Logger } from '../infrastructure/logging/logger.js';
-import { DynamicConnectorResolver } from '../connector/dynamic-connector-resolver.js';
+import { DynamicConnectorResolver } from './dynamic-connector-resolver.js';
 export class GenomeDetector {
     logger;
     constructor() {
@@ -25,14 +25,14 @@ export class GenomeDetector {
             const framework = this.detectFramework(analysis);
             // 3. Detect adapters
             const adapters = this.detectAdapters(analysis);
-            // 4. Detect integrators
-            const integrators = await this.detectIntegrators(analysis, adapters);
+            // 4. Detect connectors
+            const connectors = await this.detectConnectors(analysis, adapters);
             // 5. Detect features
-            const features = this.detectFeatures(analysis, adapters, integrators);
+            const features = this.detectFeatures(analysis, adapters, connectors);
             // 6. Calculate confidence
-            const confidence = this.calculateConfidence(analysis, adapters, integrators, features);
+            const confidence = this.calculateConfidence(analysis, adapters, connectors, features);
             // 7. Generate warnings
-            const warnings = this.generateWarnings(analysis, adapters, integrators, features);
+            const warnings = this.generateWarnings(analysis, adapters, connectors, features);
             const detectedGenome = {
                 project: {
                     name: analysis.packageJson.name || basename(projectPath),
@@ -42,7 +42,7 @@ export class GenomeDetector {
                 },
                 modules: {
                     adapters: adapters,
-                    integrators: integrators,
+                    connectors: connectors,
                     features: features
                 },
                 confidence,
@@ -380,10 +380,10 @@ export class GenomeDetector {
         return adapters;
     }
     /**
-     * Detect integrators from analysis using dynamic connector resolution
+     * Detect connectors from analysis using dynamic connector resolution
      */
-    async detectIntegrators(analysis, adapters) {
-        const integrators = [];
+    async detectConnectors(analysis, adapters) {
+        const connectors = [];
         try {
             // Convert adapters to modules for connector resolution
             const currentModules = adapters.map(adapter => ({
@@ -399,22 +399,22 @@ export class GenomeDetector {
             const connectorMatches = await connectorResolver.findMatchingConnectors(currentModules);
             // Convert matches to DetectedAdapter format
             for (const match of connectorMatches) {
-                integrators.push({
+                connectors.push({
                     id: match.connectorId,
                     confidence: match.confidence,
                     parameters: match.parameters,
                     evidence: match.evidence
                 });
             }
-            Logger.info(`🎯 Dynamic connector resolution found ${integrators.length} connectors`, {
-                connectors: integrators.map(i => i.id)
+            Logger.info(`🎯 Dynamic connector resolution found ${connectors.length} connectors`, {
+                connectors: connectors.map(i => i.id)
             });
         }
         catch (error) {
             Logger.warn(`Failed to resolve connectors dynamically: ${error instanceof Error ? error.message : 'Unknown error'}`);
             // Fallback to empty array if dynamic resolution fails
         }
-        return integrators;
+        return connectors;
     }
     /**
      * Extract category from adapter ID
@@ -426,7 +426,7 @@ export class GenomeDetector {
     /**
      * Detect features from analysis
      */
-    detectFeatures(analysis, adapters, integrators) {
+    detectFeatures(analysis, adapters, connectors) {
         const features = [];
         const adapterIds = adapters.map(a => a.id);
         // Auth features
@@ -490,16 +490,16 @@ export class GenomeDetector {
     /**
      * Calculate overall confidence
      */
-    calculateConfidence(analysis, adapters, integrators, features) {
+    calculateConfidence(analysis, adapters, connectors, features) {
         const adapterConfidence = adapters.reduce((sum, a) => sum + a.confidence, 0) / Math.max(adapters.length, 1);
-        const integratorConfidence = integrators.reduce((sum, i) => sum + i.confidence, 0) / Math.max(integrators.length, 1);
+        const connectorConfidence = connectors.reduce((sum, i) => sum + i.confidence, 0) / Math.max(connectors.length, 1);
         const featureConfidence = features.reduce((sum, f) => sum + f.confidence, 0) / Math.max(features.length, 1);
-        return Math.round((adapterConfidence + integratorConfidence + featureConfidence) / 3);
+        return Math.round((adapterConfidence + connectorConfidence + featureConfidence) / 3);
     }
     /**
      * Generate warnings
      */
-    generateWarnings(analysis, adapters, integrators, features) {
+    generateWarnings(analysis, adapters, connectors, features) {
         const warnings = [];
         if (analysis.files.length < 10) {
             warnings.push('Very few files detected - analysis may be incomplete');

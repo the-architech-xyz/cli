@@ -15,15 +15,16 @@ export declare class OrchestratorAgent {
     private cacheManager;
     private dependencyGraph;
     private executionPlanner;
-    private sequentialExecutor;
-    private successValidator;
     private architectureValidator;
-    private highLevelDependencyResolver;
-    private capabilityRegistryBuilder;
+    private semanticDependencyResolver;
     private manifestDrivenFeatureResolver;
     private featureModuleResolver;
     private blueprintPreprocessor;
     private appManifestGenerator;
+    private moduleConfigService;
+    private moduleClassifier;
+    private moduleAutoInclusion;
+    private componentDependencyResolver;
     constructor(projectManager: ProjectManager);
     /**
      * Execute a recipe using unified dependency-driven execution
@@ -42,6 +43,9 @@ export declare class OrchestratorAgent {
      * Resolve component dependencies across all features
      * Collects required components from feature manifests and ensures UI technologies install them
      */
+    /**
+     * Resolve component dependencies (delegates to ComponentDependencyResolver)
+     */
     private resolveComponentDependencies;
     /**
      * Execute a single module with its own transactional VFS
@@ -57,22 +61,21 @@ export declare class OrchestratorAgent {
      */
     private validateRecipe;
     /**
-     * Identify critical module failures
-     */
-    private identifyCriticalFailuresFromResults;
-    /**
      * Classify modules by type based on ID convention
      * - Frameworks: category === 'framework'
-     * - Integrations: id starts with 'integrations/'
+     * - Connectors: id starts with 'connectors/'
      * - Adapters: everything else
+     */
+    /**
+     * Classify modules by type (delegates to ModuleClassifier)
      */
     private classifyModulesByType;
     /**
-     * Get module type from ID
+     * Get module type from ID (delegates to ModuleClassifier)
      */
     private getModuleType;
     /**
-     * Enforce hierarchical execution order: Framework -> Adapters -> Integrations -> Features
+     * Enforce hierarchical execution order (delegates to ModuleClassifier)
      */
     private enforceHierarchicalOrder;
     /**
@@ -80,41 +83,19 @@ export declare class OrchestratorAgent {
      */
     private isConstitutionalModule;
     /**
-     * REMOVED: getBlueprintPath() and getModuleCategoryFromId()
-     *
-     * These methods duplicated logic from MarketplaceService and contained bugs.
-     * Now using MarketplaceService.loadModuleBlueprint() directly for:
-     * - Centralized path logic (DRY principle)
-     * - Tested, robust implementation
-     * - Proper separation of concerns
-     *
-     * Refactored: October 10, 2025
-     * Reason: Fix blueprint loading bug + eliminate technical debt
-     */
-    /**
-     * NEW: Merge module configuration with user overrides
+     * Merge module configuration with user overrides (delegates to ModuleConfigurationService)
      */
     private mergeModuleConfiguration;
     /**
-     * Merge parameter defaults from module config with user overrides
-     * Ensures templates have access to all parameter values (defaults + overrides)
+     * Merge parameter defaults with user overrides (delegates to ModuleConfigurationService)
      */
     private mergeParametersWithDefaults;
     /**
-     * Check if a value is a parameter schema object (has 'type', 'default', 'description')
-     */
-    private isParameterSchema;
-    /**
-     * Apply marketplace defaults - Auto-include opinionated modules for all Next.js projects
+     * Apply marketplace defaults (delegates to ModuleAutoInclusionService)
      */
     private applyMarketplaceDefaults;
     /**
-     * Auto-include tech-stack modules for features that have them
-     * This ensures the technology-agnostic layer is always included when available
+     * Auto-include tech-stack modules (delegates to ModuleAutoInclusionService)
      */
     private applyTechStackAutoInclusion;
-    /**
-     * Check if a tech-stack module exists in the marketplace (non-blocking)
-     */
-    private checkTechStackModuleExists;
 }

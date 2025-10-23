@@ -8,7 +8,7 @@ import { convertGenomeModulesToModules } from './genome-module-converter.js';
 import { PathService } from '../path/path-service.js';
 import { MarketplaceService } from '../marketplace/marketplace-service.js';
 import { ErrorHandler } from '../infrastructure/error/index.js';
-import { FrameworkContextService } from '../context/framework-context-service.js';
+import { FrameworkContextService } from '../project/framework-context-service.js';
 import { ErrorCode } from '../infrastructure/error/error-types.js';
 import { Logger } from '../infrastructure/logging/index.js';
 export class ModuleService {

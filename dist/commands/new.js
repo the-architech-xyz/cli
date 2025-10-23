@@ -48,9 +48,21 @@ export function createNewCommand() {
             // GENOME RESOLUTION LAYER (NEW!)
             logger.info('🔍 Resolving genome...');
             const resolver = GenomeResolverFactory.createDefault();
-            const resolved = await resolver.resolve(genomeInput, {
-                verbose: options.verbose
-            });
+            let resolved;
+            try {
+                resolved = await resolver.resolve(genomeInput, {
+                    verbose: options.verbose
+                });
+            }
+            catch (error) {
+                logger.error(`❌ Genome not found: ${genomeInput}`);
+                logger.info('💡 Available genomes:');
+                logger.info('  - hello-world: Minimal Next.js starter');
+                logger.info('  - saas-starter: Full-featured SaaS template');
+                logger.info('  - ai-chatbot: AI-powered chat application');
+                logger.info('💡 Or use: architech new --list');
+                process.exit(1);
+            }
             logger.info(`✅ Resolved genome: ${resolved.name}`);
             logger.info(`📁 Source: ${resolved.source}`);
             if (resolved.metadata) {
@@ -129,33 +141,41 @@ export function createNewCommand() {
  */
 async function executeTypeScriptGenome(genomePath, logger) {
     try {
-        // Read the genome file
-        const genomeCode = readFileSync(genomePath, 'utf-8');
-        // Create a wrapper that exports the genome
-        const wrapperCode = `
-      ${genomeCode}
-      
-      // Export the genome if it's the default export
-      if (typeof genome !== 'undefined') {
-        console.log(JSON.stringify(genome));
-      } else if (typeof module !== 'undefined' && module.exports && module.exports.default) {
-        console.log(JSON.stringify(module.exports.default));
-      } else {
-        throw new Error('No genome found. Please export a Genome object as default or named export "genome"');
-      }
-    `;
-        // Execute with tsx
-        // Escape double quotes and backslashes to prevent shell interpretation issues
-        const escapedWrapperCode = wrapperCode.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        const result = execSync(`tsx -e "${escapedWrapperCode}"`, {
-            encoding: 'utf-8',
-            cwd: process.cwd(),
-            stdio: 'pipe'
-        });
-        // Parse the JSON result
-        const genome = JSON.parse(result.trim());
-        logger.info('✅ TypeScript genome executed successfully');
-        return genome;
+        // Create a temporary wrapper script that imports and outputs the genome as JSON
+        const { writeFileSync, unlinkSync } = await import('fs');
+        const { tmpdir } = await import('os');
+        const { join, dirname } = await import('path');
+        const tempScriptPath = join(tmpdir(), `genome-loader-${Date.now()}.mjs`);
+        const wrapperScript = `
+import genome from '${genomePath}';
+console.log(JSON.stringify(genome));
+`;
+        writeFileSync(tempScriptPath, wrapperScript);
+        try {
+            // Find the marketplace root to resolve imports correctly
+            // The genome is in marketplace/genomes/*, so go up 2 directories to get marketplace root
+            const marketplaceRoot = dirname(dirname(genomePath));
+            // Execute with tsx from the marketplace directory so imports can be resolved
+            const result = execSync(`tsx ${tempScriptPath}`, {
+                encoding: 'utf-8',
+                cwd: marketplaceRoot, // Run from marketplace root to resolve @thearchitech.xyz/* imports
+                stdio: 'pipe'
+            });
+            // Clean up temp file
+            unlinkSync(tempScriptPath);
+            // Parse the JSON result
+            const genome = JSON.parse(result.trim());
+            logger.info('✅ TypeScript genome executed successfully');
+            return genome;
+        }
+        catch (execError) {
+            // Clean up temp file even on error
+            try {
+                unlinkSync(tempScriptPath);
+            }
+            catch { }
+            throw execError;
+        }
     }
     catch (error) {
         logger.error(`❌ Failed to execute TypeScript genome: ${error instanceof Error ? error.message : 'Unknown error'}`);

@@ -7,8 +7,7 @@
 
 export const MARKETPLACE_DEFAULTS = {
   autoInclude: [
-    'quality/eslint',
-    'quality/prettier'
+    'core/golden-stack' // Includes ESLint, Prettier, Zustand, Vitest, Zod
     // Removed opinionated defaults - TanStack Query and Zustand should only be included when explicitly needed
   ]
 } as const;

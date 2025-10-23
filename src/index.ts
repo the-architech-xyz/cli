@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
 /**
- * The Architech CLI V1 - Agent-Based Architecture
+ * The Architech CLI
  * 
- * Agent-based project generation from YAML recipes
- * Flow: architech.yaml → Orchestrator → Agents → Adapters → Blueprints
+ * Type-safe project generation from TypeScript genome templates
+ * Flow: Genome → Orchestrator → Module Resolution → Blueprint Execution → Project
  */
 
 import { Command } from 'commander';
@@ -47,19 +47,20 @@ program.addCommand(createConfigCommand());
   program
     .action(() => {
     displayBanner();
-    console.log(chalk.blue.bold('🏗️ The Architech V1 - Agent-Based Architecture\n'));
+    console.log(chalk.blue.bold('🏗️  The Architech — Stop Writing Boilerplate. Start Architecting.\n'));
     console.log(chalk.gray('Available commands:'));
-    console.log(chalk.gray('  new           Create a new project from architech.yaml recipe or genome'));
-    console.log(chalk.gray('  new-ts        Create a new project from TypeScript genome file'));
-    console.log(chalk.gray('  list-genomes  List all available project genome templates'));
+    console.log(chalk.gray('  new           Create a new project from a genome template'));
+    console.log(chalk.gray('  list-genomes  Browse all available project templates'));
     console.log(chalk.gray('  analyze       Analyze existing repository and detect architecture'));
-    console.log(chalk.gray('  add           Add modules to existing project (V2)'));
-    console.log(chalk.gray('  scale         Scale project to monorepo (V2)\n'));
-    console.log(chalk.yellow('💡 Use "architech new-ts <genome.ts>" for type-safe development!'));
-    console.log(chalk.gray('Examples:'));
-    console.log(chalk.gray('  architech new-ts my-genome.ts'));
-    console.log(chalk.gray('  architech new my-saas.yaml'));
-    console.log(chalk.gray('  architech new --genome saas-boilerplate --name my-saas\n'));
+    console.log(chalk.gray('  config        Manage CLI configuration'));
+    console.log(chalk.gray('  marketplace   Explore the module marketplace\n'));
+    console.log(chalk.dim('Coming soon:'));
+    console.log(chalk.dim('  add           Add features to existing project'));
+    console.log(chalk.dim('  scale         Scale project to monorepo structure\n'));
+    console.log(chalk.yellow('💡 Quick start:'));
+    console.log(chalk.gray('  architech new --genome hello-world'));
+    console.log(chalk.gray('  architech list-genomes'));
+    console.log(chalk.gray('  architech new --genome saas-starter\n'));
   });
 
 // ============================================================================
@@ -79,17 +80,16 @@ program.on('command:*', (operands) => {
 program.addHelpText('after', `
 
 Examples:
-  $ architech new-ts my-genome.ts                 # Create new project from TypeScript genome
-  $ architech new my-saas.yaml                    # Create new project from recipe
-  $ architech new --genome saas-boilerplate --name my-saas  # Create from genome
+  $ architech new --genome hello-world            # Create minimal Next.js starter
+  $ architech new --genome saas-starter           # Create full SaaS platform
+  $ architech new /path/to/custom.genome.ts       # Create from custom genome file
+  $ architech list-genomes                        # List available genomes
   $ architech analyze https://github.com/user/repo # Analyze existing repository
   $ architech analyze ./my-project --output genome.ts # Analyze local project
-  $ architech list-genomes                        # List available genomes
-  $ architech add auth/better-auth                # Add auth module (V2)
-  $ architech scale --strategy nx                 # Scale to monorepo (V2)
+  $ architech config init                         # Create configuration file
 
-Documentation: https://the-architech.dev
-GitHub: https://github.com/the-architech/cli
+Documentation: https://doc.thearchitech.xyz
+GitHub: https://github.com/thearchitech-xyz/cli
 `);
 
 // ============================================================================

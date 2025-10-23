@@ -1,0 +1,57 @@
+# Source files (compiled to dist/)
+src/
+tests/
+*.test.ts
+*.spec.ts
+
+# Development files
+tsconfig.json
+.eslintrc*
+.prettierrc*
+vitest.config.ts
+
+# Git and CI
+.git/
+.github/
+.husky/
+.gitignore
+
+# Documentation (use docs site instead)
+docs/
+*.md
+!README.md
+
+# Build artifacts
+*.log
+generation.log
+build.log
+
+# Development scripts
+scripts/
+test-*.js
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Lock files (users should generate their own)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Examples and configs (unless specifically needed)
+architech.config.example.json
+architech.config.schema.json
+whitepaper.md
+lightpaper.md
+
+# Node modules
+node_modules/
+
+

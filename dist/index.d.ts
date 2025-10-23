@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 /**
- * The Architech CLI V1 - Agent-Based Architecture
+ * The Architech CLI
  *
- * Agent-based project generation from YAML recipes
- * Flow: architech.yaml → Orchestrator → Agents → Adapters → Blueprints
+ * Type-safe project generation from TypeScript genome templates
+ * Flow: Genome → Orchestrator → Module Resolution → Blueprint Execution → Project
  */
 import { Command } from 'commander';
 declare const program: Command;

@@ -6,7 +6,6 @@
 export * from './execution/blueprint/blueprint-executor.js';
 export * from './path/path-service.js';
 export * from './project/project-manager.js';
-export * from './module-management/genome/genome-registry.js';
 export * from './file-system/template/index.js';
 export * from './infrastructure/error/index.js';
 export * from './infrastructure/logging/index.js';

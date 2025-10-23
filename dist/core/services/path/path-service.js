@@ -342,7 +342,7 @@ export class PathService {
         return DumbPathTranslator.translateModuleId(moduleId);
     }
     /**
-     * Calculate CLI root directory by finding the package.json with the-architech
+     * Calculate CLI root directory by finding the package.json with @thearchitech.xyz/cli
      */
     static calculateCliRoot() {
         const cliFile = fileURLToPath(import.meta.url);
@@ -352,7 +352,7 @@ export class PathService {
             const packageJsonPath = path.join(current, 'package.json');
             try {
                 const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf-8'));
-                if (packageJson.name === 'the-architech') {
+                if (packageJson.name === '@thearchitech.xyz/cli') {
                     return current;
                 }
             }
@@ -361,7 +361,7 @@ export class PathService {
             }
             current = path.dirname(current);
         }
-        throw new Error('CLI root not found. Unable to locate the-architech package.json');
+        throw new Error('CLI root not found. Unable to locate @thearchitech.xyz/cli package.json');
     }
 }
 //# sourceMappingURL=path-service.js.map

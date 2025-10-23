@@ -21,7 +21,7 @@ import { BlueprintExecutor } from "../core/services/execution/blueprint/blueprin
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { BlueprintAnalyzer } from "../core/services/project/blueprint-analyzer/index.js";
-import { FrameworkContextService } from "../core/services/context/framework-context-service.js";
+import { FrameworkContextService } from "../core/services/project/framework-context-service.js";
 import { ModuleService } from "../core/services/module-management/module-service.js";
 import { convertGenomeModulesToModules } from "../core/services/module-management/genome-module-converter.js";
 import { MarketplaceService } from "../core/services/marketplace/marketplace-service.js";
@@ -33,24 +33,25 @@ import {
 } from "../core/services/infrastructure/logging/index.js";
 import { EnhancedLogger } from "../core/cli/enhanced-logger.js";
 import { ErrorHandler } from "../core/services/infrastructure/error/index.js";
-import { DependencyGraph } from "../core/services/dependency/dependency-graph.js";
+import { DependencyGraph } from "../core/services/execution-planning/dependency-graph.js";
 import {
   ExecutionPlanner,
   ExecutionPlan,
-} from "../core/services/dependency/execution-planner.js";
-import { SequentialExecutionService } from "../core/services/execution/sequential-execution-service.js";
+} from "../core/services/execution-planning/execution-planner.js";
 import { VirtualFileSystem } from "../core/services/file-system/file-engine/virtual-file-system.js";
-import { SuccessValidator } from "../core/services/validation/success-validator.js";
 import { ArchitectureValidator } from "../core/services/validation/architecture-validator.js";
-import { HighLevelDependencyResolver } from "../core/services/dependency-resolution/high-level-dependency-resolver.js";
-import { CapabilityRegistryBuilder } from "../core/services/dependency-resolution/capability-registry-builder.js";
+import { SemanticDependencyResolver } from "../core/services/dependency-resolution/semantic-dependency-resolver.js";
 import {
   ManifestDrivenFeatureResolver,
   extractProjectStackFromModules,
 } from "../core/services/feature-resolution/manifest-driven-feature-resolver.js";
 import { FeatureModuleResolver } from "../core/services/feature-resolution/feature-module-resolver.js";
-import { BlueprintPreprocessor } from "../core/services/blueprint-preprocessor/blueprint-preprocessor.js";
-import { AppManifestGenerator } from "../core/services/manifest/app-manifest-generator.js";
+import { ModuleConfigurationService } from "../core/services/orchestration/module-configuration-service.js";
+import { ModuleClassifier } from "../core/services/orchestration/module-classifier.js";
+import { ModuleAutoInclusionService } from "../core/services/orchestration/module-auto-inclusion.js";
+import { ComponentDependencyResolver } from "../core/services/orchestration/component-dependency-resolver.js";
+import { BlueprintPreprocessor } from "../core/services/execution/blueprint/blueprint-preprocessor.js";
+import { AppManifestGenerator } from "../core/services/project/app-manifest-generator.js";
 // Import types for dependency resolution
 interface ResolutionError {
   type: string;
@@ -82,15 +83,16 @@ export class OrchestratorAgent {
   private cacheManager: CacheManagerService;
   private dependencyGraph: DependencyGraph;
   private executionPlanner: ExecutionPlanner;
-  private sequentialExecutor: SequentialExecutionService;
-  private successValidator: SuccessValidator;
   private architectureValidator: ArchitectureValidator;
-  private highLevelDependencyResolver: HighLevelDependencyResolver;
-  private capabilityRegistryBuilder: CapabilityRegistryBuilder;
+  private semanticDependencyResolver: SemanticDependencyResolver;
   private manifestDrivenFeatureResolver: ManifestDrivenFeatureResolver;
   private featureModuleResolver: FeatureModuleResolver;
   private blueprintPreprocessor: BlueprintPreprocessor;
   private appManifestGenerator: AppManifestGenerator;
+  private moduleConfigService: ModuleConfigurationService;
+  private moduleClassifier: ModuleClassifier;
+  private moduleAutoInclusion: ModuleAutoInclusionService;
+  private componentDependencyResolver: ComponentDependencyResolver;
 
   constructor(projectManager: ProjectManager) {
     this.projectManager = projectManager;
@@ -104,15 +106,8 @@ export class OrchestratorAgent {
     // Initialize dependency resolution services
     this.dependencyGraph = new DependencyGraph(this.moduleService);
     this.executionPlanner = new ExecutionPlanner(this.dependencyGraph);
-    this.sequentialExecutor = new SequentialExecutionService();
-    this.successValidator = new SuccessValidator();
     this.architectureValidator = new ArchitectureValidator();
-
-    // Initialize high-level dependency resolution
-    this.capabilityRegistryBuilder = new CapabilityRegistryBuilder(
-      this.moduleService
-    );
-    this.highLevelDependencyResolver = new HighLevelDependencyResolver(
+    this.semanticDependencyResolver = new SemanticDependencyResolver(
       this.moduleService,
       {
         failFast: true,
@@ -134,6 +129,12 @@ export class OrchestratorAgent {
     // Initialize blueprint preprocessor
     this.blueprintPreprocessor = new BlueprintPreprocessor();
     this.appManifestGenerator = new AppManifestGenerator();
+    
+    // Initialize orchestration services
+    this.moduleConfigService = new ModuleConfigurationService();
+    this.moduleClassifier = new ModuleClassifier();
+    this.moduleAutoInclusion = new ModuleAutoInclusionService();
+    this.componentDependencyResolver = new ComponentDependencyResolver();
   }
 
   /**
@@ -185,7 +186,7 @@ export class OrchestratorAgent {
 
       // Resolve feature modules using manifest-driven approach
       const resolvedModules =
-        await this.featureModuleResolver.resolveFeatureModules(genome.modules as Module[]); // TODO: verify if that work
+        await this.featureModuleResolver.resolveFeatureModules(genome.modules as Module[]);
 
       Logger.info(`✅ Feature module resolution complete`, {
         traceId,
@@ -214,15 +215,36 @@ export class OrchestratorAgent {
         addedModules: modulesWithDefaults.length - resolvedModules.length,
       });
 
+      // 1.65. ADAPTER REQUIREMENTS - Auto-include required adapters from connectors
+      ExecutionTracer.logOperation(traceId, "Adapter requirements auto-inclusion");
+      Logger.info("🎯 Auto-including required adapters from connectors", {
+        traceId,
+        operation: "adapter_requirements",
+        modulesCount: modulesWithDefaults.length,
+      });
+
+      const modulesWithAdapters = await this.moduleAutoInclusion.applyAdapterRequirements(
+        modulesWithDefaults,
+        this.projectManager.getMarketplacePath()
+      );
+
+      Logger.info(`✅ Adapter requirements resolved`, {
+        traceId,
+        operation: "adapter_requirements",
+        originalModules: modulesWithDefaults.length,
+        finalModules: modulesWithAdapters.length,
+        addedAdapters: modulesWithAdapters.length - modulesWithDefaults.length,
+      });
+
       // 1.7. TECH-STACK AUTO-INCLUSION - Auto-include tech-stack modules for features
       ExecutionTracer.logOperation(traceId, "Tech-stack auto-inclusion");
       Logger.info("🎯 Starting tech-stack auto-inclusion", {
         traceId,
         operation: "tech_stack_auto_inclusion",
-        modulesCount: modulesWithDefaults.length,
+        modulesCount: modulesWithAdapters.length,
       });
 
-      const modulesWithTechStack = await this.applyTechStackAutoInclusion(modulesWithDefaults);
+      const modulesWithTechStack = await this.applyTechStackAutoInclusion(modulesWithAdapters);
 
       Logger.info(`✅ Tech-stack auto-inclusion complete`, {
         traceId,
@@ -282,7 +304,7 @@ export class OrchestratorAgent {
       });
 
       const resolutionResult =
-        await this.highLevelDependencyResolver.resolveGenome(
+        await this.semanticDependencyResolver.resolveGenome(
           enhancedGenome.modules
         );
 
@@ -405,7 +427,7 @@ export class OrchestratorAgent {
         operation: "module_classification",
         frameworks: moduleClassification.frameworks.map((m) => m.id),
         adapters: moduleClassification.adapters.map((m) => m.id),
-        integrations: moduleClassification.integrations.map((m) => m.id),
+        connectors: moduleClassification.connectors.map((m) => m.id),
         features: moduleClassification.features.map((m) => m.id),
       });
 
@@ -626,7 +648,6 @@ export class OrchestratorAgent {
         const projectPath = this.projectManager.getProjectConfig().path || './';
         await this.appManifestGenerator.generateAndSaveManifest(
           genome,
-          { modulesExecuted: results.length, results },
           projectPath
         );
         Logger.info(`📋 App manifest generated successfully`, {
@@ -721,7 +742,7 @@ export class OrchestratorAgent {
       // Execute all batches in dependency order
       for (let i = 0; i < executionPlan.batches.length; i++) {
         const batch = executionPlan.batches[i];
-        console.log(`🔍 CWD BEFORE batch ${i + 1}:`, process.cwd());
+        Logger.debug(`🔍 CWD BEFORE batch ${i + 1}: ${process.cwd()}`);
 
         Logger.info(
           `🚀 Executing batch ${i + 1}/${executionPlan.batches.length} (${batch.modules.length} modules)`,
@@ -733,7 +754,7 @@ export class OrchestratorAgent {
 
         // Execute modules in this batch (each module gets its own VFS lifecycle)
         for (const module of batch.modules) {
-          console.log(`🔍 CWD BEFORE module ${module.id}:`, process.cwd());
+          Logger.debug(`🔍 CWD BEFORE module ${module.id}: ${process.cwd()}`);
 
           // Enhanced logging: Determine module type and phase
           if (enhancedLogger) {
@@ -823,47 +844,11 @@ export class OrchestratorAgent {
    * Resolve component dependencies across all features
    * Collects required components from feature manifests and ensures UI technologies install them
    */
+  /**
+   * Resolve component dependencies (delegates to ComponentDependencyResolver)
+   */
   private async resolveComponentDependencies(genome: Genome): Promise<Map<string, string[]>> {
-    const componentRequirements = new Map<string, Set<string>>();
-    
-    // Iterate through all modules to find features with component requirements
-    for (const module of genome.modules) {
-      if (module.id.startsWith('features/')) {
-        try {
-          // Load feature manifest
-          const featureManifest = await MarketplaceService.loadFeatureManifest(module.id);
-          
-          if (featureManifest?.requires?.components) {
-            // Collect component requirements per UI technology
-            for (const [uiTechId, components] of Object.entries(featureManifest.requires.components)) {
-              if (!componentRequirements.has(uiTechId)) {
-                componentRequirements.set(uiTechId, new Set<string>());
-              }
-              
-              const requiredSet = componentRequirements.get(uiTechId)!;
-              (components as string[]).forEach(comp => requiredSet.add(comp));
-            }
-          }
-        } catch (error) {
-          console.warn(`⚠️  Could not load manifest for ${module.id}:`, error);
-        }
-      }
-    }
-    
-    // Convert Sets to Arrays
-    const result = new Map<string, string[]>();
-    for (const [uiTechId, componentsSet] of componentRequirements.entries()) {
-      result.set(uiTechId, Array.from(componentsSet).sort());
-    }
-    
-    if (result.size > 0) {
-      console.log('📦 Resolved component dependencies:');
-      for (const [uiTechId, components] of result.entries()) {
-        console.log(`   ${uiTechId}: [${components.join(', ')}]`);
-      }
-    }
-    
-    return result;
+    return this.componentDependencyResolver.resolveComponentDependencies(genome);
   }
 
   /**
@@ -1016,14 +1001,23 @@ export class OrchestratorAgent {
     try {
       await fs.access(packageJsonPath);
     } catch {
-      Logger.warn("No package.json found, skipping dependency installation");
+      Logger.debug("No package.json found, skipping dependency installation");
       return;
     }
 
-    Logger.info("Installing dependencies...");
-    // This would typically run npm install
-    // For now, we'll just log that we would install dependencies
-    Logger.info("Dependencies installation completed");
+    Logger.info("📦 Installing dependencies with npm...");
+    
+    // Run npm install in the project directory
+    const { execSync } = await import('child_process');
+    try {
+      execSync('npm install', {
+        cwd: projectRoot,
+        stdio: 'inherit'
+      });
+      Logger.info("✅ Dependencies installed successfully");
+    } catch (error) {
+      throw new Error(`Failed to install dependencies: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   /**
@@ -1058,147 +1052,30 @@ export class OrchestratorAgent {
   }
 
   /**
-   * Identify critical module failures
-   */
-  private identifyCriticalFailuresFromResults(results: any[]): string[] {
-    const criticalFailures: string[] = [];
-
-    for (const result of results) {
-      if (result.executedModules) {
-        for (const module of result.executedModules) {
-          if (
-            module.category === "framework" ||
-            module.category === "database"
-          ) {
-            // These are considered critical modules
-            if (!result.success) {
-              criticalFailures.push(module.id);
-            }
-          }
-        }
-      }
-    }
-
-    return criticalFailures;
-  }
-
-  /**
    * Classify modules by type based on ID convention
    * - Frameworks: category === 'framework'
-   * - Integrations: id starts with 'integrations/'
+   * - Connectors: id starts with 'connectors/'
    * - Adapters: everything else
    */
-  private classifyModulesByType(modules: Module[]): {
-    frameworks: Module[];
-    adapters: Module[];
-    integrations: Module[];
-    features: Module[];
-  } {
-    const frameworks: Module[] = [];
-    const adapters: Module[] = [];
-    const integrations: Module[] = [];
-    const features: Module[] = [];
-
-    for (const module of modules) {
-      const type = this.getModuleType(module.id);
-
-      if (type === "framework") {
-        frameworks.push(module);
-      } else if (type === "integration") {
-        integrations.push(module);
-      } else if (type === "feature") {
-        features.push(module);
-      } else {
-        adapters.push(module);
-      }
-    }
-
-    return { frameworks, adapters, integrations, features };
+  /**
+   * Classify modules by type (delegates to ModuleClassifier)
+   */
+  private classifyModulesByType(modules: Module[]) {
+    return this.moduleClassifier.classifyModulesByType(modules);
   }
 
   /**
-   * Get module type from ID
+   * Get module type from ID (delegates to ModuleClassifier)
    */
-  private getModuleType(
-    moduleId: string
-  ): "framework" | "adapter" | "integration" | "feature" {
-    if (moduleId.startsWith("integrations/")) {
-      return "integration";
-    }
-
-    if (moduleId.startsWith("features/")) {
-      return "feature";
-    }
-
-    const category = moduleId.split("/")[0];
-    if (category === "framework") {
-      return "framework";
-    }
-
-    return "adapter";
+  private getModuleType(moduleId: string): "framework" | "adapter" | "connector" | "feature" {
+    return this.moduleClassifier.getModuleType(moduleId);
   }
 
   /**
-   * Enforce hierarchical execution order: Framework -> Adapters -> Integrations -> Features
+   * Enforce hierarchical execution order (delegates to ModuleClassifier)
    */
-  private enforceHierarchicalOrder(
-    executionPlan: any,
-    classification: {
-      frameworks: Module[];
-      adapters: Module[];
-      integrations: Module[];
-      features: Module[];
-    }
-  ): any {
-    const newBatches: any[] = [];
-    let batchNumber = 1;
-
-    // 1. Framework batches (must be first)
-    const frameworkBatches = executionPlan.batches.filter((batch: any) =>
-      batch.modules.every(
-        (m: Module) => this.getModuleType(m.id) === "framework"
-      )
-    );
-    for (const batch of frameworkBatches) {
-      newBatches.push({ ...batch, batchNumber: batchNumber++ });
-    }
-
-    // 2. Adapter batches (middle layer)
-    const adapterBatches = executionPlan.batches.filter((batch: any) =>
-      batch.modules.every((m: Module) => this.getModuleType(m.id) === "adapter")
-    );
-    for (const batch of adapterBatches) {
-      newBatches.push({ ...batch, batchNumber: batchNumber++ });
-    }
-
-    // 3. Integration batches (technical bridges)
-    const integrationBatches = executionPlan.batches.filter((batch: any) =>
-      batch.modules.some(
-        (m: Module) => this.getModuleType(m.id) === "integration"
-      )
-    );
-    for (const batch of integrationBatches) {
-      newBatches.push({ ...batch, batchNumber: batchNumber++ });
-    }
-
-    // 4. Feature batches (must be last, sequential)
-    const featureBatches = executionPlan.batches.filter((batch: any) =>
-      batch.modules.some((m: Module) => this.getModuleType(m.id) === "feature")
-    );
-    for (const batch of featureBatches) {
-      // Force features to be sequential
-      newBatches.push({
-        ...batch,
-        batchNumber: batchNumber++,
-        canExecuteInParallel: false,
-      });
-    }
-
-    return {
-      ...executionPlan,
-      batches: newBatches,
-      totalBatches: newBatches.length,
-    };
+  private enforceHierarchicalOrder(executionPlan: any, classification: any): any {
+    return this.moduleClassifier.enforceHierarchicalOrder(executionPlan, classification);
   }
 
   /**
@@ -1215,297 +1092,34 @@ export class OrchestratorAgent {
   }
 
   /**
-   * REMOVED: getBlueprintPath() and getModuleCategoryFromId()
-   * 
-   * These methods duplicated logic from MarketplaceService and contained bugs.
-   * Now using MarketplaceService.loadModuleBlueprint() directly for:
-   * - Centralized path logic (DRY principle)
-   * - Tested, robust implementation
-   * - Proper separation of concerns
-   * 
-   * Refactored: October 10, 2025
-   * Reason: Fix blueprint loading bug + eliminate technical debt
-   */
-
-  /**
-   * NEW: Merge module configuration with user overrides
+   * Merge module configuration with user overrides (delegates to ModuleConfigurationService)
    */
   private mergeModuleConfiguration(module: Module, adapter: any, genome: Genome): MergedConfiguration {
-    const moduleConfig = adapter.config;
-    const userOverrides = module.parameters || {};
-
-    if (!moduleConfig.parameters?.features) {
-      // Build template context even for modules without features
-      // IMPORTANT: Merge defaults with user overrides so templates can access all parameters
-      const mergedParameters = this.mergeParametersWithDefaults(moduleConfig.parameters, userOverrides);
-      
-      const templateContext: Record<string, any> = {
-        project: genome.project || {},
-        modules: genome.modules || [],
-        module: {
-          id: module.id,
-          parameters: mergedParameters
-        }
-      };
-      
-      return {
-        activeFeatures: [],
-        resolvedCapabilities: [],
-        executionOrder: [],
-        conflicts: [],
-        templateContext,
-      };
-    }
-
-    const activeFeatures: string[] = [];
-    const conflicts: any[] = [];
-
-    // Merge feature configurations
-    for (const [featureName, featureConfig] of Object.entries(
-      moduleConfig.parameters.features
-    )) {
-      const userValue = userOverrides[featureName];
-      const finalValue =
-        userValue !== undefined ? userValue : (featureConfig as any).default;
-
-      if (finalValue) {
-        activeFeatures.push(featureName);
-      }
-    }
-
-    // Validate prerequisites
-    if (moduleConfig.internal_structure) {
-      for (const feature of activeFeatures) {
-        const capability = moduleConfig.internal_structure[feature];
-        if (capability?.prerequisites) {
-          for (const prereq of capability.prerequisites) {
-            if (!activeFeatures.includes(prereq)) {
-              conflicts.push({
-                type: "missing_prerequisite",
-                message: `Feature ${feature} requires ${prereq}`,
-                affectedCapabilities: [feature, prereq],
-              });
-            }
-          }
-        }
-      }
-    }
-
-    // Build template context with genome data for template rendering
-    // IMPORTANT: Merge defaults with user overrides so templates can access all parameters
-    const mergedParameters = this.mergeParametersWithDefaults(moduleConfig.parameters, userOverrides);
-    
-    const templateContext: Record<string, any> = {
-      project: genome.project || {},
-      modules: genome.modules || [],
-      module: {
-        id: module.id,
-        parameters: mergedParameters
-      }
-    };
-
-    return {
-      activeFeatures,
-      resolvedCapabilities: activeFeatures,
-      executionOrder: activeFeatures, // For now, use activeFeatures as execution order
-      conflicts,
-      templateContext,
-    };
+    return this.moduleConfigService.mergeModuleConfiguration(module, adapter, genome);
   }
 
   /**
-   * Merge parameter defaults from module config with user overrides
-   * Ensures templates have access to all parameter values (defaults + overrides)
+   * Merge parameter defaults with user overrides (delegates to ModuleConfigurationService)
    */
   private mergeParametersWithDefaults(
     parameterSchema: any,
     userOverrides: Record<string, any>
   ): Record<string, any> {
-    // Start with user overrides, but clean them first
-    const merged: Record<string, any> = {};
-    
-    // CRITICAL FIX: Clean user overrides - extract default values if they're schema objects
-    for (const [key, value] of Object.entries(userOverrides)) {
-      if (this.isParameterSchema(value)) {
-        // This is a schema object, extract the default value
-        merged[key] = value.default;
-        console.log(`🔧 Extracted default from schema for '${key}':`, JSON.stringify(value.default).substring(0, 100));
-      } else {
-        // This is an actual value, keep it
-        merged[key] = value;
-      }
-    }
-    
-    if (!parameterSchema || typeof parameterSchema !== 'object') {
-      return merged;
-    }
-    
-    console.log(`🔧 Merging parameter defaults. Cleaned user overrides:`, Object.keys(merged));
-    
-    // Merge defaults for top-level parameters
-    for (const [key, schema] of Object.entries(parameterSchema)) {
-      // Skip the 'features' object - we handle it separately below
-      if (key === 'features') {
-        continue;
-      }
-      
-      // Skip if user has already provided this parameter
-      if (merged[key] !== undefined) {
-        console.log(`⏭️  Skipping '${key}' - user value exists:`, JSON.stringify(merged[key]).substring(0, 50));
-        continue;
-      }
-      
-      // Check if this parameter has a default value
-      if (schema && typeof schema === 'object') {
-        const paramDef = schema as any;
-        if ('default' in paramDef) {
-          merged[key] = paramDef.default;
-          console.log(`✅ Applied default for parameter '${key}':`, JSON.stringify(paramDef.default).substring(0, 100));
-        } else {
-          console.log(`⚠️  Parameter '${key}' has no default value in schema`);
-        }
-      }
-    }
-    
-    // Handle nested 'features' object (for Constitutional Architecture modules)
-    if (parameterSchema.features && typeof parameterSchema.features === 'object') {
-      merged.features = merged.features || {};
-      
-      for (const [featureName, featureConfig] of Object.entries(parameterSchema.features)) {
-        // Skip if user has already provided this feature value
-        if (merged.features[featureName] !== undefined) {
-          continue;
-        }
-        
-        // Apply default for this feature
-        if (featureConfig && typeof featureConfig === 'object') {
-          const featureDef = featureConfig as any;
-          if ('default' in featureDef) {
-            merged.features[featureName] = featureDef.default;
-            console.log(`✅ Applied default for feature '${featureName}':`, featureDef.default);
-          }
-        }
-      }
-    }
-    
-    console.log(`✅ Final merged parameters:`, Object.keys(merged));
-    return merged;
+    return this.moduleConfigService.mergeParametersWithDefaults(parameterSchema, userOverrides);
   }
 
   /**
-   * Check if a value is a parameter schema object (has 'type', 'default', 'description')
-   */
-  private isParameterSchema(value: any): boolean {
-    return (
-      value &&
-      typeof value === 'object' &&
-      !Array.isArray(value) &&
-      ('type' in value || 'default' in value || 'description' in value)
-    );
-  }
-
-  /**
-   * Apply marketplace defaults - Auto-include opinionated modules for all Next.js projects
+   * Apply marketplace defaults (delegates to ModuleAutoInclusionService)
    */
   private applyMarketplaceDefaults(modules: Module[]): Module[] {
-    const enhancedModules = [...modules];
-    
-    // Auto-include marketplace defaults for all projects
-    for (const moduleId of MARKETPLACE_DEFAULTS.autoInclude) {
-      // Check if module is already included
-      if (!enhancedModules.some(m => m.id === moduleId)) {
-        enhancedModules.push({
-          id: moduleId,
-          parameters: {}
-        });
-        
-        Logger.info(`✅ Auto-included marketplace default: ${moduleId}`, {
-          operation: "marketplace_defaults",
-        });
-      }
-    }
-    
-    return enhancedModules;
+    return this.moduleAutoInclusion.applyMarketplaceDefaults(modules, MARKETPLACE_DEFAULTS);
   }
 
   /**
-   * Auto-include tech-stack modules for features that have them
-   * This ensures the technology-agnostic layer is always included when available
+   * Auto-include tech-stack modules (delegates to ModuleAutoInclusionService)
    */
   private async applyTechStackAutoInclusion(modules: Module[]): Promise<Module[]> {
-    const enhancedModules = [...modules];
-    
-    // Find all feature modules (both resolved and original)
-    const featureModules = enhancedModules.filter(module => 
-      module.id.startsWith('features/') && 
-      !module.id.includes('/tech-stack') && // Exclude existing tech-stack modules
-      !module.id.includes('/frontend/') &&  // Exclude frontend implementations
-      !module.id.includes('/backend/')      // Exclude backend implementations
-    );
-    
-    for (const featureModule of featureModules) {
-      const featureId = featureModule.id; // e.g., 'features/auth'
-      const techStackModuleId = `${featureId}/tech-stack`; // e.g., 'features/auth/tech-stack'
-      
-      // Check if tech-stack module is already included
-      if (!enhancedModules.some(m => m.id === techStackModuleId)) {
-        try {
-          // Check if tech-stack module exists in marketplace (non-blocking)
-          const techStackExists = await this.checkTechStackModuleExists(techStackModuleId);
-          
-          if (techStackExists) {
-            enhancedModules.push({
-              id: techStackModuleId,
-              parameters: {
-                featureName: featureId.split('/').pop(),
-                featurePath: featureId.split('/').pop()
-              }
-            });
-            
-            Logger.info(`✅ Auto-included tech-stack module: ${techStackModuleId}`, {
-              operation: "tech_stack_auto_inclusion",
-              featureId
-            });
-          } else {
-            Logger.debug(`ℹ️  Tech-stack module not found (optional): ${techStackModuleId}`, {
-              operation: "tech_stack_auto_inclusion",
-              featureId
-            });
-          }
-        } catch (error) {
-          // Non-blocking: log warning but continue execution
-          Logger.warn(`⚠️  Failed to check tech-stack module: ${techStackModuleId}`, {
-            operation: "tech_stack_auto_inclusion",
-            featureId,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          });
-        }
-      }
-    }
-    
-    return enhancedModules;
-  }
-
-  /**
-   * Check if a tech-stack module exists in the marketplace (non-blocking)
-   */
-  private async checkTechStackModuleExists(moduleId: string): Promise<boolean> {
-    try {
       const marketplaceRoot = this.projectManager.getMarketplacePath();
-      const modulePath = path.join(marketplaceRoot, moduleId);
-      const featureJsonPath = path.join(modulePath, 'feature.json');
-      const blueprintPath = path.join(modulePath, 'blueprint.ts');
-      
-      // Check if both feature.json and blueprint.ts exist
-      const [featureJsonExists, blueprintExists] = await Promise.all([
-        fs.access(featureJsonPath).then(() => true).catch(() => false),
-        fs.access(blueprintPath).then(() => true).catch(() => false)
-      ]);
-      
-      return featureJsonExists && blueprintExists;
-    } catch (error) {
-      // If we can't check, assume it doesn't exist (non-blocking)
-      return false;
-    }
+    return this.moduleAutoInclusion.applyTechStackAutoInclusion(modules, marketplaceRoot);
   }
 }

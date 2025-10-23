@@ -148,7 +148,7 @@ export declare class PathService {
      */
     static resolveModuleId(moduleId: string): Promise<string>;
     /**
-     * Calculate CLI root directory by finding the package.json with the-architech
+     * Calculate CLI root directory by finding the package.json with @thearchitech.xyz/cli
      */
     private static calculateCliRoot;
 }

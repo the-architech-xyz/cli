@@ -107,9 +107,9 @@ function generateGenomeFile(genome, format) {
     }
     // Generate TypeScript genome
     const adapters = genome.modules.adapters.map((adapter) => `    '${adapter.id}'`).join(',\n');
-    const integrators = genome.modules.integrators.map((integrator) => `    '${integrator.id}'`).join(',\n');
+    const connectors = genome.modules.connectors.map((connector) => `    '${connector.id}'`).join(',\n');
     const features = genome.modules.features.map((feature) => `    '${feature.id}'`).join(',\n');
-    return `import { Genome } from '@thearchitech.xyz/marketplace-types';
+    return `import { Genome } from '@thearchitech.xyz/types';
 
 export const detectedGenome: Genome = {
   project: {
@@ -121,8 +121,8 @@ export const detectedGenome: Genome = {
     adapters: [
 ${adapters}
     ],
-    integrators: [
-${integrators}
+    connectors: [
+${connectors}
     ],
     features: [
 ${features}
@@ -146,7 +146,7 @@ function displayAnalysisSummary(genome, logger) {
     Logger.info(`   Framework: ${genome.project.framework}`);
     Logger.info(`   Confidence: ${genome.confidence}%`);
     Logger.info(`   Adapters: ${genome.modules.adapters.length}`);
-    Logger.info(`   Integrators: ${genome.modules.integrators.length}`);
+    Logger.info(`   Connectors: ${genome.modules.connectors.length}`);
     Logger.info(`   Features: ${genome.modules.features.length}`);
     if (genome.analysis.warnings.length > 0) {
         Logger.warn('\n⚠️  Warnings:');
@@ -158,8 +158,8 @@ function displayAnalysisSummary(genome, logger) {
     genome.modules.adapters.forEach((adapter) => {
         Logger.info(`   📦 ${adapter.id} (${adapter.confidence}%)`);
     });
-    genome.modules.integrators.forEach((integrator) => {
-        Logger.info(`   🔗 ${integrator.id} (${integrator.confidence}%)`);
+    genome.modules.connectors.forEach((connector) => {
+        Logger.info(`   🔗 ${connector.id} (${connector.confidence}%)`);
     });
     genome.modules.features.forEach((feature) => {
         Logger.info(`   ⭐ ${feature.id} (${feature.confidence}%)`);

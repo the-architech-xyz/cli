@@ -6,7 +6,6 @@
  */
 
 import { Command } from 'commander';
-import { GenomeRegistry } from '../core/services/module-management/genome/genome-registry.js';
 import { AgentLogger as Logger } from '../core/cli/logger.js';
 import { GenomeResolverFactory } from '../core/services/genome-resolution/index.js';
 import { PathService } from '../core/services/path/path-service.js';

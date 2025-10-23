@@ -13,7 +13,7 @@ export interface DetectedGenome {
     };
     modules: {
         adapters: DetectedAdapter[];
-        integrators: DetectedAdapter[];
+        connectors: DetectedAdapter[];
         features: DetectedAdapter[];
     };
     confidence: number;
@@ -70,9 +70,9 @@ export declare class GenomeDetector {
      */
     private detectAdapters;
     /**
-     * Detect integrators from analysis using dynamic connector resolution
+     * Detect connectors from analysis using dynamic connector resolution
      */
-    private detectIntegrators;
+    private detectConnectors;
     /**
      * Extract category from adapter ID
      */
