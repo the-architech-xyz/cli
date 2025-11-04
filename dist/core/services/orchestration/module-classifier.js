@@ -14,10 +14,8 @@ export class ModuleClassifier {
         const features = [];
         for (const module of modules) {
             const type = this.getModuleType(module.id);
-            if (type === "framework") {
-                frameworks.push(module);
-            }
-            else if (type === "connector") {
+            // Frameworks are no longer executed as modules; ignore if present
+            if (type === "connector") {
                 connectors.push(module);
             }
             else if (type === "feature") {
@@ -27,7 +25,7 @@ export class ModuleClassifier {
                 adapters.push(module);
             }
         }
-        return { frameworks, adapters, connectors, features };
+        return { frameworks: [], adapters, connectors, features };
     }
     /**
      * Get module type from ID
@@ -40,8 +38,9 @@ export class ModuleClassifier {
             return "feature";
         }
         const category = moduleId.split("/")[0];
+        // Treat any legacy 'framework/*' as adapters to avoid special-casing
         if (category === "framework") {
-            return "framework";
+            return "adapter";
         }
         return "adapter";
     }
@@ -51,22 +50,17 @@ export class ModuleClassifier {
     enforceHierarchicalOrder(executionPlan, classification) {
         const newBatches = [];
         let batchNumber = 1;
-        // 1. Framework batches (must be first)
-        const frameworkBatches = executionPlan.batches.filter((batch) => batch.modules.every((m) => this.getModuleType(m.id) === "framework"));
-        for (const batch of frameworkBatches) {
-            newBatches.push({ ...batch, batchNumber: batchNumber++ });
-        }
-        // 2. Adapter batches (middle layer)
+        // 1. Adapter batches (first layer)
         const adapterBatches = executionPlan.batches.filter((batch) => batch.modules.every((m) => this.getModuleType(m.id) === "adapter"));
         for (const batch of adapterBatches) {
             newBatches.push({ ...batch, batchNumber: batchNumber++ });
         }
-        // 3. Connector batches (technical bridges)
+        // 2. Connector batches (technical bridges)
         const connectorBatches = executionPlan.batches.filter((batch) => batch.modules.some((m) => this.getModuleType(m.id) === "connector"));
         for (const batch of connectorBatches) {
             newBatches.push({ ...batch, batchNumber: batchNumber++ });
         }
-        // 4. Feature batches (must be last, sequential)
+        // 3. Feature batches (must be last, sequential)
         const featureBatches = executionPlan.batches.filter((batch) => batch.modules.some((m) => this.getModuleType(m.id) === "feature"));
         for (const batch of featureBatches) {
             // Force features to be sequential

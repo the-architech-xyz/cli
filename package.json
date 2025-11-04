@@ -44,8 +44,9 @@
   "license": "AGPL-3.0-or-later",
   "preferGlobal": true,
   "dependencies": {
+    "@thearchitech.xyz/genome-transformer": "file:../architech-genome-transformer",
     "@thearchitech.xyz/marketplace": "file:../marketplace",
-    "@thearchitech.xyz/types": "^0.8.0",
+    "@thearchitech.xyz/types": "^0.8.1",
     "@thearchitech.xyz/validator": "file:../validator",
     "@types/ejs": "^3.1.5",
     "@types/js-yaml": "^4.0.9",
@@ -73,6 +74,7 @@
     "@vitest/ui": "^3.2.4",
     "drizzle-kit": "^0.31.4",
     "ts-node": "^10.9.2",
+    "tsx": "^4.20.6",
     "typescript": "^5.0.0",
     "vitest": "^3.2.4"
   },

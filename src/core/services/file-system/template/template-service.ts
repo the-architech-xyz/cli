@@ -297,7 +297,7 @@ export class TemplateService {
    * Used by simple regex processor for {{#if}} conditionals in blueprint strings
    * Provides consistent truthiness logic across all template types
    */
-  private static isTruthy(value: unknown): boolean {
+  static isTruthy(value: unknown): boolean {
     if (value === null || value === undefined) return false;
     if (typeof value === 'boolean') return value;
     if (typeof value === 'string') {

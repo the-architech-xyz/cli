@@ -14,7 +14,6 @@ export class PathService {
     frameworkProjectRoot;
     // Static CLI root management
     static cliRoot = null;
-    static marketplaceRoot = null;
     constructor(projectRoot, projectName, frameworkAdapter) {
         this.projectRoot = path.resolve(projectRoot);
         this.projectName = projectName || projectRoot.split('/').pop() || 'project';
@@ -22,6 +21,24 @@ export class PathService {
         if (frameworkAdapter?.paths) {
             this.pathMap = frameworkAdapter.paths;
         }
+    }
+    /**
+     * Replace entire framework path map
+     */
+    setFrameworkPaths(paths) {
+        this.pathMap = paths || {};
+    }
+    /**
+     * Merge additional framework paths (later keys overwrite)
+     */
+    mergeFrameworkPaths(paths) {
+        this.pathMap = { ...this.pathMap, ...(paths || {}) };
+    }
+    /**
+     * Set a single path in the path map
+     */
+    setPath(key, value) {
+        this.pathMap[key] = value;
     }
     /**
      * Get project root path
@@ -299,7 +316,6 @@ export class PathService {
     static initializeCliRoot() {
         if (!this.cliRoot) {
             this.cliRoot = this.calculateCliRoot();
-            this.marketplaceRoot = null; // Reset marketplace root to recalculate
         }
     }
     /**
@@ -312,24 +328,10 @@ export class PathService {
         return this.cliRoot;
     }
     /**
-     * Get the marketplace root directory (development or production)
+     * @deprecated Use MarketplaceRegistry.getCoreMarketplacePath() instead
+     * This method has been removed to consolidate marketplace path resolution.
      */
-    static async getMarketplaceRoot() {
-        if (!this.marketplaceRoot) {
-            const cliRoot = this.getCliRoot();
-            // Check development first (marketplace as sibling to CLI)
-            const devMarketplacePath = path.join(cliRoot, '..', 'marketplace');
-            const prodMarketplacePath = path.join(cliRoot, 'node_modules', '@thearchitech.xyz', 'marketplace');
-            try {
-                await fs.promises.access(devMarketplacePath);
-                this.marketplaceRoot = devMarketplacePath;
-            }
-            catch {
-                this.marketplaceRoot = prodMarketplacePath;
-            }
-        }
-        return this.marketplaceRoot;
-    }
+    // Removed: Use MarketplaceRegistry.getCoreMarketplacePath() instead
     /**
      * Resolve module ID to full module path using dumb translation
      *

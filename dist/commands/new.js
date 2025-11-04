@@ -14,6 +14,8 @@ import { AgentLogger as Logger } from '../core/cli/logger.js';
 import { EnhancedLogger } from '../core/cli/enhanced-logger.js';
 import { ErrorHandler } from '../core/services/infrastructure/error/index.js';
 import { GenomeResolverFactory } from '../core/services/genome-resolution/index.js';
+import { GenomeTransformationService } from '@thearchitech.xyz/genome-transformer';
+import { MarketplaceRegistry } from '../core/services/marketplace/marketplace-registry.js';
 export function createNewCommand() {
     const command = new Command('new');
     command
@@ -24,6 +26,7 @@ export function createNewCommand() {
         .option('-d, --dry-run', 'Show what would be created without executing', false)
         .option('-v, --verbose', 'Enable verbose logging', false)
         .option('-q, --quiet', 'Suppress all output except errors', false)
+        .option('--ui-framework <framework>', 'UI framework to use (shadcn, tamagui)', 'shadcn')
         .action(async (projectName, options) => {
         const logger = new Logger(options.verbose);
         try {
@@ -83,14 +86,59 @@ export function createNewCommand() {
             }
             // Execute the TypeScript genome file with tsx
             logger.info('🔧 Executing TypeScript genome...');
-            const genome = await executeTypeScriptGenome(genomePath, logger);
-            if (!genome) {
+            const rawGenome = await executeTypeScriptGenome(genomePath, logger);
+            if (!rawGenome) {
                 logger.error('❌ Failed to execute genome file');
                 process.exit(1);
             }
-            // Convert Genome to proper format
-            const validatedGenome = convertGenomeToRecipe(genome);
-            // Validate genome structure
+            // Transform genome (handles both capability-first and module-first genomes)
+            logger.info('🔄 Transforming genome...');
+            const marketplacePath = await MarketplaceRegistry.getCoreMarketplacePath();
+            const genomeTransformer = new GenomeTransformationService({
+                marketplacePath,
+                logger: {
+                    info: (msg, meta) => logger.info(msg),
+                    debug: (msg, meta) => logger.debug(msg),
+                    warn: (msg, meta) => logger.warn(msg),
+                    error: (msg, meta) => logger.error(msg),
+                },
+                options: {
+                    enableCapabilityResolution: true,
+                    enableAutoInclusion: true,
+                    enableParameterDistribution: true,
+                    enableConnectorAutoInclusion: true,
+                }
+            });
+            const transformationResult = await genomeTransformer.transform(rawGenome);
+            if (!transformationResult.success) {
+                logger.error(`❌ Genome transformation failed: ${transformationResult.error}`);
+                process.exit(1);
+            }
+            // Get the transformed genome (now guaranteed to have modules array)
+            const validatedGenome = transformationResult.resolvedGenome;
+            logger.info(`✅ Genome transformed: ${transformationResult.originalGenome.modules?.length || 0} → ${validatedGenome.modules.length} modules`, {
+                steps: transformationResult.transformationSteps.length,
+                duration: transformationResult.duration
+            });
+            // Ensure modules have default values for optional fields
+            validatedGenome.modules = validatedGenome.modules.map((module) => ({
+                ...module,
+                category: module.category || extractCategoryFromModuleId(module.id),
+                version: module.version || 'latest',
+                parameters: module.parameters || {},
+            }));
+            // Auto-generate project path if missing
+            if (!validatedGenome.project.path) {
+                validatedGenome.project.path = `./${validatedGenome.project.name || 'my-app'}`;
+            }
+            // Add UI framework parameter if provided
+            if (options.uiFramework) {
+                if (!validatedGenome.options) {
+                    validatedGenome.options = {};
+                }
+                validatedGenome.options.uiFramework = options.uiFramework;
+            }
+            // Validate genome structure (now we know it has modules)
             const validation = validateRecipe(validatedGenome);
             if (!validation.valid) {
                 logger.error('❌ Invalid genome structure:');
@@ -155,8 +203,8 @@ console.log(JSON.stringify(genome));
             // Find the marketplace root to resolve imports correctly
             // The genome is in marketplace/genomes/*, so go up 2 directories to get marketplace root
             const marketplaceRoot = dirname(dirname(genomePath));
-            // Execute with tsx from the marketplace directory so imports can be resolved
-            const result = execSync(`tsx ${tempScriptPath}`, {
+            // Execute with tsx via npx from the marketplace directory so imports can be resolved
+            const result = execSync(`npx --yes tsx ${tempScriptPath} `, {
                 encoding: 'utf-8',
                 cwd: marketplaceRoot, // Run from marketplace root to resolve @thearchitech.xyz/* imports
                 stdio: 'pipe'
@@ -183,42 +231,13 @@ console.log(JSON.stringify(genome));
     }
 }
 /**
- * Convert Genome object to Recipe format
+ * Extract category from module ID (e.g., 'adapters/framework/nextjs' -> 'adapters')
+ * Helper function to infer category when not explicitly provided
  */
-function convertGenomeToRecipe(genome) {
-    // Ensure the genome has the required structure
-    if (!genome.project || !genome.modules) {
-        throw new Error('Invalid genome structure: missing project or modules');
-    }
-    // Convert modules to the expected format
-    const modules = genome.modules.map((module) => ({
-        id: module.id,
-        category: module.category || extractCategoryFromId(module.id),
-        version: module.version || 'latest',
-        parameters: module.parameters || module.params || {},
-        features: module.features || {}
-    }));
-    return {
-        version: genome.version || '1.0',
-        project: {
-            name: genome.project.name,
-            framework: genome.project.framework || 'nextjs',
-            description: genome.project.description || '',
-            path: genome.project.path || `./${genome.project.name}`,
-            version: genome.project.version || '1.0.0'
-        },
-        modules,
-        options: genome.options || {}
-    };
-}
-/**
- * Extract category from module ID (e.g., 'framework/nextjs' -> 'framework')
- * Special case: 'integrations/xyz' -> 'integration' (singular to match integration.json)
- */
-function extractCategoryFromId(moduleId) {
+function extractCategoryFromModuleId(moduleId) {
     const parts = moduleId.split('/');
     const category = parts[0] || 'unknown';
-    // Normalize integrations (plural) to integration (singular) to match integration.json
+    // Normalize some categories
     if (category === 'integrations') {
         return 'integration';
     }
@@ -226,6 +245,7 @@ function extractCategoryFromId(moduleId) {
 }
 /**
  * Validate recipe structure
+ * Only validates critical fields required for execution
  */
 function validateRecipe(recipe) {
     const errors = [];
@@ -240,26 +260,27 @@ function validateRecipe(recipe) {
         if (!recipe.project.name) {
             errors.push('Project must have a name');
         }
+        // Auto-generate path if missing (not a critical error)
         if (!recipe.project.path) {
-            errors.push('Project must have a path');
+            recipe.project.path = `./${recipe.project.name || 'my-app'}`;
         }
     }
     if (!recipe.modules || !Array.isArray(recipe.modules)) {
         errors.push('Recipe must have a modules array');
     }
+    else if (recipe.modules.length === 0) {
+        errors.push('Recipe must have at least one module');
+    }
     else {
         recipe.modules.forEach((module, index) => {
+            // Only validate critical fields
             if (!module.id) {
                 errors.push(`Module ${index} must have an id`);
             }
-            if (!module.category) {
-                errors.push(`Module ${index} must have a category`);
-            }
-            if (!module.version) {
-                errors.push(`Module ${index} must have a version`);
-            }
-            if (!module.parameters) {
-                errors.push(`Module ${index} must have parameters`);
+            // Category and version are optional - can be inferred or have defaults
+            // Parameters are also optional (defaults to empty object)
+            if (module.parameters === undefined) {
+                module.parameters = {};
             }
         });
     }

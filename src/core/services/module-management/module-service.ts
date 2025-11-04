@@ -70,11 +70,13 @@ export class ModuleService {
     pathHandler: PathService
   ): Promise<FrameworkSetupResult> {
     try {
-      // 1. Identify framework module
-      const frameworkModule = genome.modules.find(m => m.id.startsWith('framework/'));
-      if (!frameworkModule) {
+      // Read frameworks from project.apps (single source of truth)
+      const apps = (genome.project as any)?.apps as Array<any> | undefined;
+      const legacyFramework = (genome.project as any)?.framework as string | undefined;
+
+      if ((!apps || apps.length === 0) && !legacyFramework) {
         const error = ErrorHandler.createError(
-          'No framework module found in recipe. Framework adapter is required.',
+          'No apps or framework defined in project. At least one app/framework is required.',
           { operation: 'framework_setup' },
           ErrorCode.CONFIG_VALIDATION_ERROR,
           false
@@ -82,76 +84,77 @@ export class ModuleService {
         return { success: false, error: error.error };
       }
 
-      Logger.info(`🏗️ Loading framework adapter: ${frameworkModule.id}`, {
-        operation: 'framework_setup'
-      });
-
-      // 2. Load framework adapter
-      const adapterId = frameworkModule.id.split('/').pop() || frameworkModule.id;
-      const frameworkAdapter = await this.loadAdapter(
-        'framework',
-        adapterId
-      );
-
-      if (!frameworkAdapter) {
-        return {
-          success: false,
-          error: `Failed to load framework adapter: ${frameworkModule.id}`
-        };
-      }
-
-      // 3. Create path service with framework configuration
+      // 1) Create path service once (framework config may be augmented by adapters later)
       const pathService = new PathService(
         pathHandler.getProjectRoot(),
         pathHandler.getProjectName(),
-        frameworkAdapter.config
+        {} as any
       );
-
-      Logger.info('📁 Framework paths configured', {
-        operation: 'framework_setup',
-        availablePaths: pathService.getAvailablePaths()
-      });
-
-      // 4. Execute framework blueprint to create initial project structure
-      Logger.info('🏗️ Executing framework blueprint to create initial project structure', {
-        operation: 'framework_setup'
-      });
 
       const { BlueprintExecutor } = await import('../execution/blueprint/blueprint-executor.js');
       const { VirtualFileSystem } = await import('../file-system/file-engine/virtual-file-system.js');
-      // Create project context for framework execution
-      const projectContext: any = {
-        project: genome.project,
-        module: frameworkModule,
-        framework: genome.project.framework,
-        pathHandler: pathService
-      };
 
-      // Create VFS for framework execution
-      const frameworkVFS = new VirtualFileSystem(
-        `framework-${frameworkAdapter.blueprint.id}`,
-        pathService.getProjectRoot()
-      );
+      const appsToSetup: Array<{ id: string; type: string; framework: string; package?: string; parameters?: Record<string, unknown> }> =
+        (apps && apps.length > 0)
+          ? apps.map(a => ({ id: a.id, type: a.type, framework: a.framework, package: a.package, parameters: a.parameters || {} }))
+          : [{ id: 'app', type: 'web', framework: legacyFramework as string, package: undefined, parameters: {} }];
 
-      // Execute framework blueprint
-      const blueprintExecutor = new BlueprintExecutor(pathService.getProjectRoot());
-      const frameworkResult = await blueprintExecutor.executeBlueprint(
-        frameworkAdapter.blueprint,
-        projectContext,
-        frameworkVFS
-      );
+      // Determine primary app for central path keys (prefer web)
+      const primaryApp = appsToSetup.find(a => a.type === 'web') || appsToSetup[0];
 
-      if (!frameworkResult.success) {
-        return {
-          success: false,
-          error: `Framework blueprint execution failed: ${frameworkResult.errors?.join(', ') || 'Unknown error'}`
+      for (const app of appsToSetup) {
+        Logger.info(`🏗️ Loading framework adapter for app '${app.id}': ${app.framework}`, {
+          operation: 'framework_setup'
+        });
+
+        const frameworkAdapter = await this.loadAdapter('adapters/framework', app.framework);
+        if (!frameworkAdapter) {
+          return {
+            success: false,
+            error: `Failed to load framework adapter: adapters/framework/${app.framework}`
+          };
+        }
+
+        // Initialize centralized path handling from the PRIMARY app's framework config
+        if (app === primaryApp && frameworkAdapter.config?.paths) {
+          pathService.setFrameworkPaths(frameworkAdapter.config.paths);
+        }
+
+        Logger.info('🏗️ Executing framework blueprint to create initial project structure', {
+          operation: 'framework_setup'
+        });
+
+        const projectContext: any = {
+          project: genome.project,
+          module: { id: `adapters/framework/${app.framework}`, category: 'framework', parameters: app.parameters || {} } as any,
+          framework: app.framework,
+          app,
+          pathHandler: pathService
         };
+
+        const frameworkVFS = new VirtualFileSystem(
+          `framework-${app.id}-${frameworkAdapter.blueprint.id}`,
+          pathService.getProjectRoot()
+        );
+
+        const blueprintExecutor = new BlueprintExecutor(pathService.getProjectRoot());
+        const frameworkResult = await blueprintExecutor.executeBlueprint(
+          frameworkAdapter.blueprint,
+          projectContext,
+          frameworkVFS
+        );
+
+        if (!frameworkResult.success) {
+          return {
+            success: false,
+            error: `Framework blueprint execution failed for '${app.id}': ${frameworkResult.errors?.join(', ') || 'Unknown error'}`
+          };
+        }
+
+        await frameworkVFS.flushToDisk();
       }
 
-      // Flush VFS to disk to create initial project files
-      await frameworkVFS.flushToDisk();
-
-      Logger.info('✅ Framework setup completed - initial project structure created', {
+      Logger.info('✅ Framework setup completed for all apps', {
         operation: 'framework_setup'
       });
 

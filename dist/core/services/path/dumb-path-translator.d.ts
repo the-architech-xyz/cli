@@ -28,7 +28,7 @@ export declare class DumbPathTranslator {
      */
     static moduleExists(moduleId: string): Promise<boolean>;
     /**
-     * Get marketplace root directory (delegates to PathService)
+     * Get marketplace root directory (uses MarketplaceRegistry)
      */
     private static getMarketplaceRoot;
 }

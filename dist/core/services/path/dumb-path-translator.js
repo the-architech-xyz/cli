@@ -6,7 +6,7 @@
  */
 import * as path from 'path';
 import * as fs from 'fs';
-import { PathService } from './path-service.js';
+import { MarketplaceRegistry } from '../marketplace/marketplace-registry.js';
 export class DumbPathTranslator {
     static marketplaceRoot = null;
     /**
@@ -96,14 +96,14 @@ export class DumbPathTranslator {
         }
     }
     /**
-     * Get marketplace root directory (delegates to PathService)
+     * Get marketplace root directory (uses MarketplaceRegistry)
      */
     static async getMarketplaceRoot() {
         if (this.marketplaceRoot) {
             return this.marketplaceRoot;
         }
-        // Delegate to PathService for centralized path resolution
-        this.marketplaceRoot = await PathService.getMarketplaceRoot();
+        // Use MarketplaceRegistry as single source of truth
+        this.marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
         return this.marketplaceRoot;
     }
 }

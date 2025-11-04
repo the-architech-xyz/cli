@@ -51,7 +51,16 @@ export declare class FrameworkContextService {
      */
     private static createEnvironmentContext;
     /**
+     * Add smart paths for common patterns
+     * These paths are computed based on project structure (single-app vs monorepo)
+     */
+    private static addSmartPaths;
+    /**
      * Create fallback context when framework config is not available
      */
     private static createFallbackContext;
+    /**
+     * Detect UI framework from genome or project context
+     */
+    private static detectUIFramework;
 }

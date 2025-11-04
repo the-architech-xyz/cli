@@ -488,8 +488,9 @@ export class SemanticDependencyResolver {
     getModuleCategory(moduleId) {
         // Validate module ID format
         this.validateModuleId(moduleId);
+        // Treat legacy 'framework/*' as adapters to avoid special-casing
         if (moduleId.startsWith('framework/'))
-            return 'framework';
+            return 'adapter';
         if (moduleId.startsWith('integrations/'))
             return 'integrator';
         if (moduleId.startsWith('connector:'))
@@ -502,7 +503,7 @@ export class SemanticDependencyResolver {
      * Validate module ID format and reject invalid types
      */
     validateModuleId(moduleId) {
-        const validPrefixes = ['framework/', 'adapter/', 'integrations/', 'features/', 'connector:', 'ui/', 'database/', 'auth/', 'payment/', 'email/', 'testing/', 'quality/', 'observability/', 'deployment/', 'state/', 'core/', 'data-fetching/', 'content/', 'services/', 'blockchain/'];
+        const validPrefixes = ['adapter/', 'integrations/', 'features/', 'connector:', 'ui/', 'database/', 'auth/', 'payment/', 'email/', 'testing/', 'quality/', 'observability/', 'deployment/', 'state/', 'core/', 'data-fetching/', 'content/', 'services/', 'blockchain/', 'framework/'];
         // Check for legacy capability: prefix
         if (moduleId.startsWith('capability:')) {
             throw new Error(`Invalid module type found: 'capability:'. The capability module type has been deprecated. Please use proper integration modules instead. Found: ${moduleId}`);

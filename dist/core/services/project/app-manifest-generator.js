@@ -54,7 +54,7 @@ export class AppManifestGenerator {
             project: {
                 name: genome.project.name,
                 description: genome.project.description,
-                framework: genome.project.framework
+                framework: (genome.project.apps && genome.project.apps[0]?.framework) || genome.project.framework || 'unknown'
             },
             modules,
             features

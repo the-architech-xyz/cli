@@ -7,7 +7,7 @@
 
 import { Module } from '@thearchitech.xyz/types';
 import { MarketplaceService } from '../marketplace/marketplace-service.js';
-import { PathService } from '../path/path-service.js';
+import { MarketplaceRegistry } from '../marketplace/marketplace-registry.js';
 import { Logger } from '../infrastructure/logging/index.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -80,7 +80,7 @@ export class DynamicConnectorResolver {
    */
   private async scanAllConnectors(): Promise<ConnectorConfig[]> {
     const connectors: ConnectorConfig[] = [];
-    const marketplaceRoot = await PathService.getMarketplaceRoot();
+    const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
     const connectorsPath = path.join(marketplaceRoot, 'connectors');
     
     if (!await this.directoryExists(connectorsPath)) {

@@ -17,9 +17,10 @@ export declare class ModuleAutoInclusionService {
      */
     applyTechStackAutoInclusion(modules: Module[], marketplaceRoot: string): Promise<Module[]>;
     /**
-     * Auto-include required adapters from connector/feature dependencies
-     * This ensures connectors can import from their required adapters
+     * Auto-include tRPC overrides for features that support them
+     * This ensures tRPC hooks are automatically generated when tRPC is chosen
      */
+    applyTRPCOverrideAutoInclusion(modules: Module[], marketplaceRoot: string): Promise<Module[]>;
     applyAdapterRequirements(modules: Module[], marketplaceRoot: string): Promise<Module[]>;
     /**
      * Load module metadata (connector.json, adapter.json, or feature.json)

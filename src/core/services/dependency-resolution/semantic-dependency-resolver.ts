@@ -598,7 +598,8 @@ export class SemanticDependencyResolver {
     // Validate module ID format
     this.validateModuleId(moduleId);
     
-    if (moduleId.startsWith('framework/')) return 'framework';
+    // Treat legacy 'framework/*' as adapters to avoid special-casing
+    if (moduleId.startsWith('framework/')) return 'adapter';
     if (moduleId.startsWith('integrations/')) return 'integrator';
     if (moduleId.startsWith('connector:')) return 'integrator'; // Connectors are treated as integrators
     if (moduleId.startsWith('features/')) return 'feature';
@@ -609,7 +610,7 @@ export class SemanticDependencyResolver {
    * Validate module ID format and reject invalid types
    */
   private validateModuleId(moduleId: string): void {
-    const validPrefixes = ['framework/', 'adapter/', 'integrations/', 'features/', 'connector:', 'ui/', 'database/', 'auth/', 'payment/', 'email/', 'testing/', 'quality/', 'observability/', 'deployment/', 'state/', 'core/', 'data-fetching/', 'content/', 'services/', 'blockchain/'];
+    const validPrefixes = ['adapter/', 'integrations/', 'features/', 'connector:', 'ui/', 'database/', 'auth/', 'payment/', 'email/', 'testing/', 'quality/', 'observability/', 'deployment/', 'state/', 'core/', 'data-fetching/', 'content/', 'services/', 'blockchain/', 'framework/'];
     
     // Check for legacy capability: prefix
     if (moduleId.startsWith('capability:')) {

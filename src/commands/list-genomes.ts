@@ -8,7 +8,7 @@
 import { Command } from 'commander';
 import { AgentLogger as Logger } from '../core/cli/logger.js';
 import { GenomeResolverFactory } from '../core/services/genome-resolution/index.js';
-import { PathService } from '../core/services/path/path-service.js';
+import { MarketplaceRegistry } from '../core/services/marketplace/marketplace-registry.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -130,7 +130,7 @@ function getComplexityIcon(complexity: string): string {
  */
 async function listLocalMarketplaceGenomes(logger: Logger, verbose: boolean): Promise<any[]> {
   try {
-    const marketplaceRoot = await PathService.getMarketplaceRoot();
+    const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
     const genomesDir = path.join(marketplaceRoot, 'genomes', 'official');
     
     const files = await fs.readdir(genomesDir);

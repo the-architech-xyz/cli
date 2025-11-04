@@ -236,7 +236,6 @@ export class DependencyGraph {
   private mapShortNameToModuleId(shortName: string, modules: Module[]): string {
     // Common mappings for short names to full module IDs
     const shortNameMap: Record<string, string> = {
-      'nextjs': 'framework/nextjs',
       'drizzle': 'database/drizzle',
       'better-auth': 'auth/better-auth',
       'shadcn-ui': 'ui/shadcn-ui',

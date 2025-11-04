@@ -8,7 +8,7 @@
  */
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { PathService } from '../../path/path-service.js';
+import { MarketplaceRegistry } from '../../marketplace/marketplace-registry.js';
 export class LocalMarketplaceStrategy {
     resolver;
     name = 'local-marketplace';
@@ -30,7 +30,7 @@ export class LocalMarketplaceStrategy {
         }
         try {
             // Get marketplace root
-            const marketplaceRoot = await PathService.getMarketplaceRoot();
+            const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
             // Normalize the genome name
             const normalized = this.resolver.normalizeGenomeName(input);
             // Try official genomes first
@@ -76,7 +76,7 @@ export class LocalMarketplaceStrategy {
      */
     async listAvailable() {
         try {
-            const marketplaceRoot = await PathService.getMarketplaceRoot();
+            const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
             const officialDir = path.join(marketplaceRoot, 'genomes', 'official');
             const files = await fs.readdir(officialDir);
             return files

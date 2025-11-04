@@ -22,7 +22,8 @@ export declare class FeatureModuleResolver {
      */
     resolveFeatureModules(modules: Module[]): Promise<Module[]>;
     /**
-     * Check if a module is a feature module
+     * Check if a module is a feature module that needs resolution
+     * Only modules that DON'T exist directly in the marketplace need manifest resolution
      */
     private isFeatureModule;
     /**

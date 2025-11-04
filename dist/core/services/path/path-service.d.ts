@@ -11,8 +11,19 @@ export declare class PathService {
     private pathMap;
     private frameworkProjectRoot;
     private static cliRoot;
-    private static marketplaceRoot;
     constructor(projectRoot: string, projectName?: string, frameworkAdapter?: AdapterConfig);
+    /**
+     * Replace entire framework path map
+     */
+    setFrameworkPaths(paths: Record<string, string>): void;
+    /**
+     * Merge additional framework paths (later keys overwrite)
+     */
+    mergeFrameworkPaths(paths: Record<string, string>): void;
+    /**
+     * Set a single path in the path map
+     */
+    setPath(key: string, value: string): void;
     /**
      * Get project root path
      */
@@ -137,9 +148,9 @@ export declare class PathService {
      */
     static getCliRoot(): string;
     /**
-     * Get the marketplace root directory (development or production)
+     * @deprecated Use MarketplaceRegistry.getCoreMarketplacePath() instead
+     * This method has been removed to consolidate marketplace path resolution.
      */
-    static getMarketplaceRoot(): Promise<string>;
     /**
      * Resolve module ID to full module path using dumb translation
      *

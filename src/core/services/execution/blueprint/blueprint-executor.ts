@@ -19,6 +19,7 @@ import { YamlMergerModifier } from '../../file-system/modifiers/yaml-merger.js';
 import { BlueprintAnalyzer } from '../../project/blueprint-analyzer/index.js';
 import { ActionHandlerRegistry } from './action-handlers/index.js';
 import { ArchitechError, ArchitechErrorCode } from '../../infrastructure/error/architech-error.js';
+import { TemplateService } from '../../file-system/template/template-service.js';
 
 // Simple modifier interface for now
 interface ModifierDefinition {
@@ -320,6 +321,14 @@ export class BlueprintExecutor {
       for (let i = 0; i < expandedActions.length; i++) {
         const action = expandedActions[i];
         if (!action) continue;
+        
+        // Evaluate condition if present (skip action if condition is false)
+        if (!this.evaluateActionCondition(action, context)) {
+          const actionPath = 'path' in action ? action.path : action.type;
+          console.log(`  ⏭️  Skipping action (condition false): ${actionPath}`);
+          continue;
+        }
+        
         const actionPath = 'path' in action ? action.path : 'N/A';
         
         const result = await this.actionHandlerRegistry.handleAction(action, context, context.project.path || '.', vfs);
@@ -403,6 +412,14 @@ export class BlueprintExecutor {
       for (let i = 0; i < expandedActions.length; i++) {
         const action = expandedActions[i];
         if (!action) continue;
+        
+        // Evaluate condition if present (skip action if condition is false)
+        if (!this.evaluateActionCondition(action, context)) {
+          const actionPath = 'path' in action ? action.path : action.type;
+          console.log(`  ⏭️  Skipping action (condition false): ${actionPath}`);
+          continue;
+        }
+        
         const actionPath = 'path' in action ? action.path : 'N/A';
         
         const result = await this.actionHandlerRegistry.handleAction(action, context, context.project.path || '.', vfs);
@@ -449,5 +466,76 @@ export class BlueprintExecutor {
         warnings
       };
     }
+  }
+
+  /**
+   * Evaluate action condition to determine if action should execute
+   * 
+   * Conditions are processed as templates using Handlebars-style syntax:
+   * - {{#if variable}} - evaluates truthiness of variable
+   * - Returns true if no condition specified (always execute)
+   * - Returns false if condition evaluates to false/undefined
+   */
+  private evaluateActionCondition(action: BlueprintAction, context: ProjectContext): boolean {
+    // No condition = always execute
+    if (!(action as any).condition) {
+      return true;
+    }
+
+    const condition = (action as any).condition;
+    
+    // Handle Handlebars-style {{#if variable}} conditions
+    const ifMatch = condition.match(/\{\{#if\s+([^}]+)\}\}/);
+    if (ifMatch) {
+      const variablePath = ifMatch[1].trim();
+      const value = this.getNestedValueFromContext(context, variablePath);
+      return TemplateService.isTruthy(value);
+    }
+
+    // Handle simple boolean conditions (already evaluated)
+    if (typeof condition === 'boolean') {
+      return condition;
+    }
+
+    // Process condition as template and check if result is truthy
+    try {
+      const processedCondition = TemplateService.processTemplate(condition, context, {
+        processVariables: true,
+        processConditionals: false // Already handled above
+      });
+      
+      // If template was replaced (not just literal string), evaluate result
+      if (processedCondition !== condition) {
+        return TemplateService.isTruthy(processedCondition);
+      }
+      
+      // If still looks like template syntax, probably false
+      if (processedCondition.includes('{{')) {
+        return false;
+      }
+      
+      return TemplateService.isTruthy(processedCondition);
+    } catch (error) {
+      console.warn(`⚠️  Failed to evaluate condition: ${condition}`, error);
+      return false; // Fail closed: skip action if condition evaluation fails
+    }
+  }
+
+  /**
+   * Get nested value from context using dot notation (e.g., 'module.parameters.reactVersion')
+   */
+  private getNestedValueFromContext(context: ProjectContext, path: string): unknown {
+    const keys = path.split('.');
+    let value: any = context;
+    
+    for (const key of keys) {
+      if (value && typeof value === 'object' && key in value) {
+        value = value[key];
+      } else {
+        return undefined;
+      }
+    }
+    
+    return value;
   }
 }

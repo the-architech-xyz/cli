@@ -12,6 +12,10 @@ import {
   ConstitutionalExecutionContext,
   BlueprintModule,
   MergedConfiguration,
+  Blueprint,
+  BlueprintAction,
+  BlueprintActionType,
+  GenomeModule,
 } from "@thearchitech.xyz/types";
 import { ProjectContext } from "@thearchitech.xyz/marketplace/types/template-context.js";
 import { MARKETPLACE_DEFAULTS } from "../marketplace.config.js";
@@ -33,25 +37,18 @@ import {
 } from "../core/services/infrastructure/logging/index.js";
 import { EnhancedLogger } from "../core/cli/enhanced-logger.js";
 import { ErrorHandler } from "../core/services/infrastructure/error/index.js";
-import { DependencyGraph } from "../core/services/execution-planning/dependency-graph.js";
-import {
-  ExecutionPlanner,
-  ExecutionPlan,
-} from "../core/services/execution-planning/execution-planner.js";
-import { VirtualFileSystem } from "../core/services/file-system/file-engine/virtual-file-system.js";
-import { ArchitectureValidator } from "../core/services/validation/architecture-validator.js";
-import { SemanticDependencyResolver } from "../core/services/dependency-resolution/semantic-dependency-resolver.js";
-import {
-  ManifestDrivenFeatureResolver,
-  extractProjectStackFromModules,
-} from "../core/services/feature-resolution/manifest-driven-feature-resolver.js";
-import { FeatureModuleResolver } from "../core/services/feature-resolution/feature-module-resolver.js";
-import { ModuleConfigurationService } from "../core/services/orchestration/module-configuration-service.js";
-import { ModuleClassifier } from "../core/services/orchestration/module-classifier.js";
-import { ModuleAutoInclusionService } from "../core/services/orchestration/module-auto-inclusion.js";
+// Deprecated: planning/graph/feature resolution handled by transformer
+// import { DependencyGraph } from "../core/services/execution-planning/dependency-graph.js";
+// import { ExecutionPlanner } from "../core/services/execution-planning/execution-planner.js";
+// import { ManifestDrivenFeatureResolver } from "../core/services/feature-resolution/manifest-driven-feature-resolver.js";
+// import { FeatureModuleResolver } from "../core/services/feature-resolution/feature-module-resolver.js";
+// import { ModuleClassifier } from "../core/services/orchestration/module-classifier.js";
+// import { ModuleAutoInclusionService } from "../core/services/orchestration/module-auto-inclusion.js";
 import { ComponentDependencyResolver } from "../core/services/orchestration/component-dependency-resolver.js";
 import { BlueprintPreprocessor } from "../core/services/execution/blueprint/blueprint-preprocessor.js";
 import { AppManifestGenerator } from "../core/services/project/app-manifest-generator.js";
+import { MarketplaceRegistry } from "../core/services/marketplace/marketplace-registry.js";
+import { ModuleConfigurationService } from "../core/services/orchestration/module-configuration-service.js";
 // Import types for dependency resolution
 interface ResolutionError {
   type: string;
@@ -81,17 +78,18 @@ export class OrchestratorAgent {
   private moduleService: ModuleService;
   private blueprintAnalyzer: BlueprintAnalyzer;
   private cacheManager: CacheManagerService;
-  private dependencyGraph: DependencyGraph;
-  private executionPlanner: ExecutionPlanner;
-  private architectureValidator: ArchitectureValidator;
-  private semanticDependencyResolver: SemanticDependencyResolver;
-  private manifestDrivenFeatureResolver: ManifestDrivenFeatureResolver;
-  private featureModuleResolver: FeatureModuleResolver;
+  // Deprecated services removed in favor of transformer ordering
+  // private dependencyGraph: any;
+  // private executionPlanner: any;
+  // private architectureValidator: any;
+  // private semanticDependencyResolver: any;
+  // private manifestDrivenFeatureResolver: any;
+  // private featureModuleResolver: any;
   private blueprintPreprocessor: BlueprintPreprocessor;
   private appManifestGenerator: AppManifestGenerator;
   private moduleConfigService: ModuleConfigurationService;
-  private moduleClassifier: ModuleClassifier;
-  private moduleAutoInclusion: ModuleAutoInclusionService;
+  // private moduleClassifier: any;
+  // private moduleAutoInclusion: any;
   private componentDependencyResolver: ComponentDependencyResolver;
 
   constructor(projectManager: ProjectManager) {
@@ -104,37 +102,11 @@ export class OrchestratorAgent {
     this.blueprintAnalyzer = new BlueprintAnalyzer();
 
     // Initialize dependency resolution services
-    this.dependencyGraph = new DependencyGraph(this.moduleService);
-    this.executionPlanner = new ExecutionPlanner(this.dependencyGraph);
-    this.architectureValidator = new ArchitectureValidator();
-    this.semanticDependencyResolver = new SemanticDependencyResolver(
-      this.moduleService,
-      {
-        failFast: true,
-        verbose: true,
-      }
-    );
-
-    // Initialize manifest-driven feature resolver
-    this.manifestDrivenFeatureResolver = new ManifestDrivenFeatureResolver(
-      this.moduleService,
-      this.projectManager.getMarketplacePath()
-    );
-
-    // Initialize feature module resolver
-    this.featureModuleResolver = new FeatureModuleResolver(
-      this.manifestDrivenFeatureResolver
-    );
-    
-    // Initialize blueprint preprocessor
+    // Deprecated initializations removed
+    this.moduleConfigService = new ModuleConfigurationService();
+    this.componentDependencyResolver = new ComponentDependencyResolver();
     this.blueprintPreprocessor = new BlueprintPreprocessor();
     this.appManifestGenerator = new AppManifestGenerator();
-    
-    // Initialize orchestration services
-    this.moduleConfigService = new ModuleConfigurationService();
-    this.moduleClassifier = new ModuleClassifier();
-    this.moduleAutoInclusion = new ModuleAutoInclusionService();
-    this.componentDependencyResolver = new ComponentDependencyResolver();
   }
 
   /**
@@ -167,7 +139,7 @@ export class OrchestratorAgent {
         operation: "genome_execution",
       });
 
-      // 1. Validate genome
+      // 1. Validate genome (already transformed in command, guaranteed to have modules)
       ExecutionTracer.logOperation(traceId, "Validating genome");
       const validationResult = this.validateRecipe(genome);
       if (!validationResult.valid) {
@@ -176,89 +148,21 @@ export class OrchestratorAgent {
         );
       }
 
-      // 1.5. FEATURE MODULE RESOLUTION - NEW CRITICAL STEP
-      ExecutionTracer.logOperation(traceId, "Feature module resolution");
-      Logger.info("🎯 Starting feature module resolution", {
-        traceId,
-        operation: "feature_module_resolution",
-        modulesCount: genome.modules.length,
-      });
+      // 1.1. Initialize project structure
+      ExecutionTracer.logOperation(traceId, "Initializing project structure");
+      await this.projectManager.initializeProject();
+      
+      // 1.2. Initialize monorepo structure if needed
+      if (genome.project.structure === 'monorepo' && genome.project.monorepo) {
+        ExecutionTracer.logOperation(traceId, "Initializing monorepo structure");
+        await this.projectManager.initializeMonorepoStructure(genome.project.monorepo);
+      }
 
-      // Resolve feature modules using manifest-driven approach
-      const resolvedModules =
-        await this.featureModuleResolver.resolveFeatureModules(genome.modules as Module[]);
+      // Note: Genome transformation is done in the command layer (new.ts)
+      // The orchestrator receives a pre-transformed genome with modules already resolved
 
-      Logger.info(`✅ Feature module resolution complete`, {
-        traceId,
-        operation: "feature_module_resolution",
-        originalModules: genome.modules.length,
-        resolvedModules: resolvedModules.length,
-        expandedModules: resolvedModules.length - genome.modules.length,
-      });
-
-      // 1.6. MARKETPLACE DEFAULTS - Auto-include opinionated modules
-      ExecutionTracer.logOperation(traceId, "Applying marketplace defaults");
-      Logger.info("🎯 Applying marketplace defaults", {
-        traceId,
-        operation: "marketplace_defaults",
-        modulesCount: resolvedModules.length,
-      });
-
-      // Apply marketplace defaults for all Next.js projects
-      const modulesWithDefaults = this.applyMarketplaceDefaults(resolvedModules);
-
-      Logger.info(`✅ Marketplace defaults applied`, {
-        traceId,
-        operation: "marketplace_defaults",
-        originalModules: resolvedModules.length,
-        finalModules: modulesWithDefaults.length,
-        addedModules: modulesWithDefaults.length - resolvedModules.length,
-      });
-
-      // 1.65. ADAPTER REQUIREMENTS - Auto-include required adapters from connectors
-      ExecutionTracer.logOperation(traceId, "Adapter requirements auto-inclusion");
-      Logger.info("🎯 Auto-including required adapters from connectors", {
-        traceId,
-        operation: "adapter_requirements",
-        modulesCount: modulesWithDefaults.length,
-      });
-
-      const modulesWithAdapters = await this.moduleAutoInclusion.applyAdapterRequirements(
-        modulesWithDefaults,
-        this.projectManager.getMarketplacePath()
-      );
-
-      Logger.info(`✅ Adapter requirements resolved`, {
-        traceId,
-        operation: "adapter_requirements",
-        originalModules: modulesWithDefaults.length,
-        finalModules: modulesWithAdapters.length,
-        addedAdapters: modulesWithAdapters.length - modulesWithDefaults.length,
-      });
-
-      // 1.7. TECH-STACK AUTO-INCLUSION - Auto-include tech-stack modules for features
-      ExecutionTracer.logOperation(traceId, "Tech-stack auto-inclusion");
-      Logger.info("🎯 Starting tech-stack auto-inclusion", {
-        traceId,
-        operation: "tech_stack_auto_inclusion",
-        modulesCount: modulesWithAdapters.length,
-      });
-
-      const modulesWithTechStack = await this.applyTechStackAutoInclusion(modulesWithAdapters);
-
-      Logger.info(`✅ Tech-stack auto-inclusion complete`, {
-        traceId,
-        operation: "tech_stack_auto_inclusion",
-        originalModules: modulesWithDefaults.length,
-        finalModules: modulesWithTechStack.length,
-        addedTechStackModules: modulesWithTechStack.length - modulesWithDefaults.length,
-      });
-
-      // Use resolved modules with defaults and tech-stack for the rest of the execution
-      const enhancedGenome = {
-        ...genome,
-        modules: modulesWithTechStack,
-      };
+      // 1.3-1.8. All resolution/auto-inclusion is now done by the transformer
+      const enhancedGenome = genome;
 
       // 1.75. COMPONENT DEPENDENCY RESOLUTION - Auto-install required UI components
       Logger.info("📦 Resolving component dependencies", {
@@ -272,8 +176,15 @@ export class OrchestratorAgent {
       if (componentDependencies.size > 0) {
         for (const module of enhancedGenome.modules) {
           for (const [uiTechId, requiredComponents] of componentDependencies.entries()) {
-            // Match module to UI technology (e.g., 'ui/shadcn-ui')
-            if (module.id === uiTechId) {
+            // Match module to UI technology - handle both formats:
+            // - 'ui/shadcn-ui' (from feature.json)
+            // - 'adapters/ui/shadcn-ui' (after transformation)
+            const matches = 
+              module.id === uiTechId || 
+              module.id === `adapters/${uiTechId}` ||
+              module.id.endsWith(`/${uiTechId}`);
+            
+            if (matches) {
               // Merge required components with user-specified components
               const userComponents = module.parameters?.components || [];
               const allComponents = Array.from(
@@ -286,7 +197,7 @@ export class OrchestratorAgent {
                 components: allComponents
               };
               
-              Logger.info(`✅ Injected components into ${uiTechId}: [${requiredComponents.join(', ')}]`, {
+              Logger.info(`✅ Injected components into ${module.id}: [${requiredComponents.join(', ')}]`, {
                 traceId,
                 operation: "component_injection",
               });
@@ -295,70 +206,8 @@ export class OrchestratorAgent {
         }
       }
 
-      // 1.6. HIGH-LEVEL DEPENDENCY RESOLUTION - NEW CRITICAL STEP
-      ExecutionTracer.logOperation(traceId, "High-level dependency resolution");
-      Logger.info("🧠 Starting intelligent dependency resolution", {
-        traceId,
-        operation: "dependency_resolution",
-        initialModules: genome.modules.length,
-      });
-
-      const resolutionResult =
-        await this.semanticDependencyResolver.resolveGenome(
-          enhancedGenome.modules
-        );
-
-      if (!resolutionResult.success) {
-        const errorMessages = resolutionResult.conflicts
-          .map(
-            (conflict: ResolutionError) =>
-              `  ❌ ${conflict.message} (Module: ${conflict.module}${conflict.capability ? `, Capability: ${conflict.capability}` : ""})`
-          )
-          .join("\n");
-
-        const suggestionMessages = resolutionResult.conflicts
-          .filter(
-            (conflict: ResolutionError) => conflict.suggestions.length > 0
-          )
-          .map(
-            (conflict: ResolutionError) =>
-              `  💡 ${conflict.suggestions.join(", ")}`
-          )
-          .join("\n");
-
-        const fullErrorMessage = `Dependency resolution failed with ${resolutionResult.conflicts.length} conflicts:\n${errorMessages}${suggestionMessages ? `\n\nSuggestions:\n${suggestionMessages}` : ""}`;
-
-        Logger.error(`❌ ${fullErrorMessage}`, {
-          traceId,
-          operation: "dependency_resolution",
-        });
-
-        throw new Error(fullErrorMessage);
-      }
-
-      // Log resolution results
-      Logger.info("✅ Dependency resolution successful", {
-        traceId,
-        operation: "dependency_resolution",
-        resolvedModules: resolutionResult.modules.length,
-        executionOrder: resolutionResult.executionOrder.length,
-        warnings: resolutionResult.warnings.length,
-      });
-
-      // Log execution order
-      Logger.info("📋 Resolved execution order:", {
-        traceId,
-        operation: "dependency_resolution",
-        order: resolutionResult.executionOrder
-          .map((m: ResolvedModule) => m.id)
-          .join(" → "),
-      });
-
-      // Use resolved modules instead of original genome modules
-      const resolvedGenome = {
-        ...genome,
-        modules: resolutionResult.executionOrder,
-      };
+      // 1.6. All dependency resolution handled by transformer
+      const resolvedGenome = enhancedGenome;
 
       // 2. Load and validate modules
       ExecutionTracer.logOperation(traceId, "Loading modules");
@@ -375,72 +224,14 @@ export class OrchestratorAgent {
         enhancedLogger.completePhase();
       }
 
-      // 2.5. ARCHITECTURAL VALIDATION - NEW MANDATORY STEP
-      ExecutionTracer.logOperation(traceId, "Architectural validation");
-      const architecturalValidation =
-        await this.architectureValidator.validateRecipe(
-          resolvedGenome,
-          traceId
-        );
-      if (!architecturalValidation.isValid) {
-        const errorMessages = architecturalValidation.errors
-          .map((error) => `  ❌ ${error.message} (Module: ${error.module})`)
-          .join("\n");
-
-        const warningMessages = architecturalValidation.warnings
-          .map(
-            (warning) => `  ⚠️  ${warning.message} (Module: ${warning.module})`
-          )
-          .join("\n");
-
-        const fullErrorMessage = `Architectural validation failed with ${architecturalValidation.errors.length} errors:\n${errorMessages}${warningMessages ? `\n\nWarnings:\n${warningMessages}` : ""}`;
-
-        Logger.error(`❌ ${fullErrorMessage}`, {
-          traceId,
-          operation: "architectural_validation",
-        });
-
-        throw new Error(fullErrorMessage);
-      }
-
-      Logger.info(
-        "✅ Architectural validation passed - proceeding with generation",
-        {
-          traceId,
-          operation: "architectural_validation",
-        }
-      );
+      // 2.5. Architectural validation handled by transformer; proceed
 
       // Enhanced logging: Start planning phase
       if (enhancedLogger) {
         enhancedLogger.startPhase("planning");
       }
 
-      // 3. Classify modules by type (Convention-Based Architecture)
-      ExecutionTracer.logOperation(traceId, "Classifying modules by type");
-      const moduleClassification = this.classifyModulesByType(
-        resolvedGenome.modules
-      );
-
-      Logger.info(`📊 Module Classification:`, {
-        traceId,
-        operation: "module_classification",
-        frameworks: moduleClassification.frameworks.map((m) => m.id),
-        adapters: moduleClassification.adapters.map((m) => m.id),
-        connectors: moduleClassification.connectors.map((m) => m.id),
-        features: moduleClassification.features.map((m) => m.id),
-      });
-
-      // 4. Build dependency graph
-      ExecutionTracer.logOperation(traceId, "Building dependency graph");
-      const graphResult = await this.dependencyGraph.buildGraph(
-        resolvedGenome.modules
-      );
-      if (!graphResult.success) {
-        throw new Error(
-          `Dependency graph build failed: ${graphResult.errors.join(", ")}`
-        );
-      }
+      // 3-4. Skip classification and CLI dependency graph (handled by transformer ordering)
 
       // 5. Setup framework and get framework-specific path handler
       ExecutionTracer.logOperation(traceId, "Setting up framework");
@@ -462,145 +253,28 @@ export class OrchestratorAgent {
         });
       }
 
-      // 6. Create execution plan
-      ExecutionTracer.logOperation(traceId, "Creating execution plan");
-      const executionPlan = this.executionPlanner.createExecutionPlan();
-      if (!executionPlan.success) {
-        throw new Error(
-          `Execution plan creation failed: ${executionPlan.errors.join(", ")}`
-        );
-      }
-
-      // 7. Enforce hierarchical execution order (Framework -> Adapters -> Integrations)
-      ExecutionTracer.logOperation(
-        traceId,
-        "Enforcing hierarchical execution order"
-      );
-      const hierarchicalPlan = this.enforceHierarchicalOrder(
-        executionPlan,
-        moduleClassification
-      );
-      Logger.info(`🔄 Hierarchical execution plan created`, {
-        traceId,
-        operation: "hierarchical_ordering",
-      });
-
-      // 8. Log execution plan with FULL DETAILS
-      Logger.info(`📋 Execution plan created:`, {
-        traceId,
-        operation: "execution_planning",
-      });
-
-      // Complete planning phase
+      // 6-10. Skip CLI planning/graph; execute modules sequentially in transformer order
       if (enhancedLogger) {
         enhancedLogger.completePhase();
+        enhancedLogger.setTotalModules(resolvedGenome.modules.length);
+        enhancedLogger.startPhase("modules");
       }
 
-      // DEBUG: Log the ENTIRE execution plan structure
-      Logger.debug(`🔍 COMPLETE EXECUTION PLAN STRUCTURE:`, {
-        traceId,
-        operation: "execution_planning",
-        data: {
-          totalBatches: hierarchicalPlan.batches.length,
-          totalModules: hierarchicalPlan.batches.reduce(
-            (sum: number, batch: any) => sum + batch.modules.length,
-            0
-          ),
-          estimatedDuration: hierarchicalPlan.batches.reduce(
-            (sum: number, batch: any) => sum + batch.estimatedDuration,
-            0
-          ),
-          batches: hierarchicalPlan.batches.map((batch: any) => ({
-            batchNumber: batch.batchNumber,
-            moduleCount: batch.modules.length,
-            moduleIds: batch.modules.map((m: Module) => m.id),
-            moduleTypes: batch.modules.map((m: Module) =>
-              this.getModuleType(m.id)
-            ),
-            canExecuteInParallel: batch.canExecuteInParallel,
-            estimatedDuration: batch.estimatedDuration,
-            dependencies: batch.dependencies,
-          })),
-        },
-      });
-
-      for (const batch of hierarchicalPlan.batches) {
-        const moduleIds = batch.modules.map((m: Module) => m.id).join(", ");
-      }
-
-      // 9. Validate framework module is first
-      if (resolvedGenome.modules.length === 0) {
-        throw new Error("Genome contains no modules");
-      }
-
-      const firstModule = resolvedGenome.modules[0];
-      if (!firstModule) {
-        throw new Error("First module is undefined");
-      }
-
-      if (firstModule.category !== "framework") {
-        throw new Error(
-          `First module must be a framework module, but found: ${firstModule.category}`
-        );
-      }
-
-      Logger.info(`✅ Framework validation passed: ${firstModule.id}`, {
-        traceId,
-        operation: "framework_validation",
-      });
-
-      // 10. Execute using unified dependency-driven execution (skip framework as it's already executed)
-      ExecutionTracer.logOperation(
-        traceId,
-        "Executing unified dependency-driven plan"
-      );
-
-      // Filter out framework modules since they're already executed during setup
-      const filteredPlan = this.filterOutFrameworkModules(hierarchicalPlan);
-
-      // Enhanced logging: Start execution phases
-      if (enhancedLogger) {
-        // Count modules by type for progress tracking (excluding framework)
-        const totalModules = filteredPlan.batches.reduce(
-          (sum: number, batch: any) => sum + batch.modules.length,
-          0
-        );
-        enhancedLogger.setTotalModules(totalModules);
-
-        // Start adapters phase (framework already completed)
-        enhancedLogger.startPhase("adapters");
-      }
-
-      const executionResult = await this.executeUnifiedPlan(
-        genome,
-        traceId,
-        verbose,
-        filteredPlan,
-        enhancedLogger
-      );
-
-      if (executionResult.success) {
-        results.push(...executionResult.results);
-        Logger.info(`✅ All modules executed successfully`, {
-          traceId,
-          operation: "unified_execution",
-        });
-      } else {
-        // FAIL-FAST: Stop immediately on any module failure
-        errors.push(...executionResult.errors);
-        Logger.error(
-          `❌ Unified execution failed: ${executionResult.errors.join(", ")}`,
-          {
-            traceId,
-            operation: "unified_execution",
-          }
-        );
+      for (const mod of resolvedGenome.modules) {
+        const execResult = await this.executeModule(mod as Module, resolvedGenome, traceId, enhancedLogger);
+        if (!execResult.success) {
+          errors.push(execResult.error || `Module ${mod.id} failed`);
         return {
           success: false,
           modulesExecuted: results.length,
           errors,
-          warnings,
+            warnings
         };
+        }
+        // Optional progress update if logger supports it
+        if (enhancedLogger && typeof (enhancedLogger as any).incrementModule === 'function') {
+          (enhancedLogger as any).incrementModule();
+        }
       }
 
       // 11. Install dependencies (only if all modules succeeded)
@@ -754,6 +428,14 @@ export class OrchestratorAgent {
 
         // Execute modules in this batch (each module gets its own VFS lifecycle)
         for (const module of batch.modules) {
+          // Skip framework adapter modules; frameworks are already set up earlier
+          if (module.id.startsWith('adapters/framework/')) {
+            Logger.info(`⏭️  Skipping framework module during module phase: ${module.id}`, {
+              traceId,
+              operation: 'module_execution'
+            });
+            continue;
+          }
           Logger.debug(`🔍 CWD BEFORE module ${module.id}: ${process.cwd()}`);
 
           // Enhanced logging: Determine module type and phase
@@ -861,13 +543,26 @@ export class OrchestratorAgent {
     traceId: string,
     enhancedLogger?: EnhancedLogger
   ): Promise<{ success: boolean; error?: string; executedModules?: any[] }> {
-    let blueprintVFS: VirtualFileSystem | null = null;
+    let blueprintVFS: any | null = null;
+    let originalWorkingDirectory: string | null = null;
 
     try {
       Logger.info(`🔧 Executing module: ${module.id}`, {
         traceId,
         operation: "module_execution",
       });
+
+      // Handle monorepo package targeting using auto-detection
+      const targetPackage = this.determineTargetPackage(module, genome);
+      if (targetPackage) {
+        originalWorkingDirectory = process.cwd();
+        const packagePath = path.join(this.pathHandler.getProjectRoot(), targetPackage);
+        process.chdir(packagePath);
+        Logger.info(`📦 Executing module in package: ${targetPackage}`, {
+          traceId,
+          operation: "module_execution",
+        });
+      }
 
       // Load the module to get its blueprint
       const moduleResult = await this.moduleService.loadModuleAdapter(module);
@@ -881,10 +576,14 @@ export class OrchestratorAgent {
       // NEW: Process blueprint with preprocessor
       const mergedConfig = this.mergeModuleConfiguration(module, moduleResult.adapter, genome);
       
-      // Get blueprint path using MarketplaceService (centralized, tested logic)
-      const blueprintPath = await MarketplaceService.getBlueprintPath(module.id);
-      const preprocessingResult = await this.blueprintPreprocessor.loadAndProcessBlueprint(
-        blueprintPath,
+      // Load normalized blueprint object via MarketplaceService (uses BlueprintLoader)
+      const loadedBlueprint = await MarketplaceService.loadModuleBlueprint(module.id);
+      Logger.info(`🧩 Preprocessing blueprint for module ${module.id}`, {
+        traceId,
+        operation: 'module_execution'
+      });
+      const preprocessingResult = await this.blueprintPreprocessor.processBlueprint(
+        loadedBlueprint as any,
         mergedConfig
       );
       
@@ -924,9 +623,13 @@ export class OrchestratorAgent {
           capabilityRegistry: new Map(),
         };
       }
+      
+      // **ARCHITECTURAL DECISION**: UI templates use convention-based loading
+      // Templates with `ui/` prefix are automatically resolved from UI marketplace via MarketplaceService
+      // The blueprint.ts file uses CREATE_FILE actions with `ui/...` template paths
 
       // 1. CREATE per-blueprint VFS
-      blueprintVFS = new VirtualFileSystem(
+      blueprintVFS = new (await import('../core/services/file-system/file-engine/virtual-file-system.js')).VirtualFileSystem(
         `blueprint-${moduleResult.adapter.blueprint.id}`,
         this.pathHandler.getProjectRoot()
       );
@@ -986,8 +689,52 @@ export class OrchestratorAgent {
         operation: "module_execution",
       });
       return { success: false, error: errorMessage };
+    } finally {
+      // Restore original working directory if changed
+      if (originalWorkingDirectory) {
+        process.chdir(originalWorkingDirectory);
+      }
     }
   }
+
+  /**
+   * Determine which package a module should be executed in
+   */
+  private determineTargetPackage(module: Module, genome: Genome): string | null {
+    // Check if genome defines monorepo structure
+    if (genome.project.structure !== 'monorepo' || !genome.project.monorepo) {
+      return null;
+    }
+
+    // Auto-determine package based on module type and centralized path logic
+    const moduleType = this.getModuleType(module.id);
+    const monorepoConfig = genome.project.monorepo;
+    
+    switch (moduleType) {
+      case 'framework':
+        if (module.id.includes('nextjs')) {
+          return monorepoConfig.packages?.web || 'apps/web';
+        } else if (module.id.includes('expo')) {
+          return monorepoConfig.packages?.mobile || 'apps/mobile';
+        } else if (module.id.includes('api')) {
+          return monorepoConfig.packages?.api || 'packages/api';
+        }
+        break;
+      case 'feature':
+        // Features typically go to web by default
+        return monorepoConfig.packages?.web || 'apps/web';
+      case 'connector':
+        // Connectors typically go to shared
+        return monorepoConfig.packages?.shared || 'packages/shared';
+      case 'adapter':
+        // Adapters typically go to shared
+        return monorepoConfig.packages?.shared || 'packages/shared';
+    }
+
+    // Default to web package
+    return monorepoConfig.packages?.web || 'apps/web';
+  }
+
 
   /**
    * Install dependencies
@@ -1042,10 +789,30 @@ export class OrchestratorAgent {
       }
     }
 
+    // Check if genome is capability-driven
+    const isCapabilityDriven = 'capabilities' in genome && 
+                               typeof genome.capabilities === 'object' && 
+                               genome.capabilities !== null &&
+                               Object.keys(genome.capabilities).length > 0;
+
+    if (!isCapabilityDriven) {
+      // Traditional genome validation
     if (!genome.modules || !Array.isArray(genome.modules)) {
       errors.push("Genome must have a modules array");
     } else if (genome.modules.length === 0) {
       errors.push("Genome must have at least one module");
+    }
+    } else {
+      // Capability-driven genome validation
+      if (!genome.modules || !Array.isArray(genome.modules)) {
+        // Initialize empty modules array for capability-driven genomes
+        genome.modules = [];
+      }
+      
+      // Validate capabilities
+      if (!genome.capabilities || Object.keys(genome.capabilities).length === 0) {
+        errors.push("Capability-driven genome must have at least one capability");
+      }
     }
 
     return { valid: errors.length === 0, errors };
@@ -1061,21 +828,32 @@ export class OrchestratorAgent {
    * Classify modules by type (delegates to ModuleClassifier)
    */
   private classifyModulesByType(modules: Module[]) {
-    return this.moduleClassifier.classifyModulesByType(modules);
+    const adapters: Module[] = [];
+    const connectors: Module[] = [];
+    const features: Module[] = [];
+    for (const m of modules) {
+      if (m.id.startsWith('connectors/')) connectors.push(m);
+      else if (m.id.startsWith('features/')) features.push(m);
+      else adapters.push(m);
+    }
+    return { frameworks: [], adapters, connectors, features };
   }
 
   /**
    * Get module type from ID (delegates to ModuleClassifier)
    */
   private getModuleType(moduleId: string): "framework" | "adapter" | "connector" | "feature" {
-    return this.moduleClassifier.getModuleType(moduleId);
+    if (moduleId.startsWith('connectors/')) return 'connector';
+    if (moduleId.startsWith('features/')) return 'feature';
+    if (moduleId.startsWith('framework/')) return 'framework';
+    return 'adapter';
   }
 
   /**
    * Enforce hierarchical execution order (delegates to ModuleClassifier)
    */
   private enforceHierarchicalOrder(executionPlan: any, classification: any): any {
-    return this.moduleClassifier.enforceHierarchicalOrder(executionPlan, classification);
+    return executionPlan;
   }
 
   /**
@@ -1112,14 +890,24 @@ export class OrchestratorAgent {
    * Apply marketplace defaults (delegates to ModuleAutoInclusionService)
    */
   private applyMarketplaceDefaults(modules: Module[]): Module[] {
-    return this.moduleAutoInclusion.applyMarketplaceDefaults(modules, MARKETPLACE_DEFAULTS);
+    return modules;
   }
 
   /**
    * Auto-include tech-stack modules (delegates to ModuleAutoInclusionService)
    */
   private async applyTechStackAutoInclusion(modules: Module[]): Promise<Module[]> {
-      const marketplaceRoot = this.projectManager.getMarketplacePath();
-    return this.moduleAutoInclusion.applyTechStackAutoInclusion(modules, marketplaceRoot);
+    return modules;
   }
+
+  /**
+   * Auto-include tRPC overrides (delegates to ModuleAutoInclusionService)
+   */
+  private async applyTRPCOverrideAutoInclusion(modules: Module[]): Promise<Module[]> {
+    return modules;
+  }
+
+  // **DEPRECATED**: injectUIActions and inferComponentPath removed.
+  // UI file creation now uses convention-based template loading (`ui/...` prefix) with CREATE_FILE actions.
+  // See: marketplace/features/*/blueprint.ts for examples.
 }

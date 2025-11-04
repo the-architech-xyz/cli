@@ -6,6 +6,7 @@
 
 import { Module } from '@thearchitech.xyz/marketplace';
 import { Logger } from '../infrastructure/logging/index.js';
+import { TRPCOverrideService } from '../tech-stack/trpc-override-service.js';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
@@ -109,9 +110,45 @@ export class ModuleAutoInclusionService {
   }
 
   /**
-   * Auto-include required adapters from connector/feature dependencies
-   * This ensures connectors can import from their required adapters
+   * Auto-include tRPC overrides for features that support them
+   * This ensures tRPC hooks are automatically generated when tRPC is chosen
    */
+  async applyTRPCOverrideAutoInclusion(modules: Module[], marketplaceRoot: string): Promise<Module[]> {
+    Logger.info("🔍 Checking for tRPC override opportunities", {
+      operation: "trpc_override_auto_inclusion",
+      modulesCount: modules.length
+    });
+
+    // Create tRPC override service
+    const trpcService = new TRPCOverrideService(marketplaceRoot, Logger);
+    
+    // Detect if tRPC should be used
+    const trpcConfig = await trpcService.detectTRPCUsage(modules);
+    
+    if (!trpcConfig.enabled) {
+      Logger.debug("ℹ️  tRPC not detected, skipping tRPC overrides", {
+        operation: "trpc_override_auto_inclusion"
+      });
+      return modules;
+    }
+
+    Logger.info(`🎯 tRPC detected, applying overrides to ${trpcConfig.features.length} features`, {
+      operation: "trpc_override_auto_inclusion",
+      features: trpcConfig.features
+    });
+
+    // Apply tRPC overrides
+    const enhancedModules = await trpcService.applyTRPCOverrides(modules, trpcConfig, {} as any);
+    
+    const addedOverrides = enhancedModules.length - modules.length;
+    Logger.info(`✅ Added ${addedOverrides} tRPC overrides`, {
+      operation: "trpc_override_auto_inclusion",
+      originalModules: modules.length,
+      finalModules: enhancedModules.length
+    });
+
+    return enhancedModules;
+  }
   async applyAdapterRequirements(modules: Module[], marketplaceRoot: string): Promise<Module[]> {
     const enhancedModules = [...modules];
     const processedModules = new Set<string>();

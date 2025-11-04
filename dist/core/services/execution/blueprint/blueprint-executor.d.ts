@@ -52,4 +52,17 @@ export declare class BlueprintExecutor {
      * so no runtime validation is needed.
      */
     executeBlueprint(blueprint: Blueprint, context: ProjectContext, vfs: VirtualFileSystem): Promise<BlueprintExecutionResult>;
+    /**
+     * Evaluate action condition to determine if action should execute
+     *
+     * Conditions are processed as templates using Handlebars-style syntax:
+     * - {{#if variable}} - evaluates truthiness of variable
+     * - Returns true if no condition specified (always execute)
+     * - Returns false if condition evaluates to false/undefined
+     */
+    private evaluateActionCondition;
+    /**
+     * Get nested value from context using dot notation (e.g., 'module.parameters.reactVersion')
+     */
+    private getNestedValueFromContext;
 }

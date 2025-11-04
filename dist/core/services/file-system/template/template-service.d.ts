@@ -100,7 +100,7 @@ export declare class TemplateService {
      * Used by simple regex processor for {{#if}} conditionals in blueprint strings
      * Provides consistent truthiness logic across all template types
      */
-    private static isTruthy;
+    static isTruthy(value: unknown): boolean;
     /**
      * Validate template syntax using EJS compilation
      * This provides accurate syntax validation

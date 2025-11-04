@@ -10,6 +10,10 @@
 import { Module } from '@thearchitech.xyz/types';
 import { Logger } from '../infrastructure/logging/index.js';
 import { ManifestDrivenFeatureResolver, extractProjectStackFromModules } from './manifest-driven-feature-resolver.js';
+import { PathService } from '../path/path-service.js';
+import { MarketplaceRegistry } from '../marketplace/marketplace-registry.js';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 export interface FeatureModuleResolutionResult {
   resolvedModules: Module[];
@@ -33,7 +37,7 @@ export class FeatureModuleResolver {
     const projectStack = extractProjectStackFromModules(modules);
 
     for (const module of modules) {
-      if (this.isFeatureModule(module)) {
+      if (await this.isFeatureModule(module)) {
         try {
           const resolution = await this.resolveFeatureModule(module, projectStack);
           resolvedModules.push(...resolution.resolvedModules);
@@ -63,10 +67,38 @@ export class FeatureModuleResolver {
   }
 
   /**
-   * Check if a module is a feature module
+   * Check if a module is a feature module that needs resolution
+   * Only modules that DON'T exist directly in the marketplace need manifest resolution
    */
-  private isFeatureModule(module: Module): boolean {
-    return module.id.startsWith('features/');
+  private async isFeatureModule(module: Module): Promise<boolean> {
+    if (!module.id.startsWith('features/')) {
+      return false;
+    }
+    
+    // Check if the module exists directly in the marketplace
+    // If it has feature.json and blueprint.ts, it's a direct feature, not a manifest-based one
+    try {
+      const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
+      const modulePath = path.join(marketplaceRoot, module.id);
+      const featureJsonPath = path.join(modulePath, 'feature.json');
+      const blueprintPath = path.join(modulePath, 'blueprint.ts');
+      
+      // Check if both files exist
+      const [featureExists, blueprintExists] = await Promise.all([
+        fs.access(featureJsonPath).then(() => true).catch(() => false),
+        fs.access(blueprintPath).then(() => true).catch(() => false)
+      ]);
+      
+      if (featureExists && blueprintExists) {
+        // This is a direct feature, don't resolve via manifest
+        return false;
+      }
+    } catch {
+      // If check fails, assume it needs manifest resolution
+    }
+    
+    // Needs manifest resolution
+    return true;
   }
 
   /**

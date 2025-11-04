@@ -246,7 +246,8 @@ export class CreateFileHandler extends BaseActionHandler {
      */
     async loadTemplate(templatePath, projectRoot, context, actionContext) {
         const moduleId = context.module.id;
-        const templateContent = await MarketplaceService.loadTemplate(moduleId, templatePath);
+        // Pass context to MarketplaceService for marketplace path resolution
+        const templateContent = await MarketplaceService.loadTemplate(moduleId, templatePath, context);
         // Merge action context with global context for template rendering
         const mergedContext = this.mergeTemplateContext(context, actionContext);
         // Render template with merged context

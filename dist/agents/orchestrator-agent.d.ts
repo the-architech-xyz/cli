@@ -13,17 +13,9 @@ export declare class OrchestratorAgent {
     private moduleService;
     private blueprintAnalyzer;
     private cacheManager;
-    private dependencyGraph;
-    private executionPlanner;
-    private architectureValidator;
-    private semanticDependencyResolver;
-    private manifestDrivenFeatureResolver;
-    private featureModuleResolver;
     private blueprintPreprocessor;
     private appManifestGenerator;
     private moduleConfigService;
-    private moduleClassifier;
-    private moduleAutoInclusion;
     private componentDependencyResolver;
     constructor(projectManager: ProjectManager);
     /**
@@ -52,6 +44,10 @@ export declare class OrchestratorAgent {
      * Each blueprint gets: Create VFS → Execute → Flush to Disk
      */
     private executeModule;
+    /**
+     * Determine which package a module should be executed in
+     */
+    private determineTargetPackage;
     /**
      * Install dependencies
      */
@@ -98,4 +94,8 @@ export declare class OrchestratorAgent {
      * Auto-include tech-stack modules (delegates to ModuleAutoInclusionService)
      */
     private applyTechStackAutoInclusion;
+    /**
+     * Auto-include tRPC overrides (delegates to ModuleAutoInclusionService)
+     */
+    private applyTRPCOverrideAutoInclusion;
 }

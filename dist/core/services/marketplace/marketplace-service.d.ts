@@ -3,12 +3,24 @@
  *
  * Centralized service for all marketplace-related operations.
  * Handles module loading, template loading, and path resolution.
+ *
+ * Uses MarketplaceRegistry as the single source of truth for marketplace paths.
  */
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 export declare class MarketplaceService {
     /**
      * Load template content from marketplace
+     *
+     * Supports:
+     * - Convention-based UI templates: `ui/architech-welcome/welcome-page.tsx.tpl`
+     * - Core marketplace templates: `templates/data-extractor.ts.tpl` or `data-extractor.ts.tpl`
+     * - Absolute paths: `/absolute/path/to/template.tsx.tpl` (legacy)
+     *
+     * @param moduleId - Module ID (e.g., 'features/auth')
+     * @param templateFile - Template path (relative or absolute)
+     * @param context - Optional ProjectContext for marketplace path resolution
      */
-    static loadTemplate(moduleId: string, templateFile: string): Promise<string>;
+    static loadTemplate(moduleId: string, templateFile: string, context?: ProjectContext): Promise<string>;
     /**
      * Get template suggestions for better error messages
      */

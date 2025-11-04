@@ -19,12 +19,37 @@ export declare class ProjectManager {
     getProjectConfig(): ProjectConfig;
     /**
      * Get marketplace path
+     * @deprecated Use MarketplaceRegistry.getCoreMarketplacePath() instead
      */
     getMarketplacePath(): string;
     /**
      * Initialize project structure (minimal - only project root)
      */
     initializeProject(): Promise<void>;
+    /**
+     * Initialize monorepo structure
+     */
+    initializeMonorepoStructure(monorepoConfig: any): Promise<void>;
+    /**
+     * Create root package.json for workspace
+     */
+    private createRootPackageJson;
+    /**
+     * Generate monorepo tool configuration
+     */
+    private generateMonorepoToolConfig;
+    /**
+     * Generate turbo.json configuration
+     */
+    private generateTurboConfig;
+    /**
+     * Generate nx.json configuration
+     */
+    private generateNxConfig;
+    /**
+     * Generate pnpm-workspace.yaml configuration
+     */
+    private generatePnpmWorkspaceConfig;
     /**
      * Initialize project with full structure (for monorepos or non-framework projects)
      */
@@ -63,4 +88,34 @@ export declare class ProjectManager {
         hasEnvExample: boolean;
         hasReadme: boolean;
     }>;
+    /**
+     * Detect monorepo structure and configuration
+     */
+    detectMonorepoStructure(): Promise<MonorepoStructure>;
+    /**
+     * Detect packages in Turborepo
+     */
+    private detectTurboPackages;
+    /**
+     * Detect packages in Nx
+     */
+    private detectNxPackages;
+    /**
+     * Detect packages in pnpm workspaces
+     */
+    private detectPnpmPackages;
+    /**
+     * Expand workspace globs to actual package paths
+     */
+    private expandWorkspaceGlobs;
+    /**
+     * Read package.json
+     */
+    private readPackageJson;
+}
+export interface MonorepoStructure {
+    isMonorepo: boolean;
+    tool: 'turborepo' | 'nx' | 'pnpm-workspaces' | 'yarn-workspaces' | 'none';
+    packages: string[];
+    rootDir: string;
 }

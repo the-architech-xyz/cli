@@ -7,4 +7,4 @@
  * It loads and executes the compiled TypeScript code.
  */
 
-import '../dist/index.js';
+import '../index.js';
