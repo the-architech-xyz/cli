@@ -7,6 +7,7 @@
  * Uses MarketplaceRegistry as the single source of truth for marketplace paths.
  */
 import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
+import { Module } from '@thearchitech.xyz/types';
 export declare class MarketplaceService {
     /**
      * Load template content from marketplace
@@ -28,20 +29,20 @@ export declare class MarketplaceService {
     /**
      * Load feature manifest (feature.json) - convenience method
      */
-    static loadFeatureManifest(moduleId: string): Promise<any>;
+    static loadFeatureManifest(module: Module): Promise<any>;
     /**
      * Load module configuration (adapter.json, integration.json, or feature.json)
      */
-    static loadModuleConfig(moduleId: string): Promise<any>;
+    static loadModuleConfig(module: Module): Promise<any>;
     /**
      * Get the absolute path to a module's blueprint file
      * This is the centralized, tested logic for blueprint path resolution.
      */
-    static getBlueprintPath(moduleId: string, blueprintFileName?: string): Promise<string>;
+    static getBlueprintPath(module: Module, blueprintFileName?: string): string;
     /**
      * Load module blueprint using BlueprintLoader
      */
-    static loadModuleBlueprint(moduleId: string, blueprintFileName?: string): Promise<any>;
+    static loadModuleBlueprint(module: Module, blueprintFileName?: string): Promise<any>;
     /**
      * Check if a module exists in the marketplace
      */

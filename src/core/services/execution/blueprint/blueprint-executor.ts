@@ -16,7 +16,6 @@ import { PackageJsonMergerModifier } from '../../file-system/modifiers/package-j
 import { TsconfigEnhancerModifier } from '../../file-system/modifiers/tsconfig-enhancer.js';
 import { JsConfigMergerModifier } from '../../file-system/modifiers/js-config-merger.js';
 import { YamlMergerModifier } from '../../file-system/modifiers/yaml-merger.js';
-import { BlueprintAnalyzer } from '../../project/blueprint-analyzer/index.js';
 import { ActionHandlerRegistry } from './action-handlers/index.js';
 import { ArchitechError, ArchitechErrorCode } from '../../infrastructure/error/architech-error.js';
 import { TemplateService } from '../../file-system/template/template-service.js';
@@ -29,13 +28,11 @@ interface ModifierDefinition {
 export class BlueprintExecutor {
   private modifierRegistry: ModifierRegistry;
   private actionHandlerRegistry: ActionHandlerRegistry;
-  private blueprintAnalyzer: BlueprintAnalyzer;
 
   constructor(projectRoot: string) {
     this.modifierRegistry = new ModifierRegistry();
     this.initializeModifiers();
     this.actionHandlerRegistry = new ActionHandlerRegistry(this.modifierRegistry);
-    this.blueprintAnalyzer = new BlueprintAnalyzer();
   }
 
   /**
@@ -115,8 +112,10 @@ export class BlueprintExecutor {
     // Deep clone the action to avoid modifying the original
     const expandedAction = JSON.parse(JSON.stringify(originalAction));
     
+    delete (expandedAction as any).forEach;
+    
     // Replace {{item}} placeholders in all string properties
-    const itemValue = String(item);
+    const itemValue = typeof item === 'object' ? JSON.stringify(item) : String(item);
     
     // List of properties that might contain {{item}} placeholders
     const stringProperties = ['command', 'path', 'content', 'template', 'script', 'package', 'envVar', 'envValue'];
@@ -140,6 +139,94 @@ export class BlueprintExecutor {
   }
 
   /**
+   * Analyze actions and blueprint to determine which files need to be loaded into VFS
+   * Consolidates logic from BlueprintAnalyzer (now removed)
+   * 
+   * Includes:
+   * - Files needed by actions (ENHANCE_FILE, MERGE_JSON, INSTALL_PACKAGES, etc.)
+   * - blueprint.contextualFiles (if available)
+   * - module.externalFiles (if available)
+   */
+  private analyzeFilesToLoad(
+    actions: BlueprintAction[],
+    context: ProjectContext,
+    blueprint?: Blueprint
+  ): string[] {
+    const filesToRead: string[] = [];
+    
+    // 1. Analyze actions to determine files needed
+    for (const action of actions) {
+      if (!action) continue;
+      
+      // Handle forEach actions (expand first, then analyze recursively)
+      if ((action as any).forEach) {
+        const expandedActions = this.expandForEachActions([action], context);
+        const expandedFiles = this.analyzeFilesToLoad(expandedActions, context, blueprint);
+        filesToRead.push(...expandedFiles);
+        continue;
+      }
+      
+      // Determine files needed based on action type
+      switch (action.type) {
+        case 'INSTALL_PACKAGES':
+        case 'ADD_SCRIPT':
+          filesToRead.push('package.json');
+          break;
+          
+        case 'ENHANCE_FILE':
+          if ((action as any).path) {
+            // Only add if there's no fallback create option
+            if (!(action as any).fallback || (action as any).fallback !== 'create') {
+              filesToRead.push((action as any).path);
+            }
+          }
+          break;
+          
+        case 'MERGE_JSON':
+        case 'MERGE_CONFIG':
+          if ((action as any).path) {
+            filesToRead.push((action as any).path);
+          }
+          break;
+          
+        case 'APPEND_TO_FILE':
+        case 'PREPEND_TO_FILE':
+          if ((action as any).path) {
+            filesToRead.push((action as any).path);
+          }
+          break;
+          
+        case 'ADD_TS_IMPORT':
+        case 'EXTEND_SCHEMA':
+        case 'WRAP_CONFIG':
+          if ((action as any).path) {
+            filesToRead.push((action as any).path);
+          }
+          break;
+          
+        default:
+          // Handle additional package.json actions
+          if ((action as any).type === 'ADD_DEPENDENCY' || (action as any).type === 'ADD_DEV_DEPENDENCY') {
+            filesToRead.push('package.json');
+          }
+      }
+    }
+    
+    // 2. Add blueprint.contextualFiles if available
+    if (blueprint?.contextualFiles && Array.isArray(blueprint.contextualFiles)) {
+      filesToRead.push(...blueprint.contextualFiles);
+    }
+    
+    // 3. Add module.externalFiles if available
+    if (context.module?.externalFiles && Array.isArray(context.module.externalFiles)) {
+      filesToRead.push(...context.module.externalFiles);
+    }
+    
+    // 4. Deduplicate and return
+    return Array.from(new Set(filesToRead));
+  }
+
+  /**
    * Initialize the modifier registry with available modifiers
    */
   private initializeModifiers(): void {
@@ -149,7 +236,10 @@ export class BlueprintExecutor {
         if (!vfs) {
           return { success: false, error: 'VFS required for package-json-merger' };
         }
-        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, context.project.path || '.');
+        // CRITICAL: Use VFS projectRoot instead of context.project.path
+        // VFS projectRoot is the source of truth (e.g., packages/shared for monorepo)
+        const vfsProjectRoot = (vfs as any).projectRoot || context.project.path || '.';
+        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, vfsProjectRoot);
         const modifier = new PackageJsonMergerModifier(engine);
         return await modifier.execute(filePath, params, context);
       }
@@ -160,7 +250,10 @@ export class BlueprintExecutor {
         if (!vfs) {
           return { success: false, error: 'VFS required for tsconfig-enhancer' };
         }
-        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, context.project.path || '.');
+        // CRITICAL: Use VFS projectRoot instead of context.project.path
+        // VFS projectRoot is the source of truth (e.g., packages/shared for monorepo)
+        const vfsProjectRoot = (vfs as any).projectRoot || context.project.path || '.';
+        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, vfsProjectRoot);
         const modifier = new TsconfigEnhancerModifier(engine);
         return await modifier.execute(filePath, params, context);
       }
@@ -231,7 +324,10 @@ export class BlueprintExecutor {
         if (!vfs) {
           return { success: false, error: 'VFS required for js-config-merger' };
         }
-        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, context.project.path || '.');
+        // CRITICAL: Use VFS projectRoot instead of context.project.path
+        // VFS projectRoot is the source of truth (e.g., packages/shared for monorepo)
+        const vfsProjectRoot = (vfs as any).projectRoot || context.project.path || '.';
+        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, vfsProjectRoot);
         const modifier = new JsConfigMergerModifier(engine);
         return await modifier.execute(filePath, params, context);
       }
@@ -243,7 +339,10 @@ export class BlueprintExecutor {
           return { success: false, error: 'VFS required for ts-module-enhancer' };
         }
         const { TsModuleEnhancerModifier } = await import('../../file-system/modifiers/ts-module-enhancer.js');
-        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, context.project.path || '.');
+        // CRITICAL: Use VFS projectRoot instead of context.project.path
+        // VFS projectRoot is the source of truth (e.g., packages/shared for monorepo)
+        const vfsProjectRoot = (vfs as any).projectRoot || context.project.path || '.';
+        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, vfsProjectRoot);
         const modifier = new TsModuleEnhancerModifier(engine);
         return await modifier.execute(filePath, params, context);
       }
@@ -254,7 +353,10 @@ export class BlueprintExecutor {
         if (!vfs) {
           return { success: false, error: 'VFS required for yaml-merger' };
         }
-        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, context.project.path || '.');
+        // CRITICAL: Use VFS projectRoot instead of context.project.path
+        // VFS projectRoot is the source of truth (e.g., packages/shared for monorepo)
+        const vfsProjectRoot = (vfs as any).projectRoot || context.project.path || '.';
+        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, vfsProjectRoot);
         const modifier = new YamlMergerModifier(engine);
         return await modifier.execute(filePath, params, context);
       }
@@ -267,7 +369,10 @@ export class BlueprintExecutor {
           return { success: false, error: 'VFS required for json-merger' };
         }
         const { JsonMergerModifier } = await import('../../file-system/modifiers/json-merger.js');
-        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, context.project.path || '.');
+        // CRITICAL: Use VFS projectRoot instead of context.project.path
+        // VFS projectRoot is the source of truth (e.g., packages/shared for monorepo)
+        const vfsProjectRoot = (vfs as any).projectRoot || context.project.path || '.';
+        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, vfsProjectRoot);
         const modifier = new JsonMergerModifier(engine);
         return await modifier.execute(filePath, params, context);
       }
@@ -280,7 +385,10 @@ export class BlueprintExecutor {
           return { success: false, error: 'VFS required for js-export-wrapper' };
         }
         const { JsExportWrapperModifier } = await import('../../file-system/modifiers/js-export-wrapper.js');
-        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, context.project.path || '.');
+        // CRITICAL: Use VFS projectRoot instead of context.project.path
+        // VFS projectRoot is the source of truth (e.g., packages/shared for monorepo)
+        const vfsProjectRoot = (vfs as any).projectRoot || context.project.path || '.';
+        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, vfsProjectRoot);
         const modifier = new JsExportWrapperModifier(engine);
         return await modifier.execute(filePath, params, context);
       }
@@ -293,7 +401,10 @@ export class BlueprintExecutor {
           return { success: false, error: 'VFS required for jsx-children-wrapper' };
         }
         const { JsxChildrenWrapperModifier } = await import('../../file-system/modifiers/jsx-children-wrapper.js');
-        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, context.project.path || '.');
+        // CRITICAL: Use VFS projectRoot instead of context.project.path
+        // VFS projectRoot is the source of truth (e.g., packages/shared for monorepo)
+        const vfsProjectRoot = (vfs as any).projectRoot || context.project.path || '.';
+        const engine = new (await import('../../file-system/file-engine/file-modification-engine.js')).FileModificationEngine(vfs, vfsProjectRoot);
         const modifier = new JsxChildrenWrapperModifier(engine);
         return await modifier.execute(filePath, params, context);
       }
@@ -307,17 +418,36 @@ export class BlueprintExecutor {
    * It skips the blueprint analysis and directly executes the provided actions.
    */
   async executeActions(actions: BlueprintAction[], context: ProjectContext, vfs: VirtualFileSystem): Promise<BlueprintExecutionResult> {
-    console.log(`🎯 Executing ${actions.length} preprocessed actions`);
-    
     const files: string[] = [];
     const errors: string[] = [];
     const warnings: string[] = [];
     
     try {
-      // 1. Expand forEach actions
+      // 1. Analyze actions to determine which files need to be loaded into VFS
+      // This includes files from actions, blueprint.contextualFiles, and module.externalFiles
+      const filesToRead = this.analyzeFilesToLoad(actions, context);
+      
+      // 2. Pre-populate VFS with existing files (intelligent pre-loading)
+      // CRITICAL: Resolve path variables before passing to initializeWithFiles
+      if (filesToRead.length > 0) {
+        const resolvedFilesToRead = filesToRead.map((filePath: string) => {
+          // Resolve path variables if present
+          if (context.pathHandler?.resolveTemplate) {
+            return context.pathHandler.resolveTemplate(filePath);
+          }
+          return filePath;
+        });
+        
+        // Deduplicate resolved paths
+        const uniqueFilesToRead = Array.from(new Set(resolvedFilesToRead)) as string[];
+        
+        await vfs.initializeWithFiles(uniqueFilesToRead);
+      }
+      
+      // 3. Expand forEach actions
       const expandedActions = this.expandForEachActions(actions, context);
       
-      // 2. Execute all actions on the VFS (unified execution)
+      // 4. Execute all actions on the VFS (unified execution)
       for (let i = 0; i < expandedActions.length; i++) {
         const action = expandedActions[i];
         if (!action) continue;
@@ -331,7 +461,10 @@ export class BlueprintExecutor {
         
         const actionPath = 'path' in action ? action.path : 'N/A';
         
-        const result = await this.actionHandlerRegistry.handleAction(action, context, context.project.path || '.', vfs);
+        // CRITICAL: Use VFS projectRoot (which is set to targetPackagePath for monorepo)
+        // This ensures commands and file operations run in the correct package directory
+        const vfsProjectRoot = (vfs as any).projectRoot || context.project.path || '.';
+        const result = await this.actionHandlerRegistry.handleAction(action, context, vfsProjectRoot, vfs);
         
         if (!result.success) {
           const error = ArchitechError.blueprintExecutionFailed(
@@ -398,11 +531,19 @@ export class BlueprintExecutor {
     
     try {
       // 1. Analyze blueprint to identify files to pre-load
-      const analysis = this.blueprintAnalyzer.analyzeBlueprint(blueprint, context);
+      const filesToRead = this.analyzeFilesToLoad(blueprint.actions, context, blueprint);
       
       // 2. Pre-populate VFS with existing files (intelligent pre-loading)
-      if (analysis.filesToRead.length > 0) {
-        await vfs.initializeWithFiles(analysis.filesToRead);
+      // CRITICAL: Resolve path variables before passing to initializeWithFiles
+      if (filesToRead.length > 0) {
+        const resolvedFilesToRead = filesToRead.map((filePath: string) => {
+          // Resolve path variables if present
+          if (context.pathHandler?.resolveTemplate) {
+            return context.pathHandler.resolveTemplate(filePath);
+          }
+          return filePath;
+        });
+        await vfs.initializeWithFiles(resolvedFilesToRead);
       }
       
       // 3. Expand forEach actions
@@ -422,7 +563,11 @@ export class BlueprintExecutor {
         
         const actionPath = 'path' in action ? action.path : 'N/A';
         
-        const result = await this.actionHandlerRegistry.handleAction(action, context, context.project.path || '.', vfs);
+        // CRITICAL: Use VFS projectRoot (which is set to appTargetDir for framework setup)
+        // This ensures commands run in the correct package directory (apps/web, apps/api, etc.)
+        // The VFS is initialized with the correct directory in module-service.ts
+        const vfsProjectRoot = (vfs as any).projectRoot || context.project.path || '.';
+        const result = await this.actionHandlerRegistry.handleAction(action, context, vfsProjectRoot, vfs);
         
         if (!result.success) {
           const error = ArchitechError.blueprintExecutionFailed(

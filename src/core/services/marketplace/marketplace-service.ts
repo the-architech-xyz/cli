@@ -13,6 +13,8 @@ import { PathService } from '../path/path-service.js';
 import { BlueprintLoader } from './blueprint-loader.js';
 import { MarketplaceRegistry } from './marketplace-registry.js';
 import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
+import { Logger } from '../infrastructure/logging/logger.js';
+import { Module } from '@thearchitech.xyz/types';
 
 export class MarketplaceService {
   /**
@@ -32,69 +34,46 @@ export class MarketplaceService {
     templateFile: string,
     context?: ProjectContext
   ): Promise<string> {
-    // CONVENTION: If template starts with 'ui/', resolve from UI marketplace
-    // IMPORTANT: Check this BEFORE any other processing to avoid fallback to core marketplace
+    const namespaceResolved = await this.tryLoadFromNamespaces(templateFile, context);
+    if (namespaceResolved !== null) {
+      return namespaceResolved;
+    }
+
+    // CONVENTION: Legacy UI templates ('ui/') still supported via namespaces
     if (templateFile.startsWith('ui/')) {
-      // Keep the full 'ui/...' path - UI marketplace root + ui/ directory structure
-      const relativePath = templateFile; // Keep 'ui/architech-welcome/welcome-page.tsx.tpl'
-      
-      // Get UI marketplace path from context or detect
-      let uiFramework: string | null = null;
-      let uiMarketplacePath: string | null = null;
-      
-      if (context?.marketplace?.ui) {
-        uiFramework = context.marketplace.ui.default || null;
-        if (uiFramework) {
-          uiMarketplacePath = context.marketplace.ui[uiFramework] || null;
-        }
-      }
-      
-      // Fallback: detect from context parameters or auto-detect
-      if (!uiFramework && context?.parameters?.uiFramework) {
-        uiFramework = context.parameters.uiFramework;
-      }
-      
-      // Resolve UI marketplace path if not in context
-      if (!uiMarketplacePath && uiFramework) {
-        uiMarketplacePath = await MarketplaceRegistry.getUIMarketplacePath(uiFramework);
-      }
-      
-      // Final fallback: try to auto-detect
-      if (!uiFramework || !uiMarketplacePath) {
-        const available = await MarketplaceRegistry.getAvailableUIMarketplaces();
-        if (available.length > 0 && available[0]) {
-          uiFramework = available[0];
-          uiMarketplacePath = await MarketplaceRegistry.getUIMarketplacePath(uiFramework);
-        }
-      }
-      
-      if (!uiMarketplacePath) {
-        throw new Error(
-          `Cannot resolve UI marketplace path for template: ${templateFile}. ` +
-          `Please specify uiFramework in context or ensure a UI marketplace is available. ` +
-          `Context marketplace: ${JSON.stringify(context?.marketplace)}`
-        );
-      }
-      
-      // Join UI marketplace root with full ui/... path
-      // Example: /path/to/marketplace-shadcn + ui/architech-welcome/welcome-page.tsx.tpl
-      const absolutePath = path.join(uiMarketplacePath, relativePath);
-      
-      try {
-        return await fs.readFile(absolutePath, 'utf-8');
-      } catch (error) {
-        const errorMsg = error instanceof Error ? error.message : String(error);
-        throw new Error(
-          `UI template file not found: ${absolutePath}\n` +
-          `UI Framework: ${uiFramework}\n` +
-          `UI Marketplace Path: ${uiMarketplacePath}\n` +
-          `Relative Path: ${relativePath}\n` +
-          `Template: ${templateFile}\n` +
-          `Error: ${errorMsg}`
-        );
+      const transformedPath = `components/${templateFile}`;
+      const legacyNamespaceResolved = await this.tryLoadFromNamespaces(transformedPath, context, true);
+      if (legacyNamespaceResolved !== null) {
+        return legacyNamespaceResolved;
       }
     }
     
+    const moduleMetadata = context?.module;
+
+    if (
+      moduleMetadata?.resolved?.root &&
+      !path.isAbsolute(templateFile) &&
+      !templateFile.startsWith('ui/')
+    ) {
+      const candidatePaths: string[] = [];
+      const normalizedTemplate = templateFile.startsWith('templates/')
+        ? templateFile.replace(/^templates\//, '')
+        : templateFile;
+
+      candidatePaths.push(path.join(moduleMetadata.resolved.root, 'templates', normalizedTemplate));
+      if (templateFile.startsWith('templates/')) {
+        candidatePaths.push(path.join(moduleMetadata.resolved.root, templateFile));
+      }
+
+      for (const candidate of candidatePaths) {
+        try {
+          return await fs.readFile(candidate, 'utf-8');
+        } catch {
+          continue;
+        }
+      }
+    }
+
     // Check if templateFile is an absolute path (legacy support)
     if (path.isAbsolute(templateFile)) {
       try {
@@ -122,10 +101,9 @@ export class MarketplaceService {
       return await fs.readFile(templatePath, 'utf-8');
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      
-      // Enhanced error message with suggestions
-      const suggestions = await this.getTemplateSuggestions(moduleId, templateFile);
-      const modulePath = path.join(marketplaceRoot, resolvedModuleId);
+
+      const suggestions = await this.getTemplateSuggestions(moduleMetadata, moduleId, templateFile);
+      const modulePath = moduleMetadata?.resolved?.root || path.join(marketplaceRoot, resolvedModuleId);
       
       throw new Error(
         `Template file not found: ${templatePath}\n` +
@@ -139,22 +117,110 @@ export class MarketplaceService {
     }
   }
 
+  private static async tryLoadFromNamespaces(
+    templateFile: string,
+    context?: ProjectContext,
+    silentFallback: boolean = false
+  ): Promise<string | null> {
+    if (!templateFile.startsWith('components/')) {
+      return null;
+    }
+
+    const namespaces = (context as any)?.marketplace?.namespaces || {};
+    if (Object.keys(namespaces).length === 0) {
+      if (!silentFallback) {
+        Logger.debug('⚠️ No marketplace namespaces available in context', {
+          operation: 'template_loading'
+        });
+      }
+      return null;
+    }
+
+    const parts = templateFile.split('/');
+    if (parts.length < 2) {
+      return null;
+    }
+
+    // components/<category>/[optional-framework]/... → namespace keys like components.ui, components.ui.shadcn
+    const category = parts[1];
+    let namespaceKey = `components.${category}`;
+    let startIndex = 2;
+
+    if (parts.length > 2) {
+      const potentialSpecific = parts[2];
+      const specificKey = `${namespaceKey}.${potentialSpecific}`;
+      if (namespaces[specificKey]) {
+        namespaceKey = specificKey;
+        startIndex = 3;
+      } else if (potentialSpecific === 'default') {
+        startIndex = 3;
+      }
+    }
+
+    // Fall back to default category namespace if specific one missing
+    let basePath = namespaces[namespaceKey] || namespaces[`components.${category}`];
+
+    // Special case: allow fallback to components.core for shared assets
+    if (!basePath && category !== 'core') {
+      basePath = namespaces['components.core'];
+    }
+
+    if (!basePath) {
+      if (!silentFallback) {
+        Logger.debug('⚠️ Namespace not resolved for template', {
+          operation: 'template_loading',
+          template: templateFile,
+          namespaceKey
+        });
+      }
+      return null;
+    }
+
+    const relativeSegments = parts.slice(startIndex);
+    const relativePath = relativeSegments.join('/');
+    const absolutePath = path.join(basePath, relativePath);
+
+    try {
+      return await fs.readFile(absolutePath, 'utf-8');
+    } catch (error) {
+      if (!silentFallback) {
+        Logger.debug('⚠️ Template not found in namespace path', {
+          operation: 'template_loading',
+          template: templateFile,
+          namespaceKey,
+          absolutePath,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+      return null;
+    }
+  }
+
   /**
    * Get template suggestions for better error messages
    */
-  private static async getTemplateSuggestions(moduleId: string, templateFile: string): Promise<string[]> {
-    const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
-    const resolvedModuleId = await PathService.resolveModuleId(moduleId);
-    const modulePath = path.join(marketplaceRoot, resolvedModuleId);
-    const templatesDir = path.join(modulePath, 'templates');
-    
+  private static async getTemplateSuggestions(
+    moduleMetadata: Module | undefined,
+    moduleId: string,
+    templateFile: string
+  ): Promise<string[]> {
+    let templatesDir: string | null = null;
+
+    if (moduleMetadata?.resolved?.root) {
+      templatesDir = path.join(moduleMetadata.resolved.root, 'templates');
+    } else {
+      const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
+      const resolvedModuleId = await PathService.resolveModuleId(moduleId);
+      templatesDir = path.join(marketplaceRoot, resolvedModuleId, 'templates');
+    }
+
     try {
       const files = await fs.readdir(templatesDir);
       const suggestions = files
         .filter(file => file.endsWith('.tpl'))
-        .slice(0, 5) // Show first 5 templates
+        .slice(0, 5)
         .map(file => `templates/${file}`);
-      
+
       return suggestions.length > 0 ? suggestions : ['No templates found in module'];
     } catch {
       return ['Templates directory not found'];
@@ -164,88 +230,61 @@ export class MarketplaceService {
   /**
    * Load feature manifest (feature.json) - convenience method
    */
-  static async loadFeatureManifest(moduleId: string): Promise<any> {
-    return this.loadModuleConfig(moduleId);
+  static async loadFeatureManifest(module: Module): Promise<any> {
+    return this.loadModuleConfig(module);
   }
 
   /**
    * Load module configuration (adapter.json, integration.json, or feature.json)
    */
-  static async loadModuleConfig(moduleId: string): Promise<any> {
-    const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
-    const resolvedModuleId = await PathService.resolveModuleId(moduleId);
-    
-    // Determine config file name based on module type
-    let configFileNames: string[];
-    if (resolvedModuleId.startsWith('integrations/')) {
-      configFileNames = ['integration.json'];
-    } else if (resolvedModuleId.startsWith('connectors/')) {
-      configFileNames = ['connector.json', 'integration.json']; // Try both for connectors
-    } else if (resolvedModuleId.startsWith('features/')) {
-      configFileNames = ['feature.json'];
-    } else {
-      configFileNames = ['adapter.json'];
+  static async loadModuleConfig(module: Module): Promise<any> {
+    if (!module?.resolved?.manifest) {
+      throw new Error(`Module ${module?.id || '<unknown>'} is missing resolved manifest metadata.`);
     }
-    
-    // Try each config file name until one is found
-    let lastError: Error | null = null;
-    for (const configFileName of configFileNames) {
-      const configPath = path.join(marketplaceRoot, resolvedModuleId, configFileName);
-      try {
-        const configContent = await fs.readFile(configPath, 'utf-8');
-        return JSON.parse(configContent);
-      } catch (error) {
-        lastError = error instanceof Error ? error : new Error(String(error));
-        continue; // Try next config file name
-      }
+
+    try {
+      const content = await fs.readFile(module.resolved.manifest, 'utf-8');
+      return JSON.parse(content);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to load module configuration for ${module.id}: ${message}`);
     }
-    
-    // If we get here, no config file was found
-    throw new Error(
-      `Module configuration not found for ${moduleId}. ` +
-      `Tried: ${configFileNames.join(', ')}. ` +
-      `Last error: ${lastError?.message || 'Unknown error'}`
-    );
   }
 
   /**
    * Get the absolute path to a module's blueprint file
    * This is the centralized, tested logic for blueprint path resolution.
    */
-  static async getBlueprintPath(moduleId: string, blueprintFileName?: string): Promise<string> {
-    const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
-    const resolvedModuleId = await PathService.resolveModuleId(moduleId);
-    
-    // Get blueprint file name from config if not provided
-    let finalBlueprintFileName: string;
-    if (!blueprintFileName) {
-      const config = await this.loadModuleConfig(moduleId);
-      finalBlueprintFileName = config.blueprint?.file || 'blueprint.js';
-      
-      // Convert .ts extension to .js since we compile blueprints
-      if (finalBlueprintFileName.endsWith('.ts')) {
-        finalBlueprintFileName = finalBlueprintFileName.replace(/\.ts$/, '.js');
-      }
-    } else {
-      finalBlueprintFileName = blueprintFileName;
+  static getBlueprintPath(module: Module, blueprintFileName?: string): string {
+    if (!module?.resolved?.blueprint) {
+      throw new Error(`Module ${module?.id || '<unknown>'} is missing resolved blueprint metadata.`);
     }
-    
-    // Return absolute path to blueprint from compiled dist directory
-    return path.join(marketplaceRoot, 'dist', resolvedModuleId, finalBlueprintFileName);
+
+    if (blueprintFileName) {
+      return path.isAbsolute(blueprintFileName)
+        ? blueprintFileName
+        : path.join(path.dirname(module.resolved.blueprint), blueprintFileName);
+    }
+
+    return module.resolved.blueprint;
   }
 
   /**
    * Load module blueprint using BlueprintLoader
    */
-  static async loadModuleBlueprint(moduleId: string, blueprintFileName?: string): Promise<any> {
-    const blueprintPath = await this.getBlueprintPath(moduleId, blueprintFileName);
-    
-    const result = await BlueprintLoader.loadBlueprint(moduleId, blueprintPath);
-    
+  static async loadModuleBlueprint(module: Module, blueprintFileName?: string): Promise<any> {
+    const blueprintPath = this.getBlueprintPath(module, blueprintFileName);
+
+    const result = await BlueprintLoader.loadBlueprint(module.id, blueprintPath);
+
     if (!result.success) {
       throw new Error(result.error || 'Unknown blueprint loading error');
     }
-    
+
+    if (!result.blueprint) {
+      throw new Error(`Blueprint loaded successfully but result.blueprint is ${result.blueprint}`);
+    }
+
     return result.blueprint;
   }
 

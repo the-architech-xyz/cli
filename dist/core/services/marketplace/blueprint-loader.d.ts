@@ -18,6 +18,11 @@ export declare class BlueprintLoader {
      * Load and normalize a blueprint from a module
      */
     static loadBlueprint(moduleId: string, blueprintPath: string): Promise<BlueprintLoaderResult>;
+    private static loadModuleWithFallbacks;
+    private static buildCandidatePaths;
+    private static normalizePath;
+    private static tsLoaderInitialized;
+    private static ensureTypeScriptLoader;
     /**
      * Try to get blueprint from default export
      */

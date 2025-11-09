@@ -6,6 +6,7 @@
  */
 import { Command } from 'commander';
 import { readFileSync } from 'fs';
+import { resolve, dirname } from 'path';
 import { execSync } from 'child_process';
 import inquirer from 'inquirer';
 import { OrchestratorAgent } from '../agents/orchestrator-agent.js';
@@ -93,7 +94,14 @@ export function createNewCommand() {
             }
             // Transform genome (handles both capability-first and module-first genomes)
             logger.info('🔄 Transforming genome...');
+            logger.debug('Genome snapshot before transformation', {
+                hasModules: Array.isArray(rawGenome.modules),
+                moduleCount: Array.isArray(rawGenome.modules) ? rawGenome.modules.length : 0,
+                transformationMode: rawGenome.transformation?.mode || rawGenome.options?.transformation?.mode,
+            });
+            await configureMarketplaceOverrides(rawGenome, genomePath, logger);
             const marketplacePath = await MarketplaceRegistry.getCoreMarketplacePath();
+            const { transformerOptions, mode: transformationMode } = resolveTransformationOptions(rawGenome, logger);
             const genomeTransformer = new GenomeTransformationService({
                 marketplacePath,
                 logger: {
@@ -102,12 +110,7 @@ export function createNewCommand() {
                     warn: (msg, meta) => logger.warn(msg),
                     error: (msg, meta) => logger.error(msg),
                 },
-                options: {
-                    enableCapabilityResolution: true,
-                    enableAutoInclusion: true,
-                    enableParameterDistribution: true,
-                    enableConnectorAutoInclusion: true,
-                }
+                options: transformerOptions,
             });
             const transformationResult = await genomeTransformer.transform(rawGenome);
             if (!transformationResult.success) {
@@ -127,6 +130,17 @@ export function createNewCommand() {
                 version: module.version || 'latest',
                 parameters: module.parameters || {},
             }));
+            if (transformationMode === 'opinionated') {
+                validatedGenome.project.skipFrameworkSetup = true;
+                if (!validatedGenome.options) {
+                    validatedGenome.options = {};
+                }
+                validatedGenome.options.skipFrameworkSetup = true;
+                validatedGenome.metadata = {
+                    ...validatedGenome.metadata,
+                    transformationMode,
+                };
+            }
             // Auto-generate project path if missing
             if (!validatedGenome.project.path) {
                 validatedGenome.project.path = `./${validatedGenome.project.name || 'my-app'}`;
@@ -184,6 +198,77 @@ export function createNewCommand() {
     });
     return command;
 }
+function resolveTransformationOptions(rawGenome, logger) {
+    const defaultOptions = {
+        enableCapabilityResolution: true,
+        enableAutoInclusion: true,
+        enableParameterDistribution: true,
+        enableConnectorAutoInclusion: true,
+    };
+    let mode = 'agnostic';
+    if (!rawGenome || typeof rawGenome !== 'object') {
+        return { mode, transformerOptions: defaultOptions };
+    }
+    const transformationConfig = rawGenome.transformation || rawGenome.options?.transformation;
+    const declaredMode = transformationConfig?.mode || rawGenome.meta?.transformation?.mode;
+    if (declaredMode === 'opinionated') {
+        logger.info('🧩 Using opinionated transformation mode (marketplace-controlled)');
+        mode = 'opinionated';
+        return {
+            mode,
+            transformerOptions: {
+                enableCapabilityResolution: false,
+                enableAutoInclusion: false,
+                enableParameterDistribution: false,
+                enableConnectorAutoInclusion: false,
+            },
+        };
+    }
+    if (declaredMode === 'agnostic') {
+        logger.info('🧩 Using agnostic transformation mode (default pipeline)');
+        mode = 'agnostic';
+        return { mode, transformerOptions: defaultOptions };
+    }
+    if (transformationConfig?.options && typeof transformationConfig.options === 'object') {
+        logger.info('🧩 Applying custom transformation options from genome metadata');
+        return {
+            mode,
+            transformerOptions: {
+                enableCapabilityResolution: transformationConfig.options.enableCapabilityResolution ?? defaultOptions.enableCapabilityResolution,
+                enableAutoInclusion: transformationConfig.options.enableAutoInclusion ?? defaultOptions.enableAutoInclusion,
+                enableParameterDistribution: transformationConfig.options.enableParameterDistribution ?? defaultOptions.enableParameterDistribution,
+                enableConnectorAutoInclusion: transformationConfig.options.enableConnectorAutoInclusion ?? defaultOptions.enableConnectorAutoInclusion,
+            },
+        };
+    }
+    return { mode, transformerOptions: defaultOptions };
+}
+async function configureMarketplaceOverrides(rawGenome, genomePath, logger) {
+    if (!rawGenome || typeof rawGenome !== 'object') {
+        return;
+    }
+    const marketplaceConfig = rawGenome.marketplace || rawGenome.marketplaces;
+    if (!marketplaceConfig || typeof marketplaceConfig !== 'object') {
+        return;
+    }
+    const overrides = marketplaceConfig.overrides || marketplaceConfig;
+    const baseDir = dirname(genomePath);
+    if (overrides.core) {
+        const coreOverridePath = resolve(baseDir, String(overrides.core));
+        MarketplaceRegistry.setMarketplacePath('core', coreOverridePath);
+        logger.info('🛒 Using custom core marketplace override', { corePath: coreOverridePath });
+    }
+    const uiOverrides = overrides.ui || marketplaceConfig.ui;
+    if (uiOverrides && typeof uiOverrides === 'object') {
+        for (const [uiName, relativePath] of Object.entries(uiOverrides)) {
+            if (!relativePath)
+                continue;
+            const uiOverridePath = resolve(baseDir, String(relativePath));
+            MarketplaceRegistry.setMarketplacePath(uiName, uiOverridePath);
+            logger.info('🛒 Registered UI marketplace override', { uiName, path: uiOverridePath });
+        }
+    }
+}
 /**
  * Execute a TypeScript genome file and return the Genome object
  */
@@ -212,7 +297,11 @@ console.log(JSON.stringify(genome));
             // Clean up temp file
             unlinkSync(tempScriptPath);
             // Parse the JSON result
-            const genome = JSON.parse(result.trim());
+            logger.debug('Genome loader raw output', { output: result.trim() });
+            const parsedGenome = JSON.parse(result.trim());
+            const genome = parsedGenome && typeof parsedGenome === 'object' && 'default' in parsedGenome
+                ? parsedGenome.default
+                : parsedGenome;
             logger.info('✅ TypeScript genome executed successfully');
             return genome;
         }

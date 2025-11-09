@@ -6,7 +6,6 @@
  */
 import { BlueprintExecutor } from "../core/services/execution/blueprint/blueprint-executor.js";
 import * as path from 'path';
-import { BlueprintAnalyzer } from "../core/services/project/blueprint-analyzer/index.js";
 import { FrameworkContextService } from "../core/services/project/framework-context-service.js";
 import { ModuleService } from "../core/services/module-management/module-service.js";
 import { convertGenomeModulesToModules } from "../core/services/module-management/genome-module-converter.js";
@@ -16,47 +15,35 @@ import { Logger, ExecutionTracer, LogLevel, } from "../core/services/infrastruct
 import { ErrorHandler } from "../core/services/infrastructure/error/index.js";
 // Deprecated: planning/graph/feature resolution handled by transformer
 // import { DependencyGraph } from "../core/services/execution-planning/dependency-graph.js";
-// import { ExecutionPlanner } from "../core/services/execution-planning/execution-planner.js";
 // import { ManifestDrivenFeatureResolver } from "../core/services/feature-resolution/manifest-driven-feature-resolver.js";
-// import { FeatureModuleResolver } from "../core/services/feature-resolution/feature-module-resolver.js";
 // import { ModuleClassifier } from "../core/services/orchestration/module-classifier.js";
 // import { ModuleAutoInclusionService } from "../core/services/orchestration/module-auto-inclusion.js";
 import { ComponentDependencyResolver } from "../core/services/orchestration/component-dependency-resolver.js";
 import { BlueprintPreprocessor } from "../core/services/execution/blueprint/blueprint-preprocessor.js";
 import { AppManifestGenerator } from "../core/services/project/app-manifest-generator.js";
 import { ModuleConfigurationService } from "../core/services/orchestration/module-configuration-service.js";
+import { MonorepoPackageResolver } from "../core/services/project/monorepo-package-resolver.js";
+import { ProjectBootstrapService } from "../core/services/project/project-bootstrap-service.js";
 export class OrchestratorAgent {
     projectManager;
     pathHandler;
     moduleService;
-    blueprintAnalyzer;
     cacheManager;
-    // Deprecated services removed in favor of transformer ordering
-    // private dependencyGraph: any;
-    // private executionPlanner: any;
-    // private architectureValidator: any;
-    // private semanticDependencyResolver: any;
-    // private manifestDrivenFeatureResolver: any;
-    // private featureModuleResolver: any;
     blueprintPreprocessor;
     appManifestGenerator;
     moduleConfigService;
-    // private moduleClassifier: any;
-    // private moduleAutoInclusion: any;
     componentDependencyResolver;
+    projectBootstrapService;
     constructor(projectManager) {
         this.projectManager = projectManager;
         this.pathHandler = projectManager.getPathHandler();
         this.cacheManager = new CacheManagerService();
         this.moduleService = new ModuleService(this.cacheManager);
-        // Initialize blueprint analyzer
-        this.blueprintAnalyzer = new BlueprintAnalyzer();
-        // Initialize dependency resolution services
-        // Deprecated initializations removed
         this.moduleConfigService = new ModuleConfigurationService();
         this.componentDependencyResolver = new ComponentDependencyResolver();
         this.blueprintPreprocessor = new BlueprintPreprocessor();
         this.appManifestGenerator = new AppManifestGenerator();
+        this.projectBootstrapService = new ProjectBootstrapService(this.moduleService, this.pathHandler, this.blueprintPreprocessor, this.moduleConfigService);
     }
     /**
      * Execute a recipe using unified dependency-driven execution
@@ -89,11 +76,43 @@ export class OrchestratorAgent {
             // 1.1. Initialize project structure
             ExecutionTracer.logOperation(traceId, "Initializing project structure");
             await this.projectManager.initializeProject();
-            // 1.2. Initialize monorepo structure if needed
-            if (genome.project.structure === 'monorepo' && genome.project.monorepo) {
-                ExecutionTracer.logOperation(traceId, "Initializing monorepo structure");
-                await this.projectManager.initializeMonorepoStructure(genome.project.monorepo);
+            // 1.2. Initialize structure layer (single-app or monorepo) based on genome
+            ExecutionTracer.logOperation(traceId, "Initializing structure layer");
+            // CRITICAL: Log BEFORE any operations to verify code execution
+            console.log('🔴 DEBUG: About to check genome structure...');
+            console.log('🔴 DEBUG: genome.project =', JSON.stringify(genome.project, null, 2).substring(0, 500));
+            // Debug: Log genome structure before initialization
+            Logger.info(`🔍 Genome structure check:`, {
+                traceId,
+                operation: 'structure_initialization',
+                structure: genome.project.structure,
+                hasMonorepo: !!genome.project.monorepo,
+                hasApps: !!genome.project.apps,
+                appsCount: (genome.project.apps || []).length
+            });
+            console.log('🔴 DEBUG: About to import StructureInitializationLayer...');
+            const { StructureInitializationLayer } = await import('../core/services/project/structure-initialization-layer.js');
+            const structureLayer = new StructureInitializationLayer(this.pathHandler);
+            const structureResult = await structureLayer.initialize(genome);
+            if (!structureResult.success) {
+                throw new Error(`Structure initialization failed: ${structureResult.error}`);
             }
+            Logger.info(`✅ Project structure initialized with ${structureResult.packages.length} packages`, {
+                traceId,
+                operation: 'structure_initialization',
+                packages: structureResult.packages.map(p => `${p.name} (${p.path})`)
+            });
+            // Debug: Verify packages were created
+            if (structureResult.packages.length > 0) {
+                Logger.info(`📦 Created packages:`, {
+                    traceId,
+                    operation: 'structure_initialization',
+                    packages: structureResult.packages.map(p => `${p.name} → ${p.path}`)
+                });
+            }
+            console.log('🔴 DEBUG: Structure initialization complete, packages =', structureResult.packages.length);
+            ExecutionTracer.logOperation(traceId, "Bootstrapping project foundations");
+            const frameworkAdapterConfig = await this.projectBootstrapService.bootstrap(genome, structureResult);
             // Note: Genome transformation is done in the command layer (new.ts)
             // The orchestrator receives a pre-transformed genome with modules already resolved
             // 1.3-1.8. All resolution/auto-inclusion is now done by the transformer
@@ -149,21 +168,11 @@ export class OrchestratorAgent {
                 enhancedLogger.startPhase("planning");
             }
             // 3-4. Skip classification and CLI dependency graph (handled by transformer ordering)
-            // 5. Setup framework and get framework-specific path handler
-            ExecutionTracer.logOperation(traceId, "Setting up framework");
-            const frameworkSetup = await this.moduleService.setupFramework(resolvedGenome, this.pathHandler);
-            if (!frameworkSetup.success) {
-                throw new Error(`Framework setup failed: ${frameworkSetup.error}`);
-            }
-            // Update path handler with framework-specific paths
-            if (frameworkSetup.pathHandler) {
-                this.pathHandler = frameworkSetup.pathHandler;
-                Logger.info("📁 Framework paths configured", {
-                    traceId,
-                    operation: "framework_setup",
-                    availablePaths: this.pathHandler.getAvailablePaths(),
-                });
-            }
+            // 5.5. Initialize all paths centrally (BEFORE framework setup and module execution)
+            // This ensures paths (including marketplace UI) are available during blueprint execution
+            ExecutionTracer.logOperation(traceId, "Initializing project paths");
+            const { PathInitializationService } = await import('../core/services/project/path-initialization-service.js');
+            await PathInitializationService.initializePaths(resolvedGenome, this.pathHandler, frameworkAdapterConfig);
             // 6-10. Skip CLI planning/graph; execute modules sequentially in transformer order
             if (enhancedLogger) {
                 enhancedLogger.completePhase();
@@ -303,7 +312,6 @@ export class OrchestratorAgent {
                         });
                         continue;
                     }
-                    Logger.debug(`🔍 CWD BEFORE module ${module.id}: ${process.cwd()}`);
                     // Enhanced logging: Determine module type and phase
                     if (enhancedLogger) {
                         let phaseKey = "adapters";
@@ -397,11 +405,12 @@ export class OrchestratorAgent {
                 operation: "module_execution",
             });
             // Handle monorepo package targeting using auto-detection
-            const targetPackage = this.determineTargetPackage(module, genome);
+            const targetPackage = MonorepoPackageResolver.resolveTargetPackage(module, genome);
+            let targetPackagePath = null;
             if (targetPackage) {
                 originalWorkingDirectory = process.cwd();
-                const packagePath = path.join(this.pathHandler.getProjectRoot(), targetPackage);
-                process.chdir(packagePath);
+                targetPackagePath = path.join(this.pathHandler.getProjectRoot(), targetPackage);
+                process.chdir(targetPackagePath);
                 Logger.info(`📦 Executing module in package: ${targetPackage}`, {
                     traceId,
                     operation: "module_execution",
@@ -418,13 +427,36 @@ export class OrchestratorAgent {
             // NEW: Process blueprint with preprocessor
             const mergedConfig = this.mergeModuleConfiguration(module, moduleResult.adapter, genome);
             // Load normalized blueprint object via MarketplaceService (uses BlueprintLoader)
-            const loadedBlueprint = await MarketplaceService.loadModuleBlueprint(module.id);
+            const loadedBlueprint = await MarketplaceService.loadModuleBlueprint(module);
+            console.log(`🔴 DEBUG: Loaded blueprint for module ${module.id}:`, {
+                hasDefault: !!loadedBlueprint.default,
+                hasActions: !!loadedBlueprint.actions,
+                hasBlueprint: !!loadedBlueprint.blueprint,
+                defaultType: typeof loadedBlueprint.default,
+                actionsType: typeof loadedBlueprint.actions,
+                blueprintType: typeof loadedBlueprint.blueprint,
+                keys: Object.keys(loadedBlueprint)
+            });
             Logger.info(`🧩 Preprocessing blueprint for module ${module.id}`, {
                 traceId,
-                operation: 'module_execution'
+                operation: 'module_execution',
+                blueprintFormat: {
+                    hasDefault: !!loadedBlueprint.default,
+                    hasActions: !!loadedBlueprint.actions,
+                    hasBlueprint: !!loadedBlueprint.blueprint
+                }
             });
             const preprocessingResult = await this.blueprintPreprocessor.processBlueprint(loadedBlueprint, mergedConfig);
             if (!preprocessingResult.success) {
+                console.log(`🔴 DEBUG: Blueprint preprocessing failed for module ${module.id}:`, preprocessingResult.error);
+                console.log(`🔴 DEBUG: Blueprint module structure:`, JSON.stringify({
+                    hasDefault: !!loadedBlueprint.default,
+                    defaultType: typeof loadedBlueprint.default,
+                    defaultKeys: loadedBlueprint.default ? Object.keys(loadedBlueprint.default) : [],
+                    hasActions: !!loadedBlueprint.actions,
+                    hasBlueprint: !!loadedBlueprint.blueprint,
+                    allKeys: Object.keys(loadedBlueprint)
+                }, null, 2));
                 return {
                     success: false,
                     error: `Blueprint preprocessing failed: ${preprocessingResult.error}`,
@@ -432,16 +464,68 @@ export class OrchestratorAgent {
             }
             // Create modules record for context factory
             const modulesRecord = {};
-            const convertedModules = convertGenomeModulesToModules(genome.modules);
+            const convertedModules = convertGenomeModulesToModules(genome.modules || []);
             convertedModules.forEach(mod => {
                 modulesRecord[mod.id] = mod;
             });
             // Create dynamic project context based on framework and parameters
             const projectContext = await FrameworkContextService.createProjectContext(genome, module, this.pathHandler, modulesRecord);
+            // PathResolver removed - paths are now stored in correct format (relative to package root)
+            // PathService.resolveTemplate() returns paths that are already normalized
             // CRITICAL FIX: Merge templateContext into ProjectContext root for ALL modules
             // This allows templates to access {{modules}}, {{project}}, etc. directly
             if (mergedConfig.templateContext) {
                 Object.assign(projectContext, mergedConfig.templateContext);
+            }
+            // Add targetPackage to context for action handlers (e.g., INSTALL_PACKAGES)
+            // This allows handlers to know which package they should target, even if executing in a different package
+            projectContext.targetPackage = targetPackage;
+            // Add frontendApps to context for auto-wrapper generation
+            // Extract frontend apps (web, mobile) from genome
+            const apps = genome.project.apps || [];
+            const frontendApps = apps
+                .filter((a) => a.type === 'web' || a.type === 'mobile')
+                .map((app) => ({
+                type: app.type,
+                package: app.package,
+                framework: app.framework
+            }));
+            projectContext.frontendApps = frontendApps;
+            projectContext.hasMultipleFrontendApps = frontendApps.length > 1;
+            projectContext.hasWebApp = frontendApps.some((a) => a.type === 'web');
+            projectContext.hasMobileApp = frontendApps.some((a) => a.type === 'mobile');
+            // Extract commonly used parameters from module.parameters and add them directly to context
+            // This allows templates to use variables like `platforms`, `params`, etc. directly
+            // Check both module.parameters and templateContext.module.parameters for maximum compatibility
+            const moduleParams = projectContext.module?.parameters ||
+                mergedConfig.templateContext?.module?.parameters ||
+                {};
+            // Add params as a direct alias for module.parameters (used by many templates)
+            // CRITICAL: Must be added AFTER templateContext merge to ensure it's available
+            // Always add params (even if empty) so templates can safely use params.xxx
+            projectContext.params = moduleParams;
+            // Debug: Log params addition
+            console.log(`🔴 DEBUG: Added params to context for module ${module.id}:`, {
+                hasParams: Object.keys(moduleParams).length > 0,
+                paramKeys: Object.keys(moduleParams),
+                params: moduleParams
+            });
+            // Add platforms if available (used by UI adapters like Tamagui)
+            // Default to web: true, mobile: false if not specified
+            if (moduleParams.platforms) {
+                projectContext.platforms = moduleParams.platforms;
+            }
+            else {
+                // Provide sensible defaults based on framework
+                const framework = projectContext.framework || 'nextjs';
+                projectContext.platforms = {
+                    web: framework === 'nextjs' || framework === 'react',
+                    mobile: framework === 'expo' || framework === 'react-native'
+                };
+            }
+            // Add theme if available (used by UI adapters)
+            if (moduleParams.theme) {
+                projectContext.theme = moduleParams.theme;
             }
             // NEW: Handle Constitutional Architecture configuration merging
             if (this.isConstitutionalModule(moduleResult.adapter)) {
@@ -455,13 +539,22 @@ export class OrchestratorAgent {
             // Templates with `ui/` prefix are automatically resolved from UI marketplace via MarketplaceService
             // The blueprint.ts file uses CREATE_FILE actions with `ui/...` template paths
             // 1. CREATE per-blueprint VFS
-            blueprintVFS = new (await import('../core/services/file-system/file-engine/virtual-file-system.js')).VirtualFileSystem(`blueprint-${moduleResult.adapter.blueprint.id}`, this.pathHandler.getProjectRoot());
+            // CRITICAL: Always use project root, pass context root separately
+            const projectRoot = this.pathHandler.getProjectRoot();
+            const contextRoot = targetPackage || ''; // Package path relative to project root, empty for single repo
+            console.log(`🔴 DEBUG: Creating VFS with projectRoot: ${projectRoot}, contextRoot: ${contextRoot} (targetPackage: ${targetPackage})`);
+            blueprintVFS = new (await import('../core/services/file-system/file-engine/virtual-file-system.js')).VirtualFileSystem(`blueprint-${moduleResult.adapter.blueprint.id}`, projectRoot, // Always project root
+            contextRoot // Context relative to project root
+            );
             Logger.info(`📦 Created VFS for blueprint: ${moduleResult.adapter.blueprint.id}`, {
                 traceId,
                 operation: "module_execution",
             });
             // 2. EXECUTE preprocessed actions with BlueprintExecutor
-            const blueprintExecutor = new BlueprintExecutor(this.pathHandler.getProjectRoot());
+            // CRITICAL: Use targetPackagePath if available (monorepo), otherwise use project root
+            const executorRoot = targetPackagePath || this.pathHandler.getProjectRoot();
+            console.log(`🔴 DEBUG: Creating BlueprintExecutor with root: ${executorRoot} (targetPackage: ${targetPackage})`);
+            const blueprintExecutor = new BlueprintExecutor(executorRoot);
             const result = await blueprintExecutor.executeActions(preprocessingResult.actions, projectContext, blueprintVFS);
             if (result.success) {
                 // 3. FLUSH VFS to disk on success - critical for subsequent modules!
@@ -474,10 +567,18 @@ export class OrchestratorAgent {
                     traceId,
                     operation: "module_execution",
                 });
+                // ✅ CRITICAL: Clean up VFS after flush to prevent memory leaks
+                blueprintVFS.clear();
+                blueprintVFS = null;
                 return { success: true, executedModules: [module] };
             }
             else {
                 // DO NOT flush on failure - preserve clean state
+                // ✅ CRITICAL: Still clean up VFS even on failure
+                if (blueprintVFS) {
+                    blueprintVFS.clear();
+                    blueprintVFS = null;
+                }
                 Logger.error(`❌ Module ${module.id} execution failed: ${result.errors?.join(", ") || "Unknown error"}`, {
                     traceId,
                     operation: "module_execution",
@@ -489,6 +590,11 @@ export class OrchestratorAgent {
             }
         }
         catch (error) {
+            // ✅ CRITICAL: Always clean up VFS in case of error
+            if (blueprintVFS) {
+                blueprintVFS.clear();
+                blueprintVFS = null;
+            }
             const errorMessage = error instanceof Error ? error.message : "Unknown error";
             Logger.error(`❌ Module ${module.id} execution error: ${errorMessage}`, {
                 traceId,
@@ -497,47 +603,16 @@ export class OrchestratorAgent {
             return { success: false, error: errorMessage };
         }
         finally {
+            // ✅ CRITICAL: Ensure VFS is always cleaned up, even if execution fails
+            if (blueprintVFS) {
+                blueprintVFS.clear();
+                blueprintVFS = null;
+            }
             // Restore original working directory if changed
             if (originalWorkingDirectory) {
                 process.chdir(originalWorkingDirectory);
             }
         }
-    }
-    /**
-     * Determine which package a module should be executed in
-     */
-    determineTargetPackage(module, genome) {
-        // Check if genome defines monorepo structure
-        if (genome.project.structure !== 'monorepo' || !genome.project.monorepo) {
-            return null;
-        }
-        // Auto-determine package based on module type and centralized path logic
-        const moduleType = this.getModuleType(module.id);
-        const monorepoConfig = genome.project.monorepo;
-        switch (moduleType) {
-            case 'framework':
-                if (module.id.includes('nextjs')) {
-                    return monorepoConfig.packages?.web || 'apps/web';
-                }
-                else if (module.id.includes('expo')) {
-                    return monorepoConfig.packages?.mobile || 'apps/mobile';
-                }
-                else if (module.id.includes('api')) {
-                    return monorepoConfig.packages?.api || 'packages/api';
-                }
-                break;
-            case 'feature':
-                // Features typically go to web by default
-                return monorepoConfig.packages?.web || 'apps/web';
-            case 'connector':
-                // Connectors typically go to shared
-                return monorepoConfig.packages?.shared || 'packages/shared';
-            case 'adapter':
-                // Adapters typically go to shared
-                return monorepoConfig.packages?.shared || 'packages/shared';
-        }
-        // Default to web package
-        return monorepoConfig.packages?.web || 'apps/web';
     }
     /**
      * Install dependencies
@@ -651,12 +726,6 @@ export class OrchestratorAgent {
         return 'adapter';
     }
     /**
-     * Enforce hierarchical execution order (delegates to ModuleClassifier)
-     */
-    enforceHierarchicalOrder(executionPlan, classification) {
-        return executionPlan;
-    }
-    /**
      * NEW: Check if module supports Constitutional Architecture
      */
     isConstitutionalModule(adapter) {
@@ -671,30 +740,6 @@ export class OrchestratorAgent {
      */
     mergeModuleConfiguration(module, adapter, genome) {
         return this.moduleConfigService.mergeModuleConfiguration(module, adapter, genome);
-    }
-    /**
-     * Merge parameter defaults with user overrides (delegates to ModuleConfigurationService)
-     */
-    mergeParametersWithDefaults(parameterSchema, userOverrides) {
-        return this.moduleConfigService.mergeParametersWithDefaults(parameterSchema, userOverrides);
-    }
-    /**
-     * Apply marketplace defaults (delegates to ModuleAutoInclusionService)
-     */
-    applyMarketplaceDefaults(modules) {
-        return modules;
-    }
-    /**
-     * Auto-include tech-stack modules (delegates to ModuleAutoInclusionService)
-     */
-    async applyTechStackAutoInclusion(modules) {
-        return modules;
-    }
-    /**
-     * Auto-include tRPC overrides (delegates to ModuleAutoInclusionService)
-     */
-    async applyTRPCOverrideAutoInclusion(modules) {
-        return modules;
     }
 }
 //# sourceMappingURL=orchestrator-agent.js.map

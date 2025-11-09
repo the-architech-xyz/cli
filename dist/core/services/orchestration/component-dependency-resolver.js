@@ -5,6 +5,7 @@
  */
 import { Logger } from '../infrastructure/logging/index.js';
 import { MarketplaceService } from '../marketplace/marketplace-service.js';
+import { convertGenomeModuleToModule } from '../module-management/genome-module-converter.js';
 export class ComponentDependencyResolver {
     /**
      * Resolve component dependencies from all features in the genome
@@ -15,8 +16,8 @@ export class ComponentDependencyResolver {
         for (const module of genome.modules) {
             if (module.id.startsWith('features/')) {
                 try {
-                    // Load feature manifest
-                    const featureManifest = await MarketplaceService.loadFeatureManifest(module.id);
+                    const featureModule = convertGenomeModuleToModule(module);
+                    const featureManifest = await MarketplaceService.loadFeatureManifest(featureModule);
                     if (featureManifest?.requires?.components) {
                         // Collect component requirements per UI technology
                         for (const [uiTechId, components] of Object.entries(featureManifest.requires.components)) {

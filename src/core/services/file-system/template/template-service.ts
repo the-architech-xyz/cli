@@ -87,6 +87,8 @@ export class TemplateService {
     }
     
     // 1. Process path variables first (our custom logic)
+    // PathResolver removed - paths are now stored in correct format (relative to package root)
+    // Use pathHandler.resolveTemplate() directly
     if (opts.processPathVariables && context.pathHandler?.resolveTemplate) {
       processed = context.pathHandler.resolveTemplate(processed);
     }
@@ -103,6 +105,13 @@ export class TemplateService {
           console.log('🔍 EJS Context keys:', Object.keys(context));
           console.log('🔍 Has project?', !!context.project);
           console.log('🔍 Has modules?', !!context.modules, Array.isArray(context.modules) ? `(${context.modules.length} items)` : '');
+          
+          // Ensure params is always available (even if empty) to prevent template errors
+          // This is a safety net in case params wasn't added in orchestrator-agent
+          const contextAny = context as any;
+          if (!contextAny.params) {
+            contextAny.params = context.module?.parameters || {};
+          }
           
           processed = ejs.render(processed, context, {
             async: false,

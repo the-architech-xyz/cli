@@ -4,8 +4,8 @@
  * Consolidates ModuleFetcherService, ModuleLoaderService, and AdapterLoader
  * into a single, cohesive service for module management
  */
-import { Module, Genome } from '@thearchitech.xyz/marketplace';
-import { AdapterConfig, Blueprint } from '@thearchitech.xyz/types';
+import { Genome } from '@thearchitech.xyz/marketplace';
+import { AdapterConfig, Blueprint, Module } from '@thearchitech.xyz/types';
 import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 import { PathService } from '../path/path-service.js';
 import { CacheManagerService } from '../infrastructure/cache/cache-manager.js';
@@ -15,11 +15,6 @@ export interface ModuleLoadResult {
         config: AdapterConfig;
         blueprint: Blueprint;
     };
-    error?: string;
-}
-export interface FrameworkSetupResult {
-    success: boolean;
-    pathHandler?: PathService;
     error?: string;
 }
 export interface ProjectContextResult {
@@ -36,30 +31,15 @@ export declare class ModuleService {
      */
     initialize(): Promise<void>;
     /**
-     * Setup framework and create decentralized path handler
-     */
-    setupFramework(genome: Genome, pathHandler: PathService): Promise<FrameworkSetupResult>;
-    /**
-     * Load module (adapter or integration) based on convention
+     * Load module resources (config + blueprint) using module metadata
      */
     loadModuleAdapter(module: Module): Promise<ModuleLoadResult>;
     /**
      * Create project context for module execution
      */
     createProjectContext(genome: Genome, pathHandler: PathService, module: Module): Promise<ProjectContextResult>;
-    /**
-     * Load integration from marketplace
-     */
-    private loadIntegration;
-    /**
-     * Load adapter from marketplace
-     */
-    private loadAdapter;
-    /**
-     * Load feature from marketplace
-     * Handles both direct feature references and subdirectory structure
-     */
-    private loadFeature;
+    private getModuleIndex;
+    private resolveModuleDefinition;
     /**
      * Get cached adapter
      */

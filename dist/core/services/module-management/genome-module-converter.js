@@ -6,18 +6,36 @@
  */
 /**
  * Convert GenomeModule to Module format expected by CLI
+ *
+ * Preserves metadata like targetPackage from genome module definitions
  */
 export function convertGenomeModuleToModule(genomeModule) {
     // Extract category from module ID (e.g., 'framework/nextjs' -> 'framework')
     const category = extractCategoryFromModuleId(genomeModule.id);
-    return {
+    const metadataModule = genomeModule;
+    const module = {
         id: genomeModule.id,
         category,
-        parameters: genomeModule.parameters || {}, // Ensure parameters is always an object
+        parameters: genomeModule.parameters || {},
+        parameterSchema: metadataModule.parameterSchema,
+        parameterDefaults: metadataModule.parameterDefaults,
+        parameterMetadata: metadataModule.parameterMetadata,
         features: genomeModule.features || {},
         externalFiles: genomeModule.externalFiles || [],
-        config: genomeModule.config
+        config: genomeModule.config,
+        source: metadataModule.source,
+        manifest: metadataModule.manifest,
+        blueprint: metadataModule.blueprint,
+        templates: metadataModule.templates,
+        marketplace: metadataModule.marketplace,
+        resolved: metadataModule.resolved
     };
+    // Preserve targetPackage if present in genome module
+    // This allows MonorepoPackageResolver to use it as a fallback if genome lookup fails
+    if (genomeModule.targetPackage) {
+        module.targetPackage = genomeModule.targetPackage;
+    }
+    return module;
 }
 /**
  * Convert array of GenomeModule to array of Module

@@ -5,11 +5,9 @@
  * into a single, cohesive service for module management
  */
 import { convertGenomeModulesToModules } from './genome-module-converter.js';
-import { PathService } from '../path/path-service.js';
 import { MarketplaceService } from '../marketplace/marketplace-service.js';
 import { ErrorHandler } from '../infrastructure/error/index.js';
 import { FrameworkContextService } from '../project/framework-context-service.js';
-import { ErrorCode } from '../infrastructure/error/error-types.js';
 import { Logger } from '../infrastructure/logging/index.js';
 export class ModuleService {
     cacheManager;
@@ -31,128 +29,28 @@ export class ModuleService {
         });
     }
     /**
-     * Setup framework and create decentralized path handler
-     */
-    async setupFramework(genome, pathHandler) {
-        try {
-            // Read frameworks from project.apps (single source of truth)
-            const apps = genome.project?.apps;
-            const legacyFramework = genome.project?.framework;
-            if ((!apps || apps.length === 0) && !legacyFramework) {
-                const error = ErrorHandler.createError('No apps or framework defined in project. At least one app/framework is required.', { operation: 'framework_setup' }, ErrorCode.CONFIG_VALIDATION_ERROR, false);
-                return { success: false, error: error.error };
-            }
-            // 1) Create path service once (framework config may be augmented by adapters later)
-            const pathService = new PathService(pathHandler.getProjectRoot(), pathHandler.getProjectName(), {});
-            const { BlueprintExecutor } = await import('../execution/blueprint/blueprint-executor.js');
-            const { VirtualFileSystem } = await import('../file-system/file-engine/virtual-file-system.js');
-            const appsToSetup = (apps && apps.length > 0)
-                ? apps.map(a => ({ id: a.id, type: a.type, framework: a.framework, package: a.package, parameters: a.parameters || {} }))
-                : [{ id: 'app', type: 'web', framework: legacyFramework, package: undefined, parameters: {} }];
-            // Determine primary app for central path keys (prefer web)
-            const primaryApp = appsToSetup.find(a => a.type === 'web') || appsToSetup[0];
-            for (const app of appsToSetup) {
-                Logger.info(`🏗️ Loading framework adapter for app '${app.id}': ${app.framework}`, {
-                    operation: 'framework_setup'
-                });
-                const frameworkAdapter = await this.loadAdapter('adapters/framework', app.framework);
-                if (!frameworkAdapter) {
-                    return {
-                        success: false,
-                        error: `Failed to load framework adapter: adapters/framework/${app.framework}`
-                    };
-                }
-                // Initialize centralized path handling from the PRIMARY app's framework config
-                if (app === primaryApp && frameworkAdapter.config?.paths) {
-                    pathService.setFrameworkPaths(frameworkAdapter.config.paths);
-                }
-                Logger.info('🏗️ Executing framework blueprint to create initial project structure', {
-                    operation: 'framework_setup'
-                });
-                const projectContext = {
-                    project: genome.project,
-                    module: { id: `adapters/framework/${app.framework}`, category: 'framework', parameters: app.parameters || {} },
-                    framework: app.framework,
-                    app,
-                    pathHandler: pathService
-                };
-                const frameworkVFS = new VirtualFileSystem(`framework-${app.id}-${frameworkAdapter.blueprint.id}`, pathService.getProjectRoot());
-                const blueprintExecutor = new BlueprintExecutor(pathService.getProjectRoot());
-                const frameworkResult = await blueprintExecutor.executeBlueprint(frameworkAdapter.blueprint, projectContext, frameworkVFS);
-                if (!frameworkResult.success) {
-                    return {
-                        success: false,
-                        error: `Framework blueprint execution failed for '${app.id}': ${frameworkResult.errors?.join(', ') || 'Unknown error'}`
-                    };
-                }
-                await frameworkVFS.flushToDisk();
-            }
-            Logger.info('✅ Framework setup completed for all apps', {
-                operation: 'framework_setup'
-            });
-            return {
-                success: true,
-                pathHandler: pathService
-            };
-        }
-        catch (error) {
-            const errorResult = ErrorHandler.handleAgentError(error, 'framework', 'setup');
-            return {
-                success: false,
-                error: errorResult.error
-            };
-        }
-    }
-    /**
-     * Load module (adapter or integration) based on convention
+     * Load module resources (config + blueprint) using module metadata
      */
     async loadModuleAdapter(module) {
         try {
-            // Use dumb path translation - no intelligence needed
-            const translatedPath = await PathService.resolveModuleId(module.id);
-            // Try to load as any module type - completely dumb approach
-            let moduleData = null;
-            // Try loading based on path prefix first (more efficient)
-            if (translatedPath.startsWith('features/')) {
-                try {
-                    const featureName = translatedPath.replace('features/', '');
-                    moduleData = await this.loadFeature(featureName);
-                }
-                catch {
-                    // Fall through to try other types
-                }
-            }
-            if (!moduleData) {
-                // Try loading as integration (covers connectors)
-                try {
-                    moduleData = await this.loadIntegration(translatedPath);
-                }
-                catch {
-                    // Try loading as adapter
-                    try {
-                        const adapterPath = translatedPath.replace('adapters/', '');
-                        const [category, adapterId] = adapterPath.split('/');
-                        if (category && adapterId) {
-                            moduleData = await this.loadAdapter(category, adapterId);
-                        }
-                    }
-                    catch {
-                        // All attempts failed
-                    }
-                }
-            }
-            if (!moduleData) {
+            const cacheKey = module.id;
+            if (this.cache.has(cacheKey)) {
+                const cached = this.cache.get(cacheKey);
                 return {
-                    success: false,
-                    error: `Failed to load module: ${module.id}. Tried all module types.`
+                    success: true,
+                    adapter: cached
                 };
             }
+            const config = await MarketplaceService.loadModuleConfig(module);
+            const blueprint = await MarketplaceService.loadModuleBlueprint(module);
+            const adapter = {
+                config,
+                blueprint
+            };
+            this.cache.set(cacheKey, adapter);
             return {
                 success: true,
-                adapter: {
-                    config: moduleData.config,
-                    blueprint: moduleData.blueprint
-                }
+                adapter
             };
         }
         catch (error) {
@@ -170,11 +68,16 @@ export class ModuleService {
         try {
             // Convert modules array to Record<string, Module>
             const modulesRecord = {};
-            const convertedModules = convertGenomeModulesToModules(genome.modules);
-            convertedModules.forEach(mod => {
-                modulesRecord[mod.id] = mod;
+            const moduleIndex = this.getModuleIndex(genome);
+            const convertedModules = convertGenomeModulesToModules(genome.modules || []);
+            convertedModules.forEach((mod) => {
+                const resolvedModule = this.resolveModuleDefinition(mod.id, mod, moduleIndex);
+                if (resolvedModule) {
+                    modulesRecord[mod.id] = resolvedModule;
+                }
             });
-            const context = await FrameworkContextService.createProjectContext(genome, module, pathHandler, modulesRecord);
+            const targetModule = this.resolveModuleDefinition(module.id, module, moduleIndex) || module;
+            const context = await FrameworkContextService.createProjectContext(genome, targetModule, pathHandler, modulesRecord);
             return {
                 success: true,
                 context
@@ -188,134 +91,35 @@ export class ModuleService {
             };
         }
     }
-    /**
-     * Load integration from marketplace
-     */
-    async loadIntegration(integrationPath) {
-        const cacheKey = integrationPath;
-        // Check cache first
-        if (this.cache.has(cacheKey)) {
-            return this.cache.get(cacheKey);
-        }
-        try {
-            // Load module config and blueprint using centralized services
-            const integrationJson = await MarketplaceService.loadModuleConfig(integrationPath);
-            const blueprint = await MarketplaceService.loadModuleBlueprint(integrationPath);
-            const integration = {
-                config: integrationJson,
-                blueprint: blueprint
-            };
-            // Cache the result
-            this.cache.set(cacheKey, integration);
-            return integration;
-        }
-        catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            const errorStack = error instanceof Error ? error.stack : undefined;
-            Logger.error(`Failed to load integration ${integrationPath}`, {
-                operation: 'load_integration',
-                error: errorMessage,
-                stack: errorStack,
-                integrationPath
-            });
-            console.error(`Detailed error for integration ${integrationPath}:`, error);
-            return null;
-        }
+    getModuleIndex(genome) {
+        return genome?.metadata?.moduleIndex || null;
     }
-    /**
-     * Load adapter from marketplace
-     */
-    async loadAdapter(category, adapterId) {
-        const cacheKey = `${category}/${adapterId}`;
-        // Check cache first
-        if (this.cache.has(cacheKey)) {
-            return this.cache.get(cacheKey);
-        }
-        try {
-            const moduleId = `${category}/${adapterId}`;
-            // Load module config and blueprint using centralized services
-            const adapterJson = await MarketplaceService.loadModuleConfig(moduleId);
-            const blueprint = await MarketplaceService.loadModuleBlueprint(moduleId);
-            const adapter = {
-                config: adapterJson,
-                blueprint: blueprint
-            };
-            // Cache the result
-            this.cache.set(cacheKey, adapter);
-            return adapter;
-        }
-        catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            const errorStack = error instanceof Error ? error.stack : undefined;
-            Logger.error(`Failed to load adapter ${cacheKey}`, {
-                operation: 'load_adapter',
-                error: errorMessage,
-                stack: errorStack,
-                category,
-                adapterId
-            });
-            console.error(`Detailed error for ${cacheKey}:`, error);
+    resolveModuleDefinition(moduleId, existingModule, moduleIndex, parametersOverride) {
+        const metadata = moduleIndex ? moduleIndex[moduleId] : undefined;
+        if (!existingModule && !metadata) {
             return null;
         }
-    }
-    /**
-     * Load feature from marketplace
-     * Handles both direct feature references and subdirectory structure
-     */
-    async loadFeature(featureName) {
-        const cacheKey = `features/${featureName}`;
-        // Check cache first
-        if (this.cache.has(cacheKey)) {
-            return this.cache.get(cacheKey);
-        }
-        try {
-            // Try different feature path patterns
-            const possiblePaths = [
-                `features/${featureName}`, // Direct feature reference (e.g., features/architech-welcome)
-                `features/${featureName}/frontend/shadcn`, // Subdirectory structure (e.g., features/auth/frontend/shadcn)
-                `features/${featureName}/shadcn`, // Alternative subdirectory structure
-                `features/${featureName}/nextjs`, // Another alternative
-            ];
-            let featureJson = null;
-            let blueprint = null;
-            let successfulPath = null;
-            // Try each possible path until one works
-            for (const moduleId of possiblePaths) {
-                try {
-                    featureJson = await MarketplaceService.loadModuleConfig(moduleId);
-                    blueprint = await MarketplaceService.loadModuleBlueprint(moduleId);
-                    successfulPath = moduleId;
-                    break;
-                }
-                catch {
-                    // Continue trying next path
-                    continue;
-                }
-            }
-            if (!featureJson || !blueprint) {
-                throw new Error(`Feature not found: ${featureName}. Tried paths: ${possiblePaths.join(', ')}`);
-            }
-            const feature = {
-                config: featureJson,
-                blueprint: blueprint,
-                path: successfulPath
-            };
-            // Cache the result
-            this.cache.set(cacheKey, feature);
-            return feature;
-        }
-        catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            const errorStack = error instanceof Error ? error.stack : undefined;
-            Logger.error(`Failed to load feature ${featureName}`, {
-                operation: 'load_feature',
-                error: errorMessage,
-                stack: errorStack,
-                featureName
-            });
-            console.error(`Detailed error for feature ${featureName}:`, error);
-            return null;
-        }
+        const resolved = {
+            ...(existingModule || { id: moduleId, parameters: {} }),
+            id: moduleId,
+            category: existingModule?.category || metadata?.category || metadata?.type || 'module',
+            parameters: {
+                ...(existingModule?.parameters || {}),
+                ...(parametersOverride || {})
+            },
+            parameterSchema: existingModule?.parameterSchema || metadata?.parameters,
+            features: existingModule?.features || {},
+            externalFiles: existingModule?.externalFiles || [],
+            source: existingModule?.source || metadata?.source,
+            manifest: existingModule?.manifest || metadata?.manifest,
+            blueprint: existingModule?.blueprint || metadata?.blueprint,
+            templates: existingModule?.templates && existingModule.templates.length > 0
+                ? existingModule.templates
+                : metadata?.templates || [],
+            marketplace: existingModule?.marketplace || metadata?.marketplace,
+            resolved: existingModule?.resolved || metadata?.resolved
+        };
+        return resolved;
     }
     /**
      * Get cached adapter

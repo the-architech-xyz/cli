@@ -55,17 +55,15 @@ export class DynamicConnectorResolver {
     async scanAllConnectors() {
         const connectors = [];
         const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
-        const connectorsPath = path.join(marketplaceRoot, 'connectors');
-        if (!await this.directoryExists(connectorsPath)) {
-            Logger.warn('Connectors directory not found', { path: connectorsPath });
-            return connectors;
-        }
-        const connectorDirs = await fs.readdir(connectorsPath);
-        for (const dir of connectorDirs) {
-            const connectorPath = path.join(connectorsPath, dir);
-            if (await this.isDirectory(connectorPath)) {
+        const manifestPath = path.join(marketplaceRoot, 'manifest.json');
+        try {
+            const manifestContent = await fs.readFile(manifestPath, 'utf-8');
+            const manifest = JSON.parse(manifestContent);
+            const entries = manifest?.modules?.connectors || [];
+            for (const entry of entries) {
                 try {
-                    const config = await MarketplaceService.loadModuleConfig(`connectors/${dir}`);
+                    const module = this.createModuleFromManifestEntry(entry, marketplaceRoot);
+                    const config = await MarketplaceService.loadModuleConfig(module);
                     connectors.push({
                         id: config.id,
                         requires: config.requires || [],
@@ -74,12 +72,18 @@ export class DynamicConnectorResolver {
                     });
                 }
                 catch (error) {
-                    Logger.warn(`Failed to load connector config: ${dir}`, {
+                    Logger.warn(`Failed to load connector metadata for ${entry?.id}`, {
                         error: error instanceof Error ? error.message : 'Unknown error'
                     });
                     continue;
                 }
             }
+        }
+        catch (error) {
+            Logger.error('Unable to read marketplace manifest for connectors', {
+                path: manifestPath,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
         }
         return connectors;
     }
@@ -107,29 +111,34 @@ export class DynamicConnectorResolver {
         }
         return null;
     }
-    /**
-     * Check if directory exists
-     */
-    async directoryExists(dirPath) {
-        try {
-            const stat = await fs.stat(dirPath);
-            return stat.isDirectory();
+    createModuleFromManifestEntry(entry, marketplaceRoot) {
+        if (!entry?.id || !entry?.manifest?.file || !entry?.blueprint?.file) {
+            throw new Error(`Invalid manifest entry for module ${entry?.id ?? '<unknown>'}`);
         }
-        catch {
-            return false;
-        }
-    }
-    /**
-     * Check if path is a directory
-     */
-    async isDirectory(dirPath) {
-        try {
-            const stat = await fs.stat(dirPath);
-            return stat.isDirectory();
-        }
-        catch {
-            return false;
-        }
+        const module = {
+            id: entry.id,
+            category: entry.category || entry.type || 'connector',
+            parameters: {},
+            parameterSchema: entry.parameters || {},
+            features: {},
+            externalFiles: [],
+            config: undefined,
+            source: entry.source,
+            manifest: entry.manifest,
+            blueprint: entry.blueprint,
+            templates: entry.templates || [],
+            marketplace: {
+                name: entry.marketplace?.name || 'core',
+                root: entry.marketplace?.root || marketplaceRoot
+            },
+            resolved: {
+                root: path.join(marketplaceRoot, entry.source?.root || ''),
+                manifest: path.join(marketplaceRoot, entry.manifest.file),
+                blueprint: path.join(marketplaceRoot, entry.blueprint.file),
+                templates: (entry.templates || []).map((template) => path.join(marketplaceRoot, template))
+            }
+        };
+        return module;
     }
 }
 //# sourceMappingURL=dynamic-connector-resolver.js.map

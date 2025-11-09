@@ -214,33 +214,46 @@ export class JsxChildrenWrapperModifier extends BaseModifier {
       const tagName = openingElement.getTagNameNode().getText();
 
       if (tagName === targetElement) {
-        // Check if children contains {children} expression
-        const children = element.getJsxChildren();
-        const hasChildrenExpression = children.some((child: any) => {
-          if (child.getKind() === SyntaxKind.JsxExpression) {
-            const expr = child.getExpression();
-            return expr && expr.getText() === 'children';
+        // Helper to recursively find {children} expression
+        const findChildrenExpression = (node: any): any => {
+          if (!node) return null;
+          
+          if (node.getKind() === SyntaxKind.JsxExpression) {
+            const expr = node.getExpression();
+            if (expr && expr.getText() === 'children') {
+              return node;
+            }
           }
-          return false;
-        });
+          
+          // Check nested JSX elements
+          if (node.getKind() === SyntaxKind.JsxElement) {
+            const nestedChildren = node.getJsxChildren();
+            for (const nestedChild of nestedChildren) {
+              const found = findChildrenExpression(nestedChild);
+              if (found) return found;
+            }
+          }
+          
+          return null;
+        };
 
-        if (hasChildrenExpression) {
+        // Search through all children of the body element
+        const children = element.getJsxChildren();
+        let childrenExpression: any = null;
+        
+        for (const child of children) {
+          childrenExpression = findChildrenExpression(child);
+          if (childrenExpression) break;
+        }
+        
+        if (childrenExpression) {
           // Build the wrapped structure
           const wrappedJsx = this.buildWrappedStructure(providers);
           
-          // Replace children
-          element.getJsxChildren().forEach((child: any) => {
-            if (child.getKind() === SyntaxKind.JsxExpression) {
-              const expr = child.getExpression();
-              if (expr && expr.getText() === 'children') {
-                // Replace {children} with wrapped structure
-                child.replaceWithText(wrappedJsx);
-                found = true;
-              }
-            }
-          });
-
-          if (found) break;
+          // Replace {children} with wrapped structure
+          childrenExpression.replaceWithText(wrappedJsx);
+          found = true;
+          break;
         }
       }
     }

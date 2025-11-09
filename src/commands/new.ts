@@ -7,7 +7,7 @@
 
 import { Command } from 'commander';
 import { readFileSync } from 'fs';
-import { join, resolve } from 'path';
+import { join, resolve, dirname } from 'path';
 import { execSync } from 'child_process';
 import inquirer from 'inquirer';
 import { Genome } from '@thearchitech.xyz/types';
@@ -18,7 +18,7 @@ import { EnhancedLogger } from '../core/cli/enhanced-logger.js';
 import { ModuleService } from '../core/services/module-management/module-service.js';
 import { CacheManagerService } from '../core/services/infrastructure/cache/cache-manager.js';
 import { ErrorHandler } from '../core/services/infrastructure/error/index.js';
-import { GenomeResolverFactory } from '../core/services/genome-resolution/index.js';
+import { createGenomeResolver } from '../core/services/genome-resolution/index.js';
 import { GenomeTransformationService } from '@thearchitech.xyz/genome-transformer';
 import { MarketplaceRegistry } from '../core/services/marketplace/marketplace-registry.js';
 
@@ -70,7 +70,7 @@ export function createNewCommand(): Command {
         
         // GENOME RESOLUTION LAYER (NEW!)
         logger.info('🔍 Resolving genome...');
-        const resolver = GenomeResolverFactory.createDefault();
+        const resolver = createGenomeResolver();
         let resolved;
         
         try {
@@ -118,7 +118,15 @@ export function createNewCommand(): Command {
         
         // Transform genome (handles both capability-first and module-first genomes)
         logger.info('🔄 Transforming genome...');
+        logger.debug('Genome snapshot before transformation', {
+          hasModules: Array.isArray(rawGenome.modules),
+          moduleCount: Array.isArray(rawGenome.modules) ? rawGenome.modules.length : 0,
+          transformationMode: rawGenome.transformation?.mode || rawGenome.options?.transformation?.mode,
+        });
+
+        await configureMarketplaceOverrides(rawGenome, genomePath, logger);
         const marketplacePath = await MarketplaceRegistry.getCoreMarketplacePath();
+        const { transformerOptions, mode: transformationMode } = resolveTransformationOptions(rawGenome, logger);
         const genomeTransformer = new GenomeTransformationService({
           marketplacePath,
           logger: {
@@ -127,12 +135,7 @@ export function createNewCommand(): Command {
             warn: (msg: string, meta?: any) => logger.warn(msg),
             error: (msg: string, meta?: any) => logger.error(msg),
           },
-          options: {
-            enableCapabilityResolution: true,
-            enableAutoInclusion: true,
-            enableParameterDistribution: true,
-            enableConnectorAutoInclusion: true,
-          }
+          options: transformerOptions,
         });
 
         const transformationResult = await genomeTransformer.transform(rawGenome);
@@ -157,6 +160,18 @@ export function createNewCommand(): Command {
           version: module.version || 'latest',
           parameters: module.parameters || {},
         }));
+
+        if (transformationMode === 'opinionated') {
+          (validatedGenome.project as any).skipFrameworkSetup = true;
+          if (!validatedGenome.options) {
+            validatedGenome.options = {} as any;
+          }
+          (validatedGenome.options as any).skipFrameworkSetup = true;
+          (validatedGenome as any).metadata = {
+            ...(validatedGenome as any).metadata,
+            transformationMode,
+          };
+        }
         
         // Auto-generate project path if missing
         if (!validatedGenome.project.path) {
@@ -229,6 +244,106 @@ export function createNewCommand(): Command {
   return command;
 }
 
+interface TransformationOptionsConfig {
+  enableCapabilityResolution: boolean;
+  enableAutoInclusion: boolean;
+  enableParameterDistribution: boolean;
+  enableConnectorAutoInclusion: boolean;
+}
+
+interface ResolvedTransformationOptions {
+  mode: 'opinionated' | 'agnostic';
+  transformerOptions: TransformationOptionsConfig;
+}
+
+function resolveTransformationOptions(rawGenome: any, logger: Logger): ResolvedTransformationOptions {
+  const defaultOptions: TransformationOptionsConfig = {
+    enableCapabilityResolution: true,
+    enableAutoInclusion: true,
+    enableParameterDistribution: true,
+    enableConnectorAutoInclusion: true,
+  };
+
+  let mode: 'opinionated' | 'agnostic' = 'agnostic';
+
+  if (!rawGenome || typeof rawGenome !== 'object') {
+    return { mode, transformerOptions: defaultOptions };
+  }
+
+  const transformationConfig = rawGenome.transformation || rawGenome.options?.transformation;
+  const declaredMode: string | undefined =
+    transformationConfig?.mode || rawGenome.meta?.transformation?.mode;
+
+  if (declaredMode === 'opinionated') {
+    logger.info('🧩 Using opinionated transformation mode (marketplace-controlled)');
+    mode = 'opinionated';
+    return {
+      mode,
+      transformerOptions: {
+      enableCapabilityResolution: false,
+      enableAutoInclusion: false,
+      enableParameterDistribution: false,
+      enableConnectorAutoInclusion: false,
+      },
+    };
+  }
+
+  if (declaredMode === 'agnostic') {
+    logger.info('🧩 Using agnostic transformation mode (default pipeline)');
+    mode = 'agnostic';
+    return { mode, transformerOptions: defaultOptions };
+  }
+
+  if (transformationConfig?.options && typeof transformationConfig.options === 'object') {
+    logger.info('🧩 Applying custom transformation options from genome metadata');
+    return {
+      mode,
+      transformerOptions: {
+        enableCapabilityResolution:
+          transformationConfig.options.enableCapabilityResolution ?? defaultOptions.enableCapabilityResolution,
+        enableAutoInclusion:
+          transformationConfig.options.enableAutoInclusion ?? defaultOptions.enableAutoInclusion,
+        enableParameterDistribution:
+          transformationConfig.options.enableParameterDistribution ?? defaultOptions.enableParameterDistribution,
+        enableConnectorAutoInclusion:
+          transformationConfig.options.enableConnectorAutoInclusion ?? defaultOptions.enableConnectorAutoInclusion,
+      },
+    };
+  }
+
+  return { mode, transformerOptions: defaultOptions };
+}
+
+async function configureMarketplaceOverrides(rawGenome: any, genomePath: string, logger: Logger): Promise<void> {
+  if (!rawGenome || typeof rawGenome !== 'object') {
+    return;
+  }
+
+  const marketplaceConfig = rawGenome.marketplace || rawGenome.marketplaces;
+  if (!marketplaceConfig || typeof marketplaceConfig !== 'object') {
+    return;
+  }
+
+  const overrides = marketplaceConfig.overrides || marketplaceConfig;
+  const baseDir = dirname(genomePath);
+
+  if (overrides.core) {
+    const coreOverridePath = resolve(baseDir, String(overrides.core));
+    MarketplaceRegistry.setMarketplacePath('core', coreOverridePath);
+    logger.info('🛒 Using custom core marketplace override', { corePath: coreOverridePath });
+  }
+
+  const uiOverrides = overrides.ui || marketplaceConfig.ui;
+  if (uiOverrides && typeof uiOverrides === 'object') {
+    for (const [uiName, relativePath] of Object.entries(uiOverrides)) {
+      if (!relativePath) continue;
+      const uiOverridePath = resolve(baseDir, String(relativePath));
+      MarketplaceRegistry.setMarketplacePath(uiName, uiOverridePath);
+      logger.info('🛒 Registered UI marketplace override', { uiName, path: uiOverridePath });
+    }
+  }
+}
+
 /**
  * Execute a TypeScript genome file and return the Genome object
  */
@@ -264,7 +379,11 @@ console.log(JSON.stringify(genome));
       unlinkSync(tempScriptPath);
       
       // Parse the JSON result
-      const genome = JSON.parse(result.trim());
+      logger.debug('Genome loader raw output', { output: result.trim() });
+      const parsedGenome = JSON.parse(result.trim());
+      const genome = parsedGenome && typeof parsedGenome === 'object' && 'default' in parsedGenome
+        ? (parsedGenome as any).default
+        : parsedGenome;
       logger.info('✅ TypeScript genome executed successfully');
       
       return genome;
@@ -372,28 +491,12 @@ function showDryRunPreview(genome: Genome, logger: Logger): void {
 async function showGenomeList(logger: Logger): Promise<void> {
   logger.info('📚 Available Genomes:\n');
   
-  const resolver = GenomeResolverFactory.createDefault();
-  const genomes = await resolver.getAvailableGenomes();
-  
-  logger.info('🟢 Simple (Quick start, minimal setup):');
-  logger.info('  • hello-world, minimal');
-  logger.info('');
-  
-  logger.info('🟡 Intermediate (Common use cases):');
-  logger.info('  • saas-starter, saas, full-saas');
-  logger.info('  • blog, blog-starter');
-  logger.info('  • ai-app, ai-chat, ai-powered');
-  logger.info('');
-  
-  logger.info('🔴 Advanced (Full-featured):');
-  logger.info('  • web3, dapp, blockchain');
-  logger.info('  • showcase, ultimate, demo');
-  logger.info('');
-  
-  logger.info('💡 Usage:');
-  logger.info('  architech new --genome hello-world');
-  logger.info('  architech new --genome saas-starter');
-  logger.info('  architech new /path/to/custom.genome.ts\n');
+  logger.info('🧬 Available genomes:\n');
+  logger.info('  • hello-world');
+  logger.info('  • saas-starter');
+  logger.info('  • ai-chat');
+  logger.info('  • blog');
+  logger.info('\nUse --genome to select one of these.');
 }
 
 /**

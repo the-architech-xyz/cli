@@ -9,6 +9,7 @@ import { BaseActionHandler } from './base-action-handler.js';
 import { ArchitechError } from '../../../infrastructure/error/architech-error.js';
 import { TemplateService } from '../../../file-system/template/template-service.js';
 import { MarketplaceService } from '../../../marketplace/marketplace-service.js';
+import * as path from 'path';
 export class CreateFileHandler extends BaseActionHandler {
     enhanceFileHandler = null;
     constructor(enhanceFileHandler) {
@@ -29,7 +30,19 @@ export class CreateFileHandler extends BaseActionHandler {
             return { success: false, error: 'CREATE_FILE action missing path' };
         }
         // Process template path using TemplateService for full path variable support
+        // Paths are resolved as absolute (package-prefixed) in monorepo or relative in single-repo
+        // VFS will handle normalization based on its contextRoot
         const filePath = TemplateService.processTemplate(createAction.path, context);
+        // Validate that no unresolved path variables remain
+        const unresolvedPathPattern = /\$\{paths\.([^}]+)\}/g;
+        const unresolvedMatches = filePath.match(unresolvedPathPattern);
+        if (unresolvedMatches && unresolvedMatches.length > 0) {
+            const availablePaths = context.pathHandler?.getAvailablePaths() || [];
+            return {
+                success: false,
+                error: `Unresolved path variables in file path: ${unresolvedMatches.join(', ')}. Available paths: ${availablePaths.join(', ')}. Original path: ${createAction.path}`
+            };
+        }
         // Handle both content and template properties first
         let content;
         if (createAction.template) {
@@ -84,6 +97,25 @@ export class CreateFileHandler extends BaseActionHandler {
                     }
                 case 'merge':
                     console.log(`  🔀 Merging with existing file: ${filePath}`);
+                    // Auto-detect merge strategy for JSON files if mergeInstructions not provided
+                    if (!createAction.mergeInstructions && filePath.endsWith('.json')) {
+                        // For package.json, use package-json-merger
+                        if (filePath === 'package.json' || filePath.endsWith('/package.json')) {
+                            createAction.mergeInstructions = {
+                                modifier: ModifierType.PACKAGE_JSON_MERGER,
+                                strategy: 'deep-merge',
+                                params: {}
+                            };
+                        }
+                        else {
+                            // For other JSON files, use json-merger
+                            createAction.mergeInstructions = {
+                                modifier: ModifierType.JSON_MERGER,
+                                strategy: 'deep-merge',
+                                params: {}
+                            };
+                        }
+                    }
                     return await this.handleDelegationMerge(action, context, projectRoot, vfs, filePath, createAction);
                 case 'error':
                 default:
@@ -96,10 +128,24 @@ export class CreateFileHandler extends BaseActionHandler {
         try {
             // Create file in VFS (unified VFS mode)
             vfs.createFile(filePath, content);
+            const createdFiles = [filePath];
+            let message = `File created: ${filePath}`;
+            // Auto-generate wrappers if this is a shared route
+            if (this.shouldAutoGenerateWrappers(filePath, createAction, context)) {
+                try {
+                    const wrapperFiles = await this.generateWrappers(createAction, context, vfs, filePath);
+                    createdFiles.push(...wrapperFiles);
+                    message = `File created: ${filePath} with ${wrapperFiles.length} wrapper(s)`;
+                }
+                catch (wrapperError) {
+                    console.warn(`⚠️  Failed to generate wrappers: ${wrapperError instanceof Error ? wrapperError.message : 'Unknown error'}`);
+                    // Continue even if wrapper generation fails - main file was created
+                }
+            }
             return {
                 success: true,
-                files: [filePath],
-                message: `File created: ${filePath}`
+                files: createdFiles,
+                message
             };
         }
         catch (error) {
@@ -139,7 +185,7 @@ export class CreateFileHandler extends BaseActionHandler {
             }
             // For js-config-merger, we need to parse the content to extract properties
             let targetProperties = null;
-            if (createAction.mergeInstructions.modifier === 'js-config-merger') {
+            if (createAction.mergeInstructions.modifier === ModifierType.JS_CONFIG_MERGER) {
                 try {
                     // Parse the JavaScript content to extract the config object
                     targetProperties = await this.parseJsConfigContent(newContent, createAction.mergeInstructions.params?.exportName || 'default');
@@ -151,13 +197,28 @@ export class CreateFileHandler extends BaseActionHandler {
                     };
                 }
             }
+            // For package-json-merger and json-merger, parse JSON content
+            let mergeParams = { ...createAction.mergeInstructions.params };
+            if (createAction.mergeInstructions.modifier === ModifierType.PACKAGE_JSON_MERGER ||
+                createAction.mergeInstructions.modifier === ModifierType.JSON_MERGER) {
+                try {
+                    const parsedContent = JSON.parse(newContent);
+                    mergeParams.merge = parsedContent;
+                }
+                catch (error) {
+                    return {
+                        success: false,
+                        error: `Failed to parse JSON content for merge: ${error instanceof Error ? error.message : 'Invalid JSON'}`
+                    };
+                }
+            }
             // Dynamically construct ENHANCE_FILE action
             const enhanceAction = {
                 type: BlueprintActionType.ENHANCE_FILE,
                 path: filePath,
                 modifier: createAction.mergeInstructions.modifier || ModifierType.JS_CONFIG_MERGER,
                 params: {
-                    ...createAction.mergeInstructions.params,
+                    ...mergeParams,
                     content: newContent,
                     targetProperties: targetProperties,
                     strategy: createAction.mergeInstructions.strategy || 'deep-merge'
@@ -270,6 +331,143 @@ export class CreateFileHandler extends BaseActionHandler {
             mergedContext.features = actionContext.features;
         }
         return mergedContext;
+    }
+    /**
+     * Check if file should have auto-generated wrappers
+     */
+    shouldAutoGenerateWrappers(filePath, action, context) {
+        const createAction = action;
+        // 1. Explicit enable
+        if (createAction.sharedRoutes?.enabled === true) {
+            return true;
+        }
+        // 2. Explicit disable
+        if (createAction.sharedRoutes?.enabled === false) {
+            return false;
+        }
+        // 3. Auto-detect (default behavior)
+        return this.isSharedRoute(filePath, context);
+    }
+    /**
+     * Check if file is a shared route component
+     */
+    isSharedRoute(filePath, context) {
+        // Must be in shared package routes
+        if (!filePath.includes('shared') || !filePath.includes('routes/')) {
+            return false;
+        }
+        // Must follow Page naming convention (*Page.tsx)
+        if (!filePath.match(/[A-Z]\w+Page\.tsx?$/)) {
+            return false;
+        }
+        // Must have multiple frontend apps
+        const frontendApps = context.frontendApps || [];
+        if (frontendApps.length < 2) {
+            return false;
+        }
+        return true;
+    }
+    /**
+     * Generate wrappers for shared routes
+     */
+    async generateWrappers(action, context, vfs, sharedComponentPath) {
+        const createAction = action;
+        const frontendApps = context.frontendApps || [];
+        const generatedFiles = [];
+        if (frontendApps.length === 0) {
+            return generatedFiles;
+        }
+        // Determine target apps
+        const targetApps = createAction.sharedRoutes?.apps ||
+            frontendApps.map((app) => app.type);
+        // Extract route info
+        const routePath = createAction.sharedRoutes?.routePath ||
+            this.extractRoutePath(sharedComponentPath, context);
+        const componentName = createAction.sharedRoutes?.componentName ||
+            this.extractComponentName(sharedComponentPath);
+        // Generate wrapper for each app
+        for (const appType of targetApps) {
+            const app = frontendApps.find((a) => a.type === appType);
+            if (!app)
+                continue;
+            const wrapperPath = this.getWrapperPath(appType, routePath, app.package, app.framework);
+            const wrapperContent = this.generateWrapperContent(appType, componentName, sharedComponentPath, app.framework);
+            // Create wrapper file
+            vfs.createFile(wrapperPath, wrapperContent);
+            generatedFiles.push(wrapperPath);
+            console.log(`  ✅ Auto-generated ${appType} wrapper: ${wrapperPath}`);
+        }
+        return generatedFiles;
+    }
+    /**
+     * Get wrapper file path for app
+     */
+    getWrapperPath(appType, routePath, appPackage, framework) {
+        if (appType === 'web' && framework === 'nextjs') {
+            // Next.js: apps/web/src/app/(auth)/login/page.tsx
+            return `${appPackage}/src/app/${routePath}/page.tsx`;
+        }
+        else if (appType === 'mobile' && framework === 'expo') {
+            // Expo Router: apps/mobile/app/(auth)/login.tsx
+            return `${appPackage}/app/${routePath}.tsx`;
+        }
+        throw new Error(`Unsupported app type/framework: ${appType}/${framework}`);
+    }
+    /**
+     * Generate wrapper content
+     */
+    generateWrapperContent(appType, componentName, sharedComponentPath, framework) {
+        const importPath = this.convertToImportPath(sharedComponentPath);
+        if (appType === 'web' && framework === 'nextjs') {
+            return `'use client';
+import { ${componentName} } from '${importPath}';
+
+export default ${componentName};`;
+        }
+        else if (appType === 'mobile' && framework === 'expo') {
+            return `import { ${componentName} } from '${importPath}';
+
+export default ${componentName};`;
+        }
+        throw new Error(`Unsupported app type/framework: ${appType}/${framework}`);
+    }
+    /**
+     * Convert file path to import path
+     */
+    convertToImportPath(filePath) {
+        // Remove file extension
+        let importPath = filePath.replace(/\.tsx?$/, '');
+        // Convert packages/shared/... to @repo/shared/...
+        if (importPath.startsWith('packages/shared/')) {
+            importPath = importPath.replace('packages/shared/', '@repo/shared/');
+        }
+        return importPath;
+    }
+    /**
+     * Extract route path from file path
+     */
+    extractRoutePath(filePath, context) {
+        // packages/shared/routes/auth/LoginPage.tsx → (auth)/login
+        // Remove package prefix
+        let routePath = filePath.replace(/^packages\/shared\/routes\//, '');
+        // Get directory structure
+        const dirPath = path.dirname(routePath);
+        // Extract component name and convert to route name
+        const fileName = path.basename(filePath, path.extname(filePath));
+        const routeName = fileName.replace(/Page$/, '').toLowerCase();
+        // Combine: auth + login → (auth)/login
+        // If dirPath is '.', just use routeName
+        if (dirPath === '.' || dirPath === '') {
+            return routeName;
+        }
+        return `${dirPath}/${routeName}`;
+    }
+    /**
+     * Extract component name from file path
+     */
+    extractComponentName(filePath) {
+        const fileName = path.basename(filePath, path.extname(filePath));
+        return fileName;
     }
 }
 //# sourceMappingURL=create-file-handler.js.map

@@ -89,9 +89,13 @@ export class BlueprintPreprocessor {
                     actions
                 };
             }
-            // Invalid blueprint module
             Logger.error('❌ Invalid blueprint module format', {
-                operation: 'blueprint_preprocessing'
+                operation: 'blueprint_preprocessing',
+                blueprintStructure: {
+                    hasDefault: !!blueprintModule.default,
+                    hasActions: !!blueprintModule.actions,
+                    hasBlueprint: !!blueprintModule.blueprint
+                }
             });
             return {
                 success: false,

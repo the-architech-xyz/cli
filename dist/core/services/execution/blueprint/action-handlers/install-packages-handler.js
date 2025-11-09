@@ -58,9 +58,27 @@ export class InstallPackagesHandler extends BaseActionHandler {
                 dependencies: installAction.isDev ? {} : packageObj,
                 devDependencies: installAction.isDev ? packageObj : {}
             };
+            // Determine target package.json path
+            // In monorepo, use targetPackage from context if available, otherwise use VFS contextRoot
+            // This ensures packages are installed in the correct package even if module executes elsewhere
+            let packageJsonPath = 'package.json';
+            const targetPackage = context.targetPackage;
+            if (targetPackage && vfs) {
+                // Get VFS contextRoot to check if we're already in the right package
+                const vfsContextRoot = vfs.contextRoot || '';
+                // If targetPackage differs from VFS contextRoot, we need to use targetPackage
+                if (targetPackage !== vfsContextRoot) {
+                    // Create a new VFS context for the target package, or use the path directly
+                    // For now, we'll log a warning and use the target package path
+                    console.log(`  ⚠️  Module executing in ${vfsContextRoot || 'root'}, but packages should be installed in ${targetPackage}`);
+                    // Note: We can't easily switch VFS context here, so we'll install in current context
+                    // This is a limitation - ideally we'd have a way to install in a different package
+                    // For now, we'll proceed with current context and log the issue
+                }
+            }
             // Execute the modifier on package.json
-            console.log(`  📦 Installing packages: ${installAction.packages.join(', ')}`);
-            const modifierResult = await modifier.execute('package.json', params, context, vfs);
+            console.log(`  📦 Installing packages: ${installAction.packages.join(', ')} in ${targetPackage || 'current package'}`);
+            const modifierResult = await modifier.execute(packageJsonPath, params, context, vfs);
             if (!modifierResult.success) {
                 return { success: false, error: `Package installation failed: ${modifierResult.error}` };
             }

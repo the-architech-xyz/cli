@@ -113,10 +113,39 @@ export declare class PathService {
      */
     getAvailablePaths(): string[];
     /**
+     * Get marketplace UI configuration from stored paths
+     *
+     * Constructs the marketplace.ui object from paths stored by PathInitializationService.
+     * This is the SINGLE SOURCE OF TRUTH - marketplace UI is initialized once and read-only after.
+     *
+     * @returns Marketplace UI configuration with default framework and paths
+     *
+     * @example
+     * ```typescript
+     * const marketplaceUI = pathHandler.getMarketplaceUI();
+     * // Returns: { default: 'tamagui', tamagui: '/path/to/marketplace-tamagui' }
+     * ```
+     */
+    getMarketplaceUI(): {
+        [framework: string]: string;
+        default: string;
+    };
+    /**
      * Resolve template variables in a string (for ${paths.key} patterns)
      * CHANGED: Now uses ${} syntax to avoid conflicts with template {{}} syntax
+     * ENHANCED: Supports complex expressions like ${paths.key1 || paths.key2}
      */
     resolveTemplate(template: string): string;
+    /**
+     * Resolve a path expression that may contain operators like ||, ?, etc.
+     * Supports:
+     * - Simple keys: "api" → getPath("api")
+     * - Fallback chains: "shared_library || paths.api" → try shared_library, fallback to api
+     * - Literal strings: "shared_library || './src/lib/'" → try shared_library, fallback to './src/lib/'
+     *
+     * CRITICAL: Ensures trailing slashes for directory paths to prevent concatenation issues
+     */
+    private resolvePathExpression;
     /**
      * Get fallback path for common keys
      */

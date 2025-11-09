@@ -1,0 +1,47 @@
+{
+  "version": "1.0.0",
+  "generatedAt": "2025-11-09T13:32:51.356Z",
+  "generator": {
+    "name": "@thearchitech.xyz/cli",
+    "version": "1.0.0"
+  },
+  "project": {
+    "name": "hello-world-starter",
+    "description": "A minimal, production-ready Next.js starter",
+    "framework": "nextjs"
+  },
+  "modules": [
+    {
+      "id": "adapters/ui/shadcn-ui",
+      "category": "adapters",
+      "parameters": {
+        "theme": "default",
+        "components": [
+          "alert",
+          "badge",
+          "button",
+          "card",
+          "checkbox",
+          "input",
+          "label",
+          "switch",
+          "tabs"
+        ]
+      }
+    },
+    {
+      "id": "features/architech-welcome",
+      "category": "features",
+      "parameters": {
+        "features": {
+          "techStack": true,
+          "componentShowcase": true,
+          "projectStructure": true,
+          "quickStart": true,
+          "architechBranding": true
+        }
+      }
+    }
+  ],
+  "features": []
+}

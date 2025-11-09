@@ -11,12 +11,12 @@ export declare class OrchestratorAgent {
     private projectManager;
     private pathHandler;
     private moduleService;
-    private blueprintAnalyzer;
     private cacheManager;
     private blueprintPreprocessor;
     private appManifestGenerator;
     private moduleConfigService;
     private componentDependencyResolver;
+    private projectBootstrapService;
     constructor(projectManager: ProjectManager);
     /**
      * Execute a recipe using unified dependency-driven execution
@@ -45,10 +45,6 @@ export declare class OrchestratorAgent {
      */
     private executeModule;
     /**
-     * Determine which package a module should be executed in
-     */
-    private determineTargetPackage;
-    /**
      * Install dependencies
      */
     private installDependencies;
@@ -71,10 +67,6 @@ export declare class OrchestratorAgent {
      */
     private getModuleType;
     /**
-     * Enforce hierarchical execution order (delegates to ModuleClassifier)
-     */
-    private enforceHierarchicalOrder;
-    /**
      * NEW: Check if module supports Constitutional Architecture
      */
     private isConstitutionalModule;
@@ -82,20 +74,4 @@ export declare class OrchestratorAgent {
      * Merge module configuration with user overrides (delegates to ModuleConfigurationService)
      */
     private mergeModuleConfiguration;
-    /**
-     * Merge parameter defaults with user overrides (delegates to ModuleConfigurationService)
-     */
-    private mergeParametersWithDefaults;
-    /**
-     * Apply marketplace defaults (delegates to ModuleAutoInclusionService)
-     */
-    private applyMarketplaceDefaults;
-    /**
-     * Auto-include tech-stack modules (delegates to ModuleAutoInclusionService)
-     */
-    private applyTechStackAutoInclusion;
-    /**
-     * Auto-include tRPC overrides (delegates to ModuleAutoInclusionService)
-     */
-    private applyTRPCOverrideAutoInclusion;
 }

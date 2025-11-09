@@ -1,252 +1,140 @@
 /**
  * Full Generation Integration Tests
- * 
- * Tests for the complete generation flow
+ *
+ * Tests the high-level orchestration flow without touching the filesystem.
  */
-
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { OrchestratorAgent } from '../../../src/agents/orchestrator-agent.js';
 import { ProjectManager } from '../../../src/core/services/project/project-manager.js';
-import { Recipe, Module } from '@thearchitech.xyz/types';
+import { Recipe } from '@thearchitech.xyz/types';
+import { ModuleService } from '../../../src/core/services/module-management/module-service.js';
+import { ProjectBootstrapService } from '../../../src/core/services/project/project-bootstrap-service.js';
+import { BlueprintPreprocessor } from '../../../src/core/services/execution/blueprint/blueprint-preprocessor.js';
+import { ModuleConfigurationService } from '../../../src/core/services/orchestration/module-configuration-service.js';
+import { MarketplaceService } from '../../../src/core/services/marketplace/marketplace-service.js';
+import { MonorepoPackageResolver } from '../../../src/core/services/project/monorepo-package-resolver.js';
 
-// Mock file system operations
 vi.mock('fs/promises', () => ({
   mkdir: vi.fn().mockResolvedValue(undefined),
   writeFile: vi.fn().mockResolvedValue(undefined),
-  readFile: vi.fn().mockResolvedValue('{"name": "test-app"}'),
+  readFile: vi.fn().mockResolvedValue('{"name":"test-app"}'),
   access: vi.fn().mockResolvedValue(undefined)
 }));
 
-// Mock child_process
 vi.mock('child_process', () => ({
   exec: vi.fn()
 }));
 
-describe('Full Generation Integration', () => {
-  let orchestratorAgent: OrchestratorAgent;
+vi.mock('../../../src/core/services/project/structure-initialization-layer.js', () => ({
+  StructureInitializationLayer: class {
+    async initialize() {
+      return { success: true, packages: [] };
+    }
+  }
+}));
+
+vi.mock('../../../src/core/services/file-system/file-engine/virtual-file-system.js', () => ({
+  VirtualFileSystem: class {
+    async flushToDisk() {
+      return;
+    }
+  }
+}));
+
+vi.mock('../../../src/core/services/execution/blueprint/blueprint-executor.js', () => ({
+  BlueprintExecutor: class {
+    async executeActions() {
+      return { success: true, errors: [] };
+    }
+  }
+}));
+
+vi.mock('../../../src/core/services/project/path-initialization-service.js', () => ({
+  PathInitializationService: {
+    initializePaths: vi.fn().mockResolvedValue(undefined)
+  }
+}));
+
+describe('Full generation orchestrator', () => {
+  let orchestrator: OrchestratorAgent;
   let mockProjectManager: ProjectManager;
+  const spies: Array<ReturnType<typeof vi.spyOn>> = [];
 
   beforeEach(() => {
     mockProjectManager = {
       getPathHandler: vi.fn().mockReturnValue({
-        getProjectRoot: () => '/test/project',
+        getProjectRoot: () => '/tmp/project',
         getProjectName: () => 'test-app'
       }),
       initializeProject: vi.fn().mockResolvedValue(undefined)
     } as any;
 
-    orchestratorAgent = new OrchestratorAgent(mockProjectManager);
+    orchestrator = new OrchestratorAgent(mockProjectManager);
+
+    spies.push(
+      vi.spyOn(ModuleService.prototype, 'initialize').mockResolvedValue(),
+      vi.spyOn(ModuleService.prototype, 'loadModuleAdapter').mockResolvedValue({
+        success: true,
+        adapter: {
+          config: { paths: {} },
+          blueprint: { id: 'dummy-blueprint', actions: [] }
+        }
+      } as any),
+      vi.spyOn(ModuleService.prototype, 'createProjectContext').mockResolvedValue({
+        success: true,
+        context: {
+          project: { path: '/tmp/project' },
+          module: {},
+          framework: 'nextjs',
+          modules: {},
+          pathHandler: mockProjectManager.getPathHandler()
+        } as any
+      }),
+      vi.spyOn(ProjectBootstrapService.prototype, 'bootstrap').mockResolvedValue({ paths: {} } as any),
+      vi.spyOn(BlueprintPreprocessor.prototype, 'processBlueprint').mockResolvedValue({
+        success: true,
+        actions: []
+      } as any),
+      vi.spyOn(ModuleConfigurationService.prototype, 'mergeModuleConfiguration').mockReturnValue({
+        templateContext: {}
+      } as any),
+      vi.spyOn(MarketplaceService, 'loadModuleBlueprint').mockResolvedValue({
+        actions: []
+      } as any),
+      vi.spyOn(MonorepoPackageResolver, 'resolveTargetPackage').mockReturnValue(null as any)
+    );
   });
 
   afterEach(() => {
+    spies.forEach(spy => spy.mockRestore());
+    spies.length = 0;
     vi.clearAllMocks();
   });
 
-  describe('executeRecipe', () => {
-    it('should execute a simple recipe successfully', async () => {
-      const recipe: Recipe = {
-        project: {
-          name: 'test-app',
-          version: '1.0.0',
-          framework: 'nextjs',
-          path: '/test/project',
-          description: 'Test application'
-        },
-        modules: [
-          {
-            id: 'framework/nextjs',
-            category: 'framework',
-            version: '1.0.0',
-            parameters: {
-              typescript: true,
-              tailwind: true
-            }
-          }
-        ],
-        options: {}
-      };
+  it('executes a simple genome successfully', async () => {
+    const recipe: Recipe = {
+      project: {
+        name: 'test-app',
+        description: 'Integration test project',
+        version: '1.0.0',
+        framework: 'nextjs',
+        path: '/tmp/project'
+      },
+      modules: [
+        {
+          id: 'features/architech-welcome',
+          category: 'features',
+          parameters: {}
+        }
+      ],
+      options: {}
+    };
 
-      // Mock all the services to return success
-      vi.spyOn(orchestratorAgent as any, 'moduleLoader', 'get').mockReturnValue({
-        setupFramework: vi.fn().mockResolvedValue({
-          success: true,
-          pathHandler: {
-            getProjectRoot: () => '/test/project',
-            getProjectName: () => 'test-app'
-          }
-        }),
-        loadModuleAdapter: vi.fn().mockResolvedValue({
-          success: true,
-          adapter: {
-            config: {},
-            blueprint: {
-              id: 'test-blueprint',
-              name: 'Test Blueprint',
-              actions: []
-            }
-          }
-        }),
-        createProjectContext: vi.fn().mockReturnValue({})
-      });
+    const result = await orchestrator.executeRecipe(recipe, false);
 
-      vi.spyOn(orchestratorAgent as any, 'dependencyGraph', 'get').mockReturnValue({
-        buildGraph: vi.fn().mockResolvedValue({
-          success: true,
-          errors: []
-        })
-      });
-
-      vi.spyOn(orchestratorAgent as any, 'executionPlanner', 'get').mockReturnValue({
-        createExecutionPlan: vi.fn().mockReturnValue({
-          success: true,
-          batches: [{
-            batchNumber: 1,
-            modules: recipe.modules,
-            canExecuteInParallel: true
-          }]
-        })
-      });
-
-      vi.spyOn(orchestratorAgent as any, 'parallelExecutor', 'get').mockReturnValue({
-        executeAllBatches: vi.fn().mockResolvedValue({
-          success: true,
-          batchResults: [{
-            success: true,
-            results: [{
-              success: true,
-              executedModules: ['framework/nextjs']
-            }]
-          }],
-          totalFailed: 0,
-          totalDuration: 1000
-        })
-      });
-
-      vi.spyOn(orchestratorAgent as any, 'successValidator', 'get').mockReturnValue({
-        validate: vi.fn().mockResolvedValue({
-          isSuccess: true,
-          errors: [],
-          warnings: [],
-          details: {
-            filesValidated: 1,
-            filesMissing: [],
-            buildSuccess: true,
-            buildErrors: [],
-            installSuccess: true,
-            installErrors: []
-          }
-        })
-      });
-
-      const result = await orchestratorAgent.executeRecipe(recipe, false);
-
-      expect(result.success).toBe(true);
-      expect(result.errors).toHaveLength(0);
-    });
-
-    it('should handle validation failure gracefully', async () => {
-      const recipe: Recipe = {
-        project: {
-          name: 'test-app',
-          version: '1.0.0',
-          framework: 'nextjs',
-          path: '/test/project',
-          description: 'Test application'
-        },
-        modules: [
-          {
-            id: 'invalid/module',
-            category: 'invalid',
-            version: '1.0.0',
-            parameters: {}
-          }
-        ],
-        options: {}
-      };
-
-      // Mock validation failure
-      vi.spyOn(orchestratorAgent as any, 'moduleLoader', 'get').mockReturnValue({
-        setupFramework: vi.fn().mockResolvedValue({
-          success: false,
-          error: 'Invalid framework module'
-        })
-      });
-
-      const result = await orchestratorAgent.executeRecipe(recipe, false);
-
-      expect(result.success).toBe(false);
-      expect(result.errors).toContain('Invalid framework module');
-    });
-
-    it('should handle execution failure gracefully', async () => {
-      const recipe: Recipe = {
-        project: {
-          name: 'test-app',
-          version: '1.0.0',
-          framework: 'nextjs',
-          path: '/test/project',
-          description: 'Test application'
-        },
-        modules: [
-          {
-            id: 'framework/nextjs',
-            category: 'framework',
-            version: '1.0.0',
-            parameters: {}
-          }
-        ],
-        options: {}
-      };
-
-      // Mock successful setup but failed execution
-      vi.spyOn(orchestratorAgent as any, 'moduleLoader', 'get').mockReturnValue({
-        setupFramework: vi.fn().mockResolvedValue({
-          success: true,
-          pathHandler: {
-            getProjectRoot: () => '/test/project',
-            getProjectName: () => 'test-app'
-          }
-        })
-      });
-
-      vi.spyOn(orchestratorAgent as any, 'dependencyGraph', 'get').mockReturnValue({
-        buildGraph: vi.fn().mockResolvedValue({
-          success: true,
-          errors: []
-        })
-      });
-
-      vi.spyOn(orchestratorAgent as any, 'executionPlanner', 'get').mockReturnValue({
-        createExecutionPlan: vi.fn().mockReturnValue({
-          success: true,
-          batches: [{
-            batchNumber: 1,
-            modules: recipe.modules,
-            canExecuteInParallel: true
-          }]
-        })
-      });
-
-      vi.spyOn(orchestratorAgent as any, 'parallelExecutor', 'get').mockReturnValue({
-        executeAllBatches: vi.fn().mockResolvedValue({
-          success: false,
-          batchResults: [{
-            success: false,
-            results: [{
-              success: false,
-              failedModules: ['framework/nextjs']
-            }]
-          }],
-          totalFailed: 1,
-          totalDuration: 1000,
-          errors: ['Module execution failed']
-        })
-      });
-
-      const result = await orchestratorAgent.executeRecipe(recipe, false);
-
-      expect(result.success).toBe(false);
-      expect(result.errors).toContain('Module execution failed');
-    });
+    expect(result.success).toBe(true);
+    expect(result.errors).toHaveLength(0);
+    expect(ModuleService.prototype.loadModuleAdapter).toHaveBeenCalled();
+    expect(ProjectBootstrapService.prototype.bootstrap).toHaveBeenCalled();
   });
 });

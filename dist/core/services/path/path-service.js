@@ -187,28 +187,53 @@ export class PathService {
         return Object.keys(this.pathMap);
     }
     /**
+     * Get marketplace UI configuration from stored paths
+     *
+     * Constructs the marketplace.ui object from paths stored by PathInitializationService.
+     * This is the SINGLE SOURCE OF TRUTH - marketplace UI is initialized once and read-only after.
+     *
+     * @returns Marketplace UI configuration with default framework and paths
+     *
+     * @example
+     * ```typescript
+     * const marketplaceUI = pathHandler.getMarketplaceUI();
+     * // Returns: { default: 'tamagui', tamagui: '/path/to/marketplace-tamagui' }
+     * ```
+     */
+    getMarketplaceUI() {
+        const uiFramework = this.pathMap['ui.framework'] || '';
+        const uiPath = this.pathMap['ui.path'] || '';
+        const marketplaceUI = { default: '' };
+        if (uiFramework && uiPath) {
+            marketplaceUI.default = uiFramework;
+            marketplaceUI[uiFramework] = uiPath;
+        }
+        return marketplaceUI;
+    }
+    /**
      * Resolve template variables in a string (for ${paths.key} patterns)
      * CHANGED: Now uses ${} syntax to avoid conflicts with template {{}} syntax
+     * ENHANCED: Supports complex expressions like ${paths.key1 || paths.key2}
      */
     resolveTemplate(template) {
         // Replace ${paths.key} patterns with actual resolved paths
         // NOTE: Also support legacy {{paths.key}} for backward compatibility during migration
-        // New syntax: ${paths.key}
-        let processed = template.replace(/\$\{paths\.([^}]+)\}/g, (match, key) => {
+        // New syntax: ${paths.key} or ${paths.key1 || paths.key2 || 'fallback'}
+        let processed = template.replace(/\$\{paths\.([^}]+)\}/g, (match, expression) => {
             try {
-                const resolved = this.getPath(key);
+                const resolved = this.resolvePathExpression(expression);
                 return resolved;
             }
             catch (error) {
-                console.warn(`⚠️  Path '${key}' not found in pathMap. Available paths: [${Object.keys(this.pathMap).join(', ')}]`);
-                return this.getFallbackPath(key, match);
+                console.warn(`⚠️  Path expression '${expression}' failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                return this.getFallbackPath(expression, match);
             }
         });
         // Legacy syntax: {{paths.key}} (for backward compatibility)
         processed = processed.replace(/\{\{paths\.([^}]+)\}\}/g, (match, key) => {
             console.warn(`⚠️  Legacy path syntax {{paths.${key}}} detected. Please update to \${paths.${key}}`);
             try {
-                const resolved = this.getPath(key);
+                const resolved = this.resolvePathExpression(key);
                 return resolved;
             }
             catch (error) {
@@ -216,6 +241,128 @@ export class PathService {
             }
         });
         return processed;
+    }
+    /**
+     * Resolve a path expression that may contain operators like ||, ?, etc.
+     * Supports:
+     * - Simple keys: "api" → getPath("api")
+     * - Fallback chains: "shared_library || paths.api" → try shared_library, fallback to api
+     * - Literal strings: "shared_library || './src/lib/'" → try shared_library, fallback to './src/lib/'
+     *
+     * CRITICAL: Ensures trailing slashes for directory paths to prevent concatenation issues
+     */
+    resolvePathExpression(expression) {
+        // Handle || operator: paths.shared_library || paths.api || './fallback'
+        if (expression.includes('||')) {
+            const parts = expression.split('||').map(p => p.trim()).filter(p => p.length > 0);
+            if (parts.length === 0) {
+                throw new Error('Empty path expression after splitting on ||');
+            }
+            for (const part of parts) {
+                let resolved = null;
+                // Check if it's a path reference (starts with "paths." or is a simple key)
+                if (part.startsWith('paths.')) {
+                    const key = part.replace('paths.', '').trim();
+                    try {
+                        resolved = this.getPath(key);
+                    }
+                    catch {
+                        continue; // Try next part
+                    }
+                }
+                else if (part.startsWith('"') || part.startsWith("'")) {
+                    // It's a literal string, remove quotes and return
+                    resolved = part.replace(/^["']|["']$/g, '');
+                }
+                else {
+                    // Try as a simple key (without "paths." prefix)
+                    try {
+                        resolved = this.getPath(part);
+                    }
+                    catch {
+                        continue; // Try next part
+                    }
+                }
+                // Ensure trailing slash for directory paths (unless it's a file path)
+                if (resolved && !resolved.endsWith('/') && !resolved.match(/\.\w+$/)) {
+                    resolved = resolved + '/';
+                }
+                if (resolved) {
+                    return resolved;
+                }
+            }
+            // If all parts failed, return the last part as fallback (even if it's not a valid path)
+            const lastPart = parts[parts.length - 1];
+            if (!lastPart) {
+                throw new Error('No fallback path found in expression');
+            }
+            if (lastPart.startsWith('"') || lastPart.startsWith("'")) {
+                const resolved = lastPart.replace(/^["']|["']$/g, '');
+                // Ensure trailing slash for directory paths
+                if (resolved && !resolved.endsWith('/') && !resolved.match(/\.\w+$/)) {
+                    return resolved + '/';
+                }
+                return resolved;
+            }
+            // Return the last part as-is (might be a fallback path)
+            // Ensure trailing slash if it looks like a directory path
+            if (lastPart && !lastPart.endsWith('/') && !lastPart.match(/\.\w+$/)) {
+                return lastPart + '/';
+            }
+            return lastPart;
+        }
+        // Handle ternary operator: condition ? paths.a : paths.b
+        if (expression.includes('?')) {
+            // For now, we'll parse simple ternary expressions
+            // More complex expressions can be added later if needed
+            const parts = expression.split('?').map(p => p.trim()).filter(p => p.length > 0);
+            if (parts.length === 2) {
+                const condition = parts[0];
+                const result = parts[1];
+                if (!condition || !result) {
+                    throw new Error('Invalid ternary expression: missing condition or result');
+                }
+                const resultParts = result.split(':').map(p => p.trim()).filter(p => p.length > 0);
+                if (resultParts.length === 2) {
+                    const truePath = resultParts[0];
+                    const falsePath = resultParts[1];
+                    if (!truePath || !falsePath) {
+                        throw new Error('Invalid ternary expression: missing true or false path');
+                    }
+                    // Simple condition check (for now, just check if key exists)
+                    // TODO: Support more complex conditions
+                    if (condition.includes('paths.')) {
+                        const key = condition.replace('paths.', '').trim();
+                        try {
+                            this.getPath(key);
+                            // Condition is true, use truePath
+                            const resolved = this.resolvePathExpression(truePath);
+                            // Ensure trailing slash for directory paths
+                            if (resolved && !resolved.endsWith('/') && !resolved.match(/\.\w+$/)) {
+                                return resolved + '/';
+                            }
+                            return resolved;
+                        }
+                        catch {
+                            // Condition is false, use falsePath
+                            const resolved = this.resolvePathExpression(falsePath);
+                            // Ensure trailing slash for directory paths
+                            if (resolved && !resolved.endsWith('/') && !resolved.match(/\.\w+$/)) {
+                                return resolved + '/';
+                            }
+                            return resolved;
+                        }
+                    }
+                }
+            }
+        }
+        // Simple path key (no operators)
+        const resolved = this.getPath(expression);
+        // Ensure trailing slash for directory paths (unless it's a file path)
+        if (resolved && !resolved.endsWith('/') && !resolved.match(/\.\w+$/)) {
+            return resolved + '/';
+        }
+        return resolved;
     }
     /**
      * Get fallback path for common keys

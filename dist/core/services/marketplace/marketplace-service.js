@@ -11,6 +11,7 @@ import * as path from 'path';
 import { PathService } from '../path/path-service.js';
 import { BlueprintLoader } from './blueprint-loader.js';
 import { MarketplaceRegistry } from './marketplace-registry.js';
+import { Logger } from '../infrastructure/logging/logger.js';
 export class MarketplaceService {
     /**
      * Load template content from marketplace
@@ -30,34 +31,19 @@ export class MarketplaceService {
         if (templateFile.startsWith('ui/')) {
             // Keep the full 'ui/...' path - UI marketplace root + ui/ directory structure
             const relativePath = templateFile; // Keep 'ui/architech-welcome/welcome-page.tsx.tpl'
-            // Get UI marketplace path from context or detect
-            let uiFramework = null;
-            let uiMarketplacePath = null;
-            if (context?.marketplace?.ui) {
-                uiFramework = context.marketplace.ui.default || null;
-                if (uiFramework) {
-                    uiMarketplacePath = context.marketplace.ui[uiFramework] || null;
-                }
+            // Get UI marketplace from context (SINGLE SOURCE OF TRUTH)
+            // Marketplace UI is initialized once by PathInitializationService and read-only after
+            if (!context?.marketplace?.ui) {
+                throw new Error(`Context or marketplace UI not available. ` +
+                    `Expected context.marketplace.ui to be set by PathInitializationService. ` +
+                    `Template: ${templateFile}`);
             }
-            // Fallback: detect from context parameters or auto-detect
-            if (!uiFramework && context?.parameters?.uiFramework) {
-                uiFramework = context.parameters.uiFramework;
-            }
-            // Resolve UI marketplace path if not in context
-            if (!uiMarketplacePath && uiFramework) {
-                uiMarketplacePath = await MarketplaceRegistry.getUIMarketplacePath(uiFramework);
-            }
-            // Final fallback: try to auto-detect
+            const uiFramework = context.marketplace.ui.default || null;
+            const uiMarketplacePath = uiFramework ? context.marketplace.ui[uiFramework] : null;
             if (!uiFramework || !uiMarketplacePath) {
-                const available = await MarketplaceRegistry.getAvailableUIMarketplaces();
-                if (available.length > 0 && available[0]) {
-                    uiFramework = available[0];
-                    uiMarketplacePath = await MarketplaceRegistry.getUIMarketplacePath(uiFramework);
-                }
-            }
-            if (!uiMarketplacePath) {
-                throw new Error(`Cannot resolve UI marketplace path for template: ${templateFile}. ` +
-                    `Please specify uiFramework in context or ensure a UI marketplace is available. ` +
+                throw new Error(`UI framework not initialized. ` +
+                    `Expected context.marketplace.ui.default to be set by PathInitializationService. ` +
+                    `Template: ${templateFile}, ` +
                     `Context marketplace: ${JSON.stringify(context?.marketplace)}`);
             }
             // Join UI marketplace root with full ui/... path
@@ -67,13 +53,63 @@ export class MarketplaceService {
                 return await fs.readFile(absolutePath, 'utf-8');
             }
             catch (error) {
-                const errorMsg = error instanceof Error ? error.message : String(error);
-                throw new Error(`UI template file not found: ${absolutePath}\n` +
-                    `UI Framework: ${uiFramework}\n` +
-                    `UI Marketplace Path: ${uiMarketplacePath}\n` +
-                    `Relative Path: ${relativePath}\n` +
-                    `Template: ${templateFile}\n` +
-                    `Error: ${errorMsg}`);
+                // Fallback: Try core marketplace if template doesn't exist in UI marketplace
+                // This handles cases where a template exists in one UI marketplace (e.g., shadcn) but not another (e.g., tamagui)
+                const coreMarketplacePath = context?.marketplace?.core;
+                if (coreMarketplacePath) {
+                    const coreAbsolutePath = path.join(coreMarketplacePath, relativePath);
+                    try {
+                        Logger.debug(`⚠️ UI template not found in ${uiFramework} marketplace, trying core marketplace`, {
+                            operation: 'template_loading',
+                            uiFramework: uiFramework,
+                            uiPath: absolutePath,
+                            corePath: coreAbsolutePath
+                        });
+                        return await fs.readFile(coreAbsolutePath, 'utf-8');
+                    }
+                    catch (coreError) {
+                        // Both UI and core marketplaces failed - throw original error
+                        const errorMsg = error instanceof Error ? error.message : String(error);
+                        throw new Error(`UI template file not found in ${uiFramework} marketplace or core marketplace: ${absolutePath}\n` +
+                            `UI Framework: ${uiFramework}\n` +
+                            `UI Marketplace Path: ${uiMarketplacePath}\n` +
+                            `Core Marketplace Path: ${coreMarketplacePath}\n` +
+                            `Relative Path: ${relativePath}\n` +
+                            `Template: ${templateFile}\n` +
+                            `Error: ${errorMsg}`);
+                    }
+                }
+                else {
+                    // No core marketplace fallback available
+                    const errorMsg = error instanceof Error ? error.message : String(error);
+                    throw new Error(`UI template file not found: ${absolutePath}\n` +
+                        `UI Framework: ${uiFramework}\n` +
+                        `UI Marketplace Path: ${uiMarketplacePath}\n` +
+                        `Relative Path: ${relativePath}\n` +
+                        `Template: ${templateFile}\n` +
+                        `Error: ${errorMsg}`);
+                }
+            }
+        }
+        const moduleMetadata = context?.module;
+        if (moduleMetadata?.resolved?.root &&
+            !path.isAbsolute(templateFile) &&
+            !templateFile.startsWith('ui/')) {
+            const candidatePaths = [];
+            const normalizedTemplate = templateFile.startsWith('templates/')
+                ? templateFile.replace(/^templates\//, '')
+                : templateFile;
+            candidatePaths.push(path.join(moduleMetadata.resolved.root, 'templates', normalizedTemplate));
+            if (templateFile.startsWith('templates/')) {
+                candidatePaths.push(path.join(moduleMetadata.resolved.root, templateFile));
+            }
+            for (const candidate of candidatePaths) {
+                try {
+                    return await fs.readFile(candidate, 'utf-8');
+                }
+                catch {
+                    continue;
+                }
             }
         }
         // Check if templateFile is an absolute path (legacy support)
@@ -100,9 +136,8 @@ export class MarketplaceService {
         }
         catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
-            // Enhanced error message with suggestions
-            const suggestions = await this.getTemplateSuggestions(moduleId, templateFile);
-            const modulePath = path.join(marketplaceRoot, resolvedModuleId);
+            const suggestions = await this.getTemplateSuggestions(moduleMetadata, moduleId, templateFile);
+            const modulePath = moduleMetadata?.resolved?.root || path.join(marketplaceRoot, resolvedModuleId);
             throw new Error(`Template file not found: ${templatePath}\n` +
                 `Module: ${moduleId}\n` +
                 `Template: ${templateFile}\n` +
@@ -115,16 +150,21 @@ export class MarketplaceService {
     /**
      * Get template suggestions for better error messages
      */
-    static async getTemplateSuggestions(moduleId, templateFile) {
-        const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
-        const resolvedModuleId = await PathService.resolveModuleId(moduleId);
-        const modulePath = path.join(marketplaceRoot, resolvedModuleId);
-        const templatesDir = path.join(modulePath, 'templates');
+    static async getTemplateSuggestions(moduleMetadata, moduleId, templateFile) {
+        let templatesDir = null;
+        if (moduleMetadata?.resolved?.root) {
+            templatesDir = path.join(moduleMetadata.resolved.root, 'templates');
+        }
+        else {
+            const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
+            const resolvedModuleId = await PathService.resolveModuleId(moduleId);
+            templatesDir = path.join(marketplaceRoot, resolvedModuleId, 'templates');
+        }
         try {
             const files = await fs.readdir(templatesDir);
             const suggestions = files
                 .filter(file => file.endsWith('.tpl'))
-                .slice(0, 5) // Show first 5 templates
+                .slice(0, 5)
                 .map(file => `templates/${file}`);
             return suggestions.length > 0 ? suggestions : ['No templates found in module'];
         }
@@ -135,78 +175,51 @@ export class MarketplaceService {
     /**
      * Load feature manifest (feature.json) - convenience method
      */
-    static async loadFeatureManifest(moduleId) {
-        return this.loadModuleConfig(moduleId);
+    static async loadFeatureManifest(module) {
+        return this.loadModuleConfig(module);
     }
     /**
      * Load module configuration (adapter.json, integration.json, or feature.json)
      */
-    static async loadModuleConfig(moduleId) {
-        const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
-        const resolvedModuleId = await PathService.resolveModuleId(moduleId);
-        // Determine config file name based on module type
-        let configFileNames;
-        if (resolvedModuleId.startsWith('integrations/')) {
-            configFileNames = ['integration.json'];
+    static async loadModuleConfig(module) {
+        if (!module?.resolved?.manifest) {
+            throw new Error(`Module ${module?.id || '<unknown>'} is missing resolved manifest metadata.`);
         }
-        else if (resolvedModuleId.startsWith('connectors/')) {
-            configFileNames = ['connector.json', 'integration.json']; // Try both for connectors
+        try {
+            const content = await fs.readFile(module.resolved.manifest, 'utf-8');
+            return JSON.parse(content);
         }
-        else if (resolvedModuleId.startsWith('features/')) {
-            configFileNames = ['feature.json'];
+        catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            throw new Error(`Failed to load module configuration for ${module.id}: ${message}`);
         }
-        else {
-            configFileNames = ['adapter.json'];
-        }
-        // Try each config file name until one is found
-        let lastError = null;
-        for (const configFileName of configFileNames) {
-            const configPath = path.join(marketplaceRoot, resolvedModuleId, configFileName);
-            try {
-                const configContent = await fs.readFile(configPath, 'utf-8');
-                return JSON.parse(configContent);
-            }
-            catch (error) {
-                lastError = error instanceof Error ? error : new Error(String(error));
-                continue; // Try next config file name
-            }
-        }
-        // If we get here, no config file was found
-        throw new Error(`Module configuration not found for ${moduleId}. ` +
-            `Tried: ${configFileNames.join(', ')}. ` +
-            `Last error: ${lastError?.message || 'Unknown error'}`);
     }
     /**
      * Get the absolute path to a module's blueprint file
      * This is the centralized, tested logic for blueprint path resolution.
      */
-    static async getBlueprintPath(moduleId, blueprintFileName) {
-        const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
-        const resolvedModuleId = await PathService.resolveModuleId(moduleId);
-        // Get blueprint file name from config if not provided
-        let finalBlueprintFileName;
-        if (!blueprintFileName) {
-            const config = await this.loadModuleConfig(moduleId);
-            finalBlueprintFileName = config.blueprint?.file || 'blueprint.js';
-            // Convert .ts extension to .js since we compile blueprints
-            if (finalBlueprintFileName.endsWith('.ts')) {
-                finalBlueprintFileName = finalBlueprintFileName.replace(/\.ts$/, '.js');
-            }
+    static getBlueprintPath(module, blueprintFileName) {
+        if (!module?.resolved?.blueprint) {
+            throw new Error(`Module ${module?.id || '<unknown>'} is missing resolved blueprint metadata.`);
         }
-        else {
-            finalBlueprintFileName = blueprintFileName;
+        if (blueprintFileName) {
+            return path.isAbsolute(blueprintFileName)
+                ? blueprintFileName
+                : path.join(path.dirname(module.resolved.blueprint), blueprintFileName);
         }
-        // Return absolute path to blueprint from compiled dist directory
-        return path.join(marketplaceRoot, 'dist', resolvedModuleId, finalBlueprintFileName);
+        return module.resolved.blueprint;
     }
     /**
      * Load module blueprint using BlueprintLoader
      */
-    static async loadModuleBlueprint(moduleId, blueprintFileName) {
-        const blueprintPath = await this.getBlueprintPath(moduleId, blueprintFileName);
-        const result = await BlueprintLoader.loadBlueprint(moduleId, blueprintPath);
+    static async loadModuleBlueprint(module, blueprintFileName) {
+        const blueprintPath = this.getBlueprintPath(module, blueprintFileName);
+        const result = await BlueprintLoader.loadBlueprint(module.id, blueprintPath);
         if (!result.success) {
             throw new Error(result.error || 'Unknown blueprint loading error');
+        }
+        if (!result.blueprint) {
+            throw new Error(`Blueprint loaded successfully but result.blueprint is ${result.blueprint}`);
         }
         return result.blueprint;
     }

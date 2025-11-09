@@ -40,26 +40,32 @@ export class FileModificationEngine {
     }
     /**
      * 2. Read File - Reads file content from VFS or disk
+     *
+     * Note: Pass relative path directly to VFS, which handles normalization.
+     * VFS projectRoot is the source of truth for where files should be read from.
      */
     async readFile(filePath) {
-        const fullPath = this.resolvePath(filePath);
-        // First check VFS
-        if (this.vfs.fileExists(fullPath)) {
-            return await this.vfs.readFile(fullPath);
+        // VFS handles path normalization internally, so pass relative path directly
+        // If file exists in VFS, read from there
+        if (this.vfs.fileExists(filePath)) {
+            return await this.vfs.readFile(filePath);
         }
-        // Fallback to disk
+        // Fallback: try to read from disk using resolved path
+        const fullPath = this.resolvePath(filePath);
         return await fs.readFile(fullPath, 'utf-8');
     }
     /**
      * 3. Overwrite File - Overwrites file content in VFS
+     *
+     * Note: Pass relative path directly to VFS, which handles normalization.
      */
     async overwriteFile(filePath, content) {
         try {
-            const fullPath = this.resolvePath(filePath);
-            await this.vfs.writeFile(fullPath, content);
+            // VFS handles path normalization internally
+            await this.vfs.writeFile(filePath, content);
             return {
                 success: true,
-                filePath: fullPath
+                filePath: filePath
             };
         }
         catch (error) {
@@ -115,20 +121,21 @@ export class FileModificationEngine {
      */
     async mergeJsonFile(filePath, contentToMerge) {
         try {
-            const fullPath = this.resolvePath(filePath);
             // Read existing content - first from VFS, then from disk if not in VFS
+            // VFS handles path normalization, so pass relative path directly
             let existingContent = {};
-            if (this.vfs.fileExists(fullPath)) {
-                const content = this.vfs.readFile(fullPath);
+            if (this.vfs.fileExists(filePath)) {
+                const content = this.vfs.readFile(filePath);
                 existingContent = JSON.parse(await content);
             }
             else {
                 // File not in VFS, try to read from disk and load into VFS
                 try {
+                    const fullPath = this.resolvePath(filePath);
                     const diskContent = await fs.readFile(fullPath, 'utf-8');
                     existingContent = JSON.parse(diskContent);
                     // Load the file into VFS so future operations can work with it
-                    await this.vfs.writeFile(fullPath, diskContent);
+                    await this.vfs.writeFile(filePath, diskContent);
                 }
                 catch (diskError) {
                     // File doesn't exist on disk either, start with empty object
@@ -137,11 +144,11 @@ export class FileModificationEngine {
             }
             // Deep merge
             const mergedContent = merge(existingContent, contentToMerge);
-            // Write back to VFS
-            await this.vfs.writeFile(fullPath, JSON.stringify(mergedContent, null, 2));
+            // Write back to VFS (VFS handles path normalization)
+            await this.vfs.writeFile(filePath, JSON.stringify(mergedContent, null, 2));
             return {
                 success: true,
-                filePath: fullPath
+                filePath: filePath
             };
         }
         catch (error) {
@@ -157,11 +164,11 @@ export class FileModificationEngine {
      */
     async modifyTsFile(filePath, modificationFunction) {
         try {
-            const fullPath = this.resolvePath(filePath);
             // Read existing content
+            // VFS handles path normalization, so pass relative path directly
             let existingContent = '';
-            if (this.vfs.fileExists(fullPath)) {
-                existingContent = await this.vfs.readFile(fullPath);
+            if (this.vfs.fileExists(filePath)) {
+                existingContent = await this.vfs.readFile(filePath);
             }
             // Create ts-morph project
             const project = new Project();
@@ -170,11 +177,11 @@ export class FileModificationEngine {
             modificationFunction(sourceFile);
             // Get modified content
             const modifiedContent = sourceFile.getFullText();
-            // Write back to VFS
-            await this.vfs.writeFile(fullPath, modifiedContent);
+            // Write back to VFS (VFS handles path normalization)
+            await this.vfs.writeFile(filePath, modifiedContent);
             return {
                 success: true,
-                filePath: fullPath
+                filePath: filePath
             };
         }
         catch (error) {
@@ -229,10 +236,15 @@ export class FileModificationEngine {
     }
     /**
      * Check if file exists in VFS
+     *
+     * Note: Pass the relative path directly to VFS, which will normalize it.
+     * VFS expects paths relative to its projectRoot, not absolute paths.
      */
     fileExists(filePath) {
-        const resolvedPath = this.resolvePath(filePath);
-        return this.vfs.fileExists(resolvedPath);
+        // VFS normalizes paths internally, so pass relative path directly
+        // If it's absolute and starts with projectRoot, VFS will normalize it
+        // If it's relative, pass it as-is (VFS will handle it)
+        return this.vfs.fileExists(filePath);
     }
     /**
      * Get the VFS instance

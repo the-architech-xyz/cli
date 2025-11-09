@@ -7,7 +7,7 @@
 
 import { Command } from 'commander';
 import { AgentLogger as Logger } from '../core/cli/logger.js';
-import { GenomeResolverFactory } from '../core/services/genome-resolution/index.js';
+import { createGenomeResolver } from '../core/services/genome-resolution/index.js';
 import { MarketplaceRegistry } from '../core/services/marketplace/marketplace-registry.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -28,7 +28,7 @@ export function createListGenomesCommand(): Command {
         logger.info('🧬 Available Project Genomes\n');
         
         // Use new resolver to list TypeScript genomes
-        const resolver = GenomeResolverFactory.createDefault();
+        const resolver = createGenomeResolver();
         
         // Try to list from local marketplace
         let genomes = await listLocalMarketplaceGenomes(logger, options.verbose || false);

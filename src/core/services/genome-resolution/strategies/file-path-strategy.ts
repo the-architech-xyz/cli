@@ -51,15 +51,11 @@ export class FilePathStrategy implements IResolutionStrategy {
       if (!absolutePath.endsWith('.genome.ts') && !absolutePath.endsWith('.ts')) {
         throw new Error(`File must be a .genome.ts file: ${absolutePath}`);
       }
-
-      // Extract metadata
-      const metadata = await this.resolver.extractMetadata(absolutePath);
-
+ 
       return {
         name: path.basename(absolutePath, '.genome.ts').replace(/^\d+-/, ''),
         path: absolutePath,
-        source: 'file-path',
-        metadata
+        source: 'file-path'
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') {

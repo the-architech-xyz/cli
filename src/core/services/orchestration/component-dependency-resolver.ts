@@ -19,8 +19,7 @@ export class ComponentDependencyResolver {
     for (const module of genome.modules) {
       if (module.id.startsWith('features/')) {
         try {
-          // Load feature manifest
-          const featureManifest = await MarketplaceService.loadFeatureManifest(module.id);
+          const featureManifest = await MarketplaceService.loadFeatureManifest(module);
           
           if (featureManifest?.requires?.components) {
             // Collect component requirements per UI technology

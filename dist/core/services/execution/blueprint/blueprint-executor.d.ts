@@ -13,7 +13,6 @@ import { VirtualFileSystem } from '../../file-system/file-engine/virtual-file-sy
 export declare class BlueprintExecutor {
     private modifierRegistry;
     private actionHandlerRegistry;
-    private blueprintAnalyzer;
     constructor(projectRoot: string);
     /**
      * Expand forEach actions into individual actions
@@ -27,6 +26,16 @@ export declare class BlueprintExecutor {
      * Create an expanded action by replacing {{item}} placeholders with the actual item value
      */
     private createExpandedAction;
+    /**
+     * Analyze actions and blueprint to determine which files need to be loaded into VFS
+     * Consolidates logic from BlueprintAnalyzer (now removed)
+     *
+     * Includes:
+     * - Files needed by actions (ENHANCE_FILE, MERGE_JSON, INSTALL_PACKAGES, etc.)
+     * - blueprint.contextualFiles (if available)
+     * - module.externalFiles (if available)
+     */
+    private analyzeFilesToLoad;
     /**
      * Initialize the modifier registry with available modifiers
      */

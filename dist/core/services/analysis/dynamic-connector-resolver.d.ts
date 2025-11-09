@@ -32,12 +32,5 @@ export declare class DynamicConnectorResolver {
      * Evaluate if a connector matches the current modules
      */
     private evaluateConnectorMatch;
-    /**
-     * Check if directory exists
-     */
-    private directoryExists;
-    /**
-     * Check if path is a directory
-     */
-    private isDirectory;
+    private createModuleFromManifestEntry;
 }

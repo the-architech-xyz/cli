@@ -5,12 +5,12 @@
  * Used by GenomeDetector for project analysis.
  */
 
-import { Module } from '@thearchitech.xyz/types';
 import { MarketplaceService } from '../marketplace/marketplace-service.js';
 import { MarketplaceRegistry } from '../marketplace/marketplace-registry.js';
 import { Logger } from '../infrastructure/logging/index.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { Module } from '@thearchitech.xyz/types';
 
 export interface ConnectorConfig {
   id: string;
@@ -81,20 +81,17 @@ export class DynamicConnectorResolver {
   private async scanAllConnectors(): Promise<ConnectorConfig[]> {
     const connectors: ConnectorConfig[] = [];
     const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
-    const connectorsPath = path.join(marketplaceRoot, 'connectors');
-    
-    if (!await this.directoryExists(connectorsPath)) {
-      Logger.warn('Connectors directory not found', { path: connectorsPath });
-      return connectors;
-    }
-    
-    const connectorDirs = await fs.readdir(connectorsPath);
-    
-    for (const dir of connectorDirs) {
-      const connectorPath = path.join(connectorsPath, dir);
-      if (await this.isDirectory(connectorPath)) {
+    const manifestPath = path.join(marketplaceRoot, 'manifest.json');
+
+    try {
+      const manifestContent = await fs.readFile(manifestPath, 'utf-8');
+      const manifest = JSON.parse(manifestContent);
+      const entries: any[] = manifest?.modules?.connectors || [];
+
+      for (const entry of entries) {
         try {
-          const config = await MarketplaceService.loadModuleConfig(`connectors/${dir}`);
+          const module = this.createModuleFromManifestEntry(entry, marketplaceRoot);
+          const config = await MarketplaceService.loadModuleConfig(module);
           connectors.push({
             id: config.id,
             requires: config.requires || [],
@@ -102,14 +99,19 @@ export class DynamicConnectorResolver {
             connects: config.connects || []
           });
         } catch (error) {
-          Logger.warn(`Failed to load connector config: ${dir}`, {
+          Logger.warn(`Failed to load connector metadata for ${entry?.id}`, {
             error: error instanceof Error ? error.message : 'Unknown error'
           });
           continue;
         }
       }
+    } catch (error) {
+      Logger.error('Unable to read marketplace manifest for connectors', {
+        path: manifestPath,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
-    
+
     return connectors;
   }
 
@@ -144,27 +146,35 @@ export class DynamicConnectorResolver {
     return null;
   }
 
-  /**
-   * Check if directory exists
-   */
-  private async directoryExists(dirPath: string): Promise<boolean> {
-    try {
-      const stat = await fs.stat(dirPath);
-      return stat.isDirectory();
-    } catch {
-      return false;
+  private createModuleFromManifestEntry(entry: any, marketplaceRoot: string): Module {
+    if (!entry?.id || !entry?.manifest?.file || !entry?.blueprint?.file) {
+      throw new Error(`Invalid manifest entry for module ${entry?.id ?? '<unknown>'}`);
     }
-  }
 
-  /**
-   * Check if path is a directory
-   */
-  private async isDirectory(dirPath: string): Promise<boolean> {
-    try {
-      const stat = await fs.stat(dirPath);
-      return stat.isDirectory();
-    } catch {
-      return false;
-    }
+    const module: Module = {
+      id: entry.id,
+      category: entry.category || entry.type || 'connector',
+      parameters: {},
+      parameterSchema: entry.parameters || {},
+      features: {},
+      externalFiles: [],
+      config: undefined,
+      source: entry.source,
+      manifest: entry.manifest,
+      blueprint: entry.blueprint,
+      templates: entry.templates || [],
+      marketplace: {
+        name: entry.marketplace?.name || 'core',
+        root: entry.marketplace?.root || marketplaceRoot
+      },
+      resolved: {
+        root: path.join(marketplaceRoot, entry.source?.root || ''),
+        manifest: path.join(marketplaceRoot, entry.manifest.file),
+        blueprint: path.join(marketplaceRoot, entry.blueprint.file),
+        templates: (entry.templates || []).map((template: string) => path.join(marketplaceRoot, template))
+      }
+    };
+
+    return module;
   }
 }

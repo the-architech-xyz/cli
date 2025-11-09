@@ -37,8 +37,4 @@ export declare class MarketplaceRegistry {
      * Check if a marketplace exists
      */
     static marketplaceExists(name: 'core' | string): Promise<boolean>;
-    /**
-     * Get all available UI marketplaces
-     */
-    static getAvailableUIMarketplaces(): Promise<string[]>;
 }

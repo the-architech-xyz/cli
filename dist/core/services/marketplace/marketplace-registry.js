@@ -45,11 +45,19 @@ export class MarketplaceRegistry {
         if (!this.uiPaths.has(framework)) {
             const cliRoot = PathService.getCliRoot();
             const marketplaceName = `marketplace-${framework}`;
-            // Dev: sibling directory to Architech/
-            const devPath = path.join(cliRoot, '..', marketplaceName);
+            // Dev: sibling directory to Architech/ or in ui-marketplaces/
+            const devPath1 = path.join(cliRoot, '..', marketplaceName);
+            const devPath2 = path.join(cliRoot, '..', 'ui-marketplaces', marketplaceName);
             // Prod: npm package
-            const prodPath = path.join(cliRoot, 'node_modules', '@thearchitech', marketplaceName);
-            const resolvedPath = await this.resolvePath(devPath, prodPath);
+            const prodPath = path.join(cliRoot, 'node_modules', '@thearchitech.xyz', marketplaceName);
+            // Try dev paths first, then prod
+            let resolvedPath = prodPath;
+            if (fs.existsSync(devPath1)) {
+                resolvedPath = devPath1;
+            }
+            else if (fs.existsSync(devPath2)) {
+                resolvedPath = devPath2;
+            }
             this.uiPaths.set(framework, resolvedPath);
         }
         return this.uiPaths.get(framework);
@@ -103,19 +111,6 @@ export class MarketplaceRegistry {
         catch {
             return false;
         }
-    }
-    /**
-     * Get all available UI marketplaces
-     */
-    static async getAvailableUIMarketplaces() {
-        const available = [];
-        const commonFrameworks = ['shadcn', 'tamagui'];
-        for (const framework of commonFrameworks) {
-            if (await this.marketplaceExists(framework)) {
-                available.push(framework);
-            }
-        }
-        return available;
     }
 }
 //# sourceMappingURL=marketplace-registry.js.map

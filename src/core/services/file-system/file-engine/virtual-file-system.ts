@@ -18,36 +18,66 @@ export interface VFSFile {
 
 export class VirtualFileSystem {
   private files: Map<string, string> = new Map();
-  private projectRoot: string;
+  private projectRoot: string;      // Always absolute project root
+  private contextRoot: string;       // Context relative to project root (e.g., "packages/shared")
   private blueprintId: string;
 
-  constructor(blueprintId: string, projectRoot: string) {
+  constructor(
+    blueprintId: string,
+    projectRoot: string,
+    contextRoot: string = ''  // Default to empty (single repo)
+  ) {
     this.blueprintId = blueprintId;
-    this.projectRoot = projectRoot;
+    this.projectRoot = path.resolve(projectRoot);  // Always absolute
+    this.contextRoot = contextRoot;  // Relative to project root
   }
 
   /**
    * Initialize VFS with required files from disk
+   * filePaths should already be resolved (no ${paths.key} variables)
+   * They will be normalized to be relative to contextRoot
    */
   async initializeWithFiles(filePaths: string[]): Promise<void> {
-    // Debug logging removed - use Logger.debug() instead
-    
     for (const filePath of filePaths) {
       try {
         const normalizedPath = this.normalizePath(filePath);
-        const fullPath = path.join(this.projectRoot, normalizedPath);
+        // Build full path using same logic as flushToDisk to handle absolute paths
+        let fullPath: string;
+        if (normalizedPath.startsWith('packages/') || normalizedPath.startsWith('apps/')) {
+          // Absolute path from project root (package-prefixed)
+          fullPath = path.join(this.projectRoot, normalizedPath);
+        } else if (path.isAbsolute(normalizedPath)) {
+          // System absolute path
+          fullPath = normalizedPath;
+        } else {
+          // Relative path (relative to contextRoot)
+          fullPath = this.contextRoot
+            ? path.join(this.projectRoot, this.contextRoot, normalizedPath)
+            : path.join(this.projectRoot, normalizedPath);
+        }
         
-        // Debug logging removed - use Logger.debug() instead
         
         // Check if file exists on disk
         if (existsSync(fullPath)) {
+          // ✅ OPTIMIZATION: Limit file size to prevent memory issues (max 1MB)
+          const MAX_FILE_SIZE = 1024 * 1024; // 1MB
+          const stats = await fs.stat(fullPath);
+          
+          if (stats.size > MAX_FILE_SIZE) {
+            // Skip large files - log warning but don't load
+            // These files should be handled differently (streaming, etc.)
+            continue;
+          }
+          
           const content = await fs.readFile(fullPath, 'utf-8');
           this.files.set(normalizedPath, content);
-        } else {
-          console.log(`⚠️ VFS: File not found on disk: ${normalizedPath} (${fullPath})`);
+          // ✅ Logs réduits - seulement en mode debug
+          // Logger.debug() sera utilisé à la place de console.log
         }
+        // ✅ Silently skip missing files - they may be created by the blueprint
       } catch (error) {
-        console.log(`⚠️ VFS: Failed to load ${filePath}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        // ✅ Silently skip files that can't be loaded - they may not exist yet
+        // Logger.debug() pour les erreurs si nécessaire
       }
     }
     
@@ -60,8 +90,21 @@ export class VirtualFileSystem {
     const normalizedPath = this.normalizePath(filePath);
     
     if (!this.files.has(normalizedPath)) {
-      // Lazy load from disk
-      const fullPath = path.join(this.projectRoot, normalizedPath);
+      // Lazy load from disk - use same logic as flushToDisk to handle absolute paths
+      let fullPath: string;
+      if (normalizedPath.startsWith('packages/') || normalizedPath.startsWith('apps/')) {
+        // Absolute path from project root (package-prefixed)
+        fullPath = path.join(this.projectRoot, normalizedPath);
+      } else if (path.isAbsolute(normalizedPath)) {
+        // System absolute path
+        fullPath = normalizedPath;
+      } else {
+        // Relative path (relative to contextRoot)
+        fullPath = this.contextRoot
+          ? path.join(this.projectRoot, this.contextRoot, normalizedPath)
+          : path.join(this.projectRoot, normalizedPath);
+      }
+      
       try {
         const content = await fs.readFile(fullPath, 'utf-8');
         this.files.set(normalizedPath, content);
@@ -120,9 +163,23 @@ export class VirtualFileSystem {
       return true;
     }
     
-    // If not in VFS, check disk
-    const fullPath = path.join(this.projectRoot, normalizedPath);
-    return existsSync(fullPath);
+    // If not in VFS, check disk - use same logic as flushToDisk to handle absolute paths
+    let fullPath: string;
+    if (normalizedPath.startsWith('packages/') || normalizedPath.startsWith('apps/')) {
+      // Absolute path from project root (package-prefixed)
+      fullPath = path.join(this.projectRoot, normalizedPath);
+    } else if (path.isAbsolute(normalizedPath)) {
+      // System absolute path
+      fullPath = normalizedPath;
+    } else {
+      // Relative path (relative to contextRoot)
+      fullPath = this.contextRoot
+        ? path.join(this.projectRoot, this.contextRoot, normalizedPath)
+        : path.join(this.projectRoot, normalizedPath);
+    }
+    
+    const existsOnDisk = existsSync(fullPath);
+    return existsOnDisk;
   }
 
   /**
@@ -138,7 +195,6 @@ export class VirtualFileSystem {
 
     const existingContent = this.files.get(normalizedPath)!;
     this.files.set(normalizedPath, existingContent + content);
-    console.log(`➕ VFS: Appended to ${normalizedPath}`);
   }
 
   /**
@@ -154,7 +210,6 @@ export class VirtualFileSystem {
 
     const existingContent = this.files.get(normalizedPath)!;
     this.files.set(normalizedPath, content + existingContent);
-    console.log(`➕ VFS: Prepended to ${normalizedPath}`);
   }
 
   /**
@@ -167,18 +222,36 @@ export class VirtualFileSystem {
       exists: true,
       lastModified: new Date()
     }));
-    console.log(`📋 VFS: Returning ${files.length} files`);
     return files;
   }
 
   /**
    * Flush all files to disk
+   * Handles both absolute (package-prefixed) and relative paths:
+   * - Absolute paths (packages/... or apps/...): projectRoot + filePath
+   * - Relative paths: projectRoot + contextRoot + filePath
    */
   async flushToDisk(): Promise<void> {
     
     for (const [filePath, content] of this.files) {
       try {
-        const fullPath = path.join(this.projectRoot, filePath);
+        let fullPath: string;
+        
+        // Check if filePath is absolute from project root (package-prefixed)
+        // These are absolute paths like "packages/shared/src/lib/..." or "apps/web/src/..."
+        if (filePath.startsWith('packages/') || filePath.startsWith('apps/')) {
+          // Absolute path from project root (package-prefixed)
+          fullPath = path.join(this.projectRoot, filePath);
+        } else if (path.isAbsolute(filePath)) {
+          // System absolute path (starts with /)
+          fullPath = filePath;
+        } else {
+          // Relative path (relative to contextRoot)
+          fullPath = this.contextRoot
+            ? path.join(this.projectRoot, this.contextRoot, filePath)
+            : path.join(this.projectRoot, filePath);
+        }
+        
         await fs.mkdir(path.dirname(fullPath), { recursive: true });
         await fs.writeFile(fullPath, content, 'utf-8');
       } catch (error) {
@@ -196,19 +269,55 @@ export class VirtualFileSystem {
   }
 
   /**
-   * Normalize file path to be relative to project root
+   * Normalize file path to be relative to context root
+   * Handles:
+   * - Absolute paths (package-prefixed): Keep absolute if different from contextRoot, make relative if matches
+   * - Absolute paths (system): resolve relative to context root
+   * - Paths with project root prefix: remove it
+   * - Paths with context root prefix: remove it
+   * 
+   * CRITICAL: Supports both absolute (package-prefixed) and relative paths
+   * - Absolute paths like "packages/shared/src/lib/..." are kept absolute if contextRoot differs
+   * - Absolute paths matching contextRoot are normalized to relative
    */
   private normalizePath(filePath: string): string {
     // First normalize the path
     let normalized = filePath.replace(/\\/g, '/').replace(/\/+/g, '/');
     
-    // If the path is absolute and starts with project root, make it relative
-    if (normalized.startsWith(this.projectRoot)) {
-      normalized = normalized.substring(this.projectRoot.length);
-      // Remove leading slash if present
+    // Check if it's a package-prefixed absolute path (starts with packages/ or apps/)
+    // These are absolute paths from project root in monorepo
+    if (normalized.startsWith('packages/') || normalized.startsWith('apps/')) {
+      // If it matches our contextRoot, make it relative
+      if (this.contextRoot && normalized.startsWith(this.contextRoot + '/')) {
+        normalized = normalized.substring(this.contextRoot.length + 1);
+      }
+      // Otherwise, keep it absolute (will be handled by flushToDisk)
+      return normalized;
+    }
+    
+    // Handle system absolute paths (starts with /)
+    if (path.isAbsolute(normalized)) {
+      const contextFullPath = this.contextRoot
+        ? path.join(this.projectRoot, this.contextRoot)
+        : this.projectRoot;
+      normalized = path.relative(contextFullPath, normalized);
+      normalized = normalized.replace(/\\/g, '/');
+    }
+    
+    // If path starts with project root, remove it
+    const projectRootNormalized = this.projectRoot.replace(/\\/g, '/');
+    if (normalized.startsWith(projectRootNormalized)) {
+      normalized = normalized.substring(projectRootNormalized.length);
       if (normalized.startsWith('/')) {
         normalized = normalized.substring(1);
       }
+    }
+    
+    // If path starts with context root prefix, remove it
+    // Example: contextRoot = "packages/shared", normalized = "packages/shared/src/auth"
+    // Result: "src/auth"
+    if (this.contextRoot && normalized.startsWith(this.contextRoot + '/')) {
+      normalized = normalized.substring(this.contextRoot.length + 1);
     }
     
     return normalized;

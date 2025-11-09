@@ -7,11 +7,8 @@
  * This service is framework-agnostic and relies entirely on marketplace data.
  */
 import { MarketplaceService } from '../marketplace/marketplace-service.js';
-import { MarketplaceRegistry } from '../marketplace/marketplace-registry.js';
 import { Logger } from '../infrastructure/logging/logger.js';
 import { ImportPathResolver } from '../path/import-path-resolver.js';
-import * as path from 'path';
-import * as fs from 'fs/promises';
 export class FrameworkContextService {
     /**
      * Create dynamic ProjectContext based on framework and parameters
@@ -31,57 +28,25 @@ export class FrameworkContextService {
                 return this.createFallbackContext(genome, module, pathHandler, modulesRecord);
             }
             // Load framework configuration from marketplace
-            const frameworkConfig = framework ? await this.loadFrameworkConfig(framework) : null;
+            const frameworkConfig = framework ? await this.loadFrameworkConfig(frameworkModule) : null;
             if (!frameworkConfig) {
                 Logger.warn(`Framework configuration not found: ${framework}, using fallback configuration`);
                 return this.createFallbackContext(genome, module, pathHandler, modulesRecord);
             }
             // Create dynamic paths based on framework and parameters
-            let paths = framework ? await this.resolveFrameworkPaths(framework, frameworkModule?.parameters, frameworkConfig) : {};
-            // Add monorepo-specific paths if monorepo structure detected
-            if (genome.project.structure === 'monorepo' && genome.project.monorepo) {
-                const pkgs = genome.project.monorepo.packages || {};
-                // Provide sensible defaults when packages are missing
-                paths = {
-                    ...paths,
-                    api: pkgs.api || './packages/api',
-                    web: pkgs.web || './apps/web',
-                    mobile: pkgs.mobile || './apps/mobile',
-                    shared: pkgs.shared || './packages/shared',
-                    ui: pkgs.ui || './packages/ui',
-                };
-            }
-            // Add smart paths for common patterns
-            const smartPaths = this.addSmartPaths(paths, genome);
-            // Resolve marketplace paths (single source of truth: MarketplaceRegistry)
-            const coreMarketplacePath = await MarketplaceRegistry.getCoreMarketplacePath();
-            const uiFramework = await this.detectUIFramework(genome, framework);
-            const uiMarketplacePaths = {};
-            let defaultUIFramework = '';
-            if (uiFramework) {
-                defaultUIFramework = uiFramework;
-                uiMarketplacePaths[uiFramework] = await MarketplaceRegistry.getUIMarketplacePath(uiFramework);
-            }
-            else {
-                // Fallback: try to get available UI marketplaces
-                const available = await MarketplaceRegistry.getAvailableUIMarketplaces();
-                if (available.length > 0 && available[0]) {
-                    defaultUIFramework = available[0];
-                    uiMarketplacePaths[defaultUIFramework] = await MarketplaceRegistry.getUIMarketplacePath(defaultUIFramework);
-                }
-            }
-            // Add marketplace paths to PathService.pathMap for variable resolution
-            pathHandler.setPath('core.path', coreMarketplacePath);
-            if (defaultUIFramework && uiMarketplacePaths[defaultUIFramework]) {
-                const uiPath = uiMarketplacePaths[defaultUIFramework];
-                if (uiPath) {
-                    pathHandler.setPath('ui.path', uiPath);
-                    pathHandler.setPath(`ui.path.${defaultUIFramework}`, uiPath);
-                }
-            }
+            // NOTE: Path initialization is now handled centrally by PathInitializationService
+            // before module execution, so we only need to resolve framework-specific paths
+            // for the context object (not for pathHandler)
+            const paths = framework ? await this.resolveFrameworkPaths(framework, frameworkModule?.parameters, frameworkConfig, genome) : {};
             // Create environment context
             const env = await this.createEnvironmentContext(genome, frameworkModule.parameters, frameworkConfig);
             // Create project context
+            // NOTE: paths are now read from pathHandler (already initialized by PathInitializationService)
+            // We only need framework-specific paths for the context object
+            const contextPaths = { ...paths };
+            // Get marketplace UI from PathService (SINGLE SOURCE OF TRUTH)
+            // Marketplace UI is initialized once by PathInitializationService and read-only after
+            const marketplaceUI = pathHandler.getMarketplaceUI();
             const context = {
                 project: {
                     name: genome.project.name,
@@ -94,7 +59,7 @@ export class FrameworkContextService {
                 },
                 module: module,
                 framework: framework || 'unknown',
-                paths: smartPaths,
+                paths: contextPaths,
                 modules: modulesRecord,
                 pathHandler: pathHandler,
                 env: env,
@@ -102,12 +67,10 @@ export class FrameworkContextService {
                 // Add import path helper function
                 importPath: (filePath) => ImportPathResolver.resolveImportPath(filePath, context),
                 // Add marketplace paths for template resolution
+                // NOTE: Marketplace UI is initialized by PathInitializationService (single source of truth)
                 marketplace: {
-                    core: coreMarketplacePath,
-                    ui: {
-                        default: defaultUIFramework,
-                        ...uiMarketplacePaths
-                    }
+                    core: pathHandler.hasPath('core.path') ? pathHandler.getPath('core.path') : '',
+                    ui: marketplaceUI
                 },
             };
             Logger.info(`✅ Created dynamic context for framework: ${framework}`, {
@@ -131,24 +94,27 @@ export class FrameworkContextService {
     /**
      * Load framework configuration from marketplace
      */
-    static async loadFrameworkConfig(framework) {
+    static async loadFrameworkConfig(frameworkModule) {
         try {
-            const adapterPath = `adapters/framework/${framework}`;
-            const adapterConfig = await MarketplaceService.loadModuleConfig(adapterPath);
+            if (!frameworkModule) {
+                return null;
+            }
+            const adapterConfig = await MarketplaceService.loadModuleConfig(frameworkModule);
             if (!adapterConfig || !adapterConfig.context) {
                 return null;
             }
             return adapterConfig.context;
         }
         catch (error) {
-            Logger.error(`Failed to load framework config for ${framework}: ${error}`);
+            Logger.error(`Failed to load framework config for ${frameworkModule?.id || '<unknown framework>'}: ${error}`);
             return null;
         }
     }
     /**
      * Resolve framework-specific paths
      */
-    static async resolveFrameworkPaths(framework, params, config) {
+    static async resolveFrameworkPaths(framework, params, config, genome // NOUVEAU: ajouter genome pour transformation
+    ) {
         const basePaths = { ...config.pathResolution.basePaths };
         const resolvedPaths = {};
         // Process each path with parameter substitution
@@ -161,7 +127,132 @@ export class FrameworkContextService {
                 resolvedPaths[key] = pathTemplate; // Fallback to original
             }
         }
-        return resolvedPaths;
+        // Transform paths according to project structure (single-app vs monorepo)
+        return this.transformPathsForStructure(resolvedPaths, genome);
+    }
+    /**
+     * Transform framework adapter paths according to project structure
+     * Single app: paths stay as-is
+     * Monorepo: paths are moved to appropriate packages based on initialized structure
+     */
+    static transformPathsForStructure(frameworkPaths, genome) {
+        const isMonorepo = genome.project.structure === 'monorepo';
+        if (!isMonorepo || !genome.project.monorepo) {
+            // Single app: return paths as-is
+            return frameworkPaths;
+        }
+        const pkgs = genome.project.monorepo.packages || {};
+        const sharedPkg = pkgs.shared || null;
+        const webPkg = pkgs.web || null;
+        const apiPkg = pkgs.api || null;
+        const transformed = {};
+        for (const [key, value] of Object.entries(frameworkPaths)) {
+            // Determine target package based on path key and value
+            const targetPackage = this.determineTargetPackageForPath(key, value, pkgs);
+            if (targetPackage) {
+                transformed[key] = this.transformPath(value, targetPackage);
+            }
+            else {
+                // Keep path as-is (root-level paths like scripts/, public/, etc.)
+                transformed[key] = value;
+            }
+        }
+        return transformed;
+    }
+    /**
+     * Determine which package a path should go to based on initialized structure
+     */
+    static determineTargetPackageForPath(key, value, packages) {
+        // Shared package paths (auth, database, payment, etc.)
+        if (this.isSharedPath(key, value)) {
+            return packages.shared || null;
+        }
+        // Web app paths (components, pages, app routes)
+        if (this.isWebPath(key, value)) {
+            return packages.web || null;
+        }
+        // API paths (api routes, handlers)
+        if (this.isApiPath(key, value)) {
+            return packages.api || null;
+        }
+        // Root-level paths (scripts, public, etc.)
+        return null;
+    }
+    /**
+     * Check if path should go to shared package
+     */
+    static isSharedPath(key, value) {
+        // Path keys that indicate shared code
+        const sharedKeys = [
+            'auth_config', 'database_config', 'payment_config',
+            'email_config', 'observability_config', 'state_config',
+            'testing_config', 'blockchain_config', 'content_config',
+            'shared_library'
+        ];
+        // Path patterns that indicate shared code
+        const sharedPatterns = [
+            'auth', 'database', 'db', 'payment', 'email',
+            'observability', 'state', 'testing', 'blockchain', 'content'
+        ];
+        // Check key
+        if (sharedKeys.some(k => key.includes(k))) {
+            return true;
+        }
+        // Check value pattern
+        if (value.includes('lib/') && sharedPatterns.some(p => value.includes(p))) {
+            return true;
+        }
+        return false;
+    }
+    /**
+     * Check if path should go to web app
+     */
+    static isWebPath(key, value) {
+        const webKeys = ['components', 'ui_components', 'layouts', 'providers', 'pages_root'];
+        const webPatterns = ['components', 'app/', 'pages/'];
+        if (webKeys.includes(key)) {
+            return true;
+        }
+        if (webPatterns.some(p => value.includes(p))) {
+            return true;
+        }
+        return false;
+    }
+    /**
+     * Check if path should go to API package
+     */
+    static isApiPath(key, value) {
+        const apiKeys = ['api_routes', 'api_handlers'];
+        const apiPatterns = ['api/'];
+        if (apiKeys.includes(key)) {
+            return true;
+        }
+        if (apiPatterns.some(p => value.includes(p))) {
+            return true;
+        }
+        return false;
+    }
+    /**
+     * Transform a path to target package
+     */
+    static transformPath(path, targetPackage) {
+        // Remove leading './' if present
+        const cleanPath = path.startsWith('./') ? path.slice(2) : path;
+        // Handle src/lib/ paths (most common for shared code)
+        if (cleanPath.startsWith('src/lib/')) {
+            const rest = cleanPath.replace('src/lib/', '');
+            return `${targetPackage}/src/${rest}`;
+        }
+        // Handle src/ paths (for components, etc.)
+        if (cleanPath.startsWith('src/')) {
+            return `${targetPackage}/${cleanPath}`;
+        }
+        // Handle app/ paths (for Next.js app router)
+        if (cleanPath.startsWith('app/')) {
+            return `${targetPackage}/${cleanPath}`;
+        }
+        // For other paths, prepend target package
+        return `${targetPackage}/${cleanPath}`;
     }
     /**
      * Resolve path template with parameter substitution
@@ -227,87 +318,12 @@ export class FrameworkContextService {
         }
         return { ...baseEnv, ...frameworkEnv };
     }
-    /**
-     * Add smart paths for common patterns
-     * These paths are computed based on project structure (single-app vs monorepo)
-     */
-    static addSmartPaths(paths, genome) {
-        const isMonorepo = genome.project.structure === 'monorepo';
-        if (isMonorepo && genome.project.monorepo) {
-            const pkgs = genome.project.monorepo.packages || {};
-            const apiPkg = pkgs.api || './packages/api';
-            const sharedPkg = pkgs.shared || './packages/shared';
-            return {
-                ...paths,
-                // tRPC paths
-                trpcRouter: `${apiPkg}/src/router`,
-                trpcClient: './src/lib/trpc/client',
-                trpcServer: './src/lib/trpc/server',
-                // Shared code paths
-                sharedSchemas: `${sharedPkg}/src/schemas`,
-                sharedTypes: `${sharedPkg}/src/types`,
-                sharedUtils: `${sharedPkg}/src/utils`,
-                // Auth paths
-                authConfig: `${sharedPkg}/src/auth/config`,
-                authHooks: './src/lib/auth/hooks',
-                authTypes: `${sharedPkg}/src/auth/types`,
-                // Payment paths
-                paymentConfig: `${sharedPkg}/src/payment/config`,
-                paymentHooks: './src/lib/payment/hooks',
-                paymentTypes: `${sharedPkg}/src/payment/types`,
-                // Teams paths
-                teamsConfig: `${sharedPkg}/src/teams/config`,
-                teamsHooks: './src/lib/teams/hooks',
-                teamsTypes: `${sharedPkg}/src/teams/types`,
-                // Email paths
-                emailConfig: `${sharedPkg}/src/email/config`,
-                emailHooks: './src/lib/email/hooks',
-                emailTypes: `${sharedPkg}/src/email/types`,
-                // Database paths
-                databaseConfig: `${sharedPkg}/src/database/config`,
-                databaseSchema: `${sharedPkg}/src/database/schema`,
-                databaseClient: `${sharedPkg}/src/database/client`,
-            };
-        }
-        else {
-            // Single app paths
-            return {
-                ...paths,
-                // tRPC paths (single app)
-                trpcRouter: './src/server/trpc/router',
-                trpcClient: './src/lib/trpc/client',
-                trpcServer: './src/lib/trpc/server',
-                // Shared code paths (single app)
-                sharedSchemas: './src/lib/schemas',
-                sharedTypes: './src/lib/types',
-                sharedUtils: './src/lib/utils',
-                // Auth paths
-                authConfig: './src/lib/auth/config',
-                authHooks: './src/lib/auth/hooks',
-                authTypes: './src/lib/auth/types',
-                // Payment paths
-                paymentConfig: './src/lib/payment/config',
-                paymentHooks: './src/lib/payment/hooks',
-                paymentTypes: './src/lib/payment/types',
-                // Teams paths
-                teamsConfig: './src/lib/teams/config',
-                teamsHooks: './src/lib/teams/hooks',
-                teamsTypes: './src/lib/teams/types',
-                // Email paths
-                emailConfig: './src/lib/email/config',
-                emailHooks: './src/lib/email/hooks',
-                emailTypes: './src/lib/email/types',
-                // Database paths
-                databaseConfig: './src/lib/database/config',
-                databaseSchema: './src/lib/database/schema',
-                databaseClient: './src/lib/database/client',
-            };
-        }
-    }
+    // NOTE: addSmartPaths has been moved to PathInitializationService
+    // This method is no longer needed as paths are initialized centrally before module execution
     /**
      * Create fallback context when framework config is not available
      */
-    static createFallbackContext(genome, module, pathHandler, modulesRecord) {
+    static async createFallbackContext(genome, module, pathHandler, modulesRecord) {
         Logger.warn('Using fallback context configuration', {
             operation: 'framework_context_creation',
             framework: (genome.project.apps && genome.project.apps[0]?.framework) || genome.project.framework || 'unknown'
@@ -320,7 +336,56 @@ export class FrameworkContextService {
             scripts: './src/scripts',
             hooks: './src/hooks'
         };
-        const smartPaths = this.addSmartPaths(basePaths, genome);
+        // Add monorepo-specific paths if monorepo structure detected (even in fallback)
+        let paths = { ...basePaths };
+        if (genome.project.structure === 'monorepo' && genome.project.monorepo) {
+            const pkgs = genome.project.monorepo.packages || {};
+            const apps = genome.project.apps || [];
+            // Determine actual app and package locations
+            const apiApp = apps.find((a) => a.type === 'api' || a.framework === 'hono');
+            const webApp = apps.find((a) => a.type === 'web');
+            // Resolve package paths with proper structure
+            const apiPath = apiApp?.package || pkgs.api || './apps/api/';
+            const webPath = webApp?.package || pkgs.web || './apps/web/';
+            const sharedPath = pkgs.shared || './packages/shared/';
+            const databasePath = pkgs.database || './packages/database/';
+            const uiPath = pkgs.ui || './packages/ui/';
+            // Ensure paths end with / for consistency
+            const normalizePath = (p) => p.endsWith('/') ? p : `${p}/`;
+            // Provide comprehensive path mapping for monorepo
+            paths = {
+                ...basePaths,
+                // App paths
+                api: normalizePath(apiPath),
+                web: normalizePath(webPath),
+                mobile: pkgs.mobile ? normalizePath(pkgs.mobile) : './apps/mobile/',
+                // Package paths
+                shared: normalizePath(sharedPath),
+                database: normalizePath(databasePath),
+                ui: normalizePath(uiPath),
+                // Sub-paths (commonly used patterns)
+                // NOTE: shared package does NOT use /src subfolder (cleaner structure)
+                shared_library: `${normalizePath(sharedPath)}lib/`,
+                api_src: `${normalizePath(apiPath)}src/`,
+                api_routes: `${normalizePath(apiPath)}src/routes/`,
+                web_src: `${normalizePath(webPath)}src/`,
+                web_app: `${normalizePath(webPath)}src/app/`,
+                // Legacy compatibility paths
+                src: webApp ? `${normalizePath(webPath)}src/` : './src/',
+                lib: `${normalizePath(sharedPath)}lib/`, // packages/shared/lib/ (no src/ subfolder)
+            };
+            // Add all resolved paths to PathService.pathMap for variable resolution
+            for (const [key, value] of Object.entries(paths)) {
+                if (typeof value === 'string') {
+                    pathHandler.setPath(key, value);
+                }
+            }
+        }
+        // NOTE: Smart paths are now handled by PathInitializationService
+        // We only need basic paths for fallback context
+        // Get marketplace UI from PathService (SINGLE SOURCE OF TRUTH)
+        // Marketplace UI is initialized once by PathInitializationService and read-only after
+        const marketplaceUI = pathHandler.getMarketplaceUI();
         const context = {
             project: {
                 name: genome.project.name,
@@ -333,7 +398,7 @@ export class FrameworkContextService {
             },
             module: module,
             framework: (genome.project.apps && genome.project.apps[0]?.framework) || genome.project.framework || 'unknown',
-            paths: smartPaths,
+            paths: paths,
             modules: modulesRecord,
             pathHandler: pathHandler,
             env: {
@@ -343,56 +408,12 @@ export class FrameworkContextService {
         };
         // Add import path helper
         context.importPath = (filePath) => ImportPathResolver.resolveImportPath(filePath, context);
+        // Add marketplace paths for template resolution
+        context.marketplace = {
+            core: pathHandler.hasPath('core.path') ? pathHandler.getPath('core.path') : '',
+            ui: marketplaceUI
+        };
         return context;
-    }
-    /**
-     * Detect UI framework from genome or project context
-     */
-    static async detectUIFramework(genome, framework) {
-        // 1. Check genome parameters for explicit UI framework
-        if (genome.options?.uiFramework) {
-            return genome.options.uiFramework;
-        }
-        // 2. Check framework name for UI framework indicators
-        if (framework) {
-            const frameworkLower = framework.toLowerCase();
-            if (frameworkLower.includes('expo') || frameworkLower.includes('react-native')) {
-                return 'tamagui';
-            }
-            if (frameworkLower.includes('nextjs') || frameworkLower.includes('next')) {
-                return 'shadcn';
-            }
-        }
-        // 3. Check modules for UI framework indicators
-        if (genome.modules) {
-            for (const module of genome.modules) {
-                const moduleId = module.id || '';
-                if (moduleId.includes('shadcn') || moduleId.includes('ui/shadcn')) {
-                    return 'shadcn';
-                }
-                if (moduleId.includes('tamagui') || moduleId.includes('ui/tamagui')) {
-                    return 'tamagui';
-                }
-            }
-        }
-        // 4. Check project path for package.json (if project exists)
-        const projectPath = genome.project.path || './';
-        const packageJsonPath = path.join(projectPath, 'package.json');
-        try {
-            const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
-            const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
-            if (deps['expo'] || deps['react-native']) {
-                return 'tamagui';
-            }
-            if (deps['next'] || deps['react']) {
-                return 'shadcn';
-            }
-        }
-        catch {
-            // Package.json not found yet (project being created) - continue
-        }
-        // 5. No UI framework detected
-        return null;
     }
 }
 //# sourceMappingURL=framework-context-service.js.map

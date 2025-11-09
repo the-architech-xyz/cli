@@ -21,10 +21,15 @@ export declare class FileModificationEngine {
     createFile(filePath: string, content: string): Promise<FileModificationResult>;
     /**
      * 2. Read File - Reads file content from VFS or disk
+     *
+     * Note: Pass relative path directly to VFS, which handles normalization.
+     * VFS projectRoot is the source of truth for where files should be read from.
      */
     readFile(filePath: string): Promise<string>;
     /**
      * 3. Overwrite File - Overwrites file content in VFS
+     *
+     * Note: Pass relative path directly to VFS, which handles normalization.
      */
     overwriteFile(filePath: string, content: string): Promise<FileModificationResult>;
     /**
@@ -65,6 +70,9 @@ export declare class FileModificationEngine {
     private resolvePath;
     /**
      * Check if file exists in VFS
+     *
+     * Note: Pass the relative path directly to VFS, which will normalize it.
+     * VFS expects paths relative to its projectRoot, not absolute paths.
      */
     fileExists(filePath: string): boolean;
     /**

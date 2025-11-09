@@ -183,16 +183,51 @@ export class CommandRunner {
                 });
             let stdout = '';
             let stderr = '';
+            // Store cleanup function references
+            const cleanup = () => {
+                // Remove all listeners to prevent memory leaks
+                if (child.stdout) {
+                    child.stdout.removeAllListeners();
+                    // Ensure stream is properly closed
+                    if (!child.stdout.destroyed) {
+                        child.stdout.destroy();
+                    }
+                }
+                if (child.stderr) {
+                    child.stderr.removeAllListeners();
+                    if (!child.stderr.destroyed) {
+                        child.stderr.destroy();
+                    }
+                }
+                child.removeAllListeners();
+            };
             // Capture output if silent mode is enabled
             if (options.silent && child.stdout && child.stderr) {
-                child.stdout.on('data', (data) => {
+                const onStdoutData = (data) => {
                     stdout += data.toString();
-                });
-                child.stderr.on('data', (data) => {
+                };
+                const onStderrData = (data) => {
                     stderr += data.toString();
-                });
+                };
+                child.stdout.on('data', onStdoutData);
+                child.stderr.on('data', onStderrData);
             }
-            child.on('close', (code) => {
+            // Timeout for long-running processes (like npm install)
+            // This prevents processes from hanging indefinitely and consuming resources
+            const timeout = setTimeout(() => {
+                if (!child.killed) {
+                    console.warn(chalk.yellow(`⚠️  Command timeout, killing process...`));
+                    child.kill('SIGTERM');
+                    setTimeout(() => {
+                        if (!child.killed) {
+                            child.kill('SIGKILL');
+                        }
+                    }, 5000);
+                }
+            }, 600000); // 10 minutes timeout
+            const onClose = (code) => {
+                clearTimeout(timeout); // Clear timeout first
+                cleanup(); // Clean up listeners and streams
                 const exitCode = code === null ? 1 : code;
                 if (exitCode === 0) {
                     if (this.verbose) {
@@ -206,13 +241,17 @@ export class CommandRunner {
                     }
                     resolve({ stdout, stderr, code: exitCode });
                 }
-            });
-            child.on('error', (err) => {
+            };
+            const onError = (err) => {
+                clearTimeout(timeout); // Clear timeout on error
+                cleanup(); // Clean up on error
                 if (this.verbose) {
                     console.error(chalk.red('Failed to start subprocess.'), err);
                 }
                 resolve({ stdout, stderr: err.message, code: 1 });
-            });
+            };
+            child.on('close', onClose);
+            child.on('error', onError);
         });
     }
     async getVersion() {

@@ -26,7 +26,9 @@ export class DumbPathTranslator {
         // Check if it's already a full path (starts with known prefixes)
         if (moduleId.startsWith('adapters/') ||
             moduleId.startsWith('connectors/') ||
-            moduleId.startsWith('features/')) {
+            moduleId.startsWith('features/') ||
+            moduleId.startsWith('capabilities/') ||
+            moduleId.startsWith('modules/')) {
             return moduleId; // Already a full path
         }
         // Apply the dumb transformation rule

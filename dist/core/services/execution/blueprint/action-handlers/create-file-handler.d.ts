@@ -37,4 +37,36 @@ export declare class CreateFileHandler extends BaseActionHandler {
      * Merge action context with global project context for template rendering
      */
     private mergeTemplateContext;
+    /**
+     * Check if file should have auto-generated wrappers
+     */
+    private shouldAutoGenerateWrappers;
+    /**
+     * Check if file is a shared route component
+     */
+    private isSharedRoute;
+    /**
+     * Generate wrappers for shared routes
+     */
+    private generateWrappers;
+    /**
+     * Get wrapper file path for app
+     */
+    private getWrapperPath;
+    /**
+     * Generate wrapper content
+     */
+    private generateWrapperContent;
+    /**
+     * Convert file path to import path
+     */
+    private convertToImportPath;
+    /**
+     * Extract route path from file path
+     */
+    private extractRoutePath;
+    /**
+     * Extract component name from file path
+     */
+    private extractComponentName;
 }

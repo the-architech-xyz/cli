@@ -7,31 +7,15 @@
  * - wrapped objects
  * - mixed exports
  */
+import { existsSync } from 'fs';
+import { pathToFileURL } from 'url';
 export class BlueprintLoader {
     /**
      * Load and normalize a blueprint from a module
      */
     static async loadBlueprint(moduleId, blueprintPath) {
         try {
-            // Try to load the original TypeScript source file instead of compiled JS
-            const sourcePath = blueprintPath.replace('/dist/', '/').replace('.js', '.ts');
-            let blueprintModule;
-            try {
-                // Try to load the compiled JS file (ES module)
-                blueprintModule = await import(blueprintPath);
-            }
-            catch (jsError) {
-                // If JS import fails, try the TypeScript source file
-                try {
-                    const sourcePath = blueprintPath.replace('/dist/', '/').replace('.js', '.ts');
-                    blueprintModule = await import(sourcePath);
-                }
-                catch (tsError) {
-                    const jsErrorMsg = jsError instanceof Error ? jsError.message : String(jsError);
-                    const tsErrorMsg = tsError instanceof Error ? tsError.message : String(tsError);
-                    throw new Error(`Failed to load blueprint from any source: JS: ${jsErrorMsg} | TS: ${tsErrorMsg}`);
-                }
-            }
+            const blueprintModule = await this.loadModuleWithFallbacks(blueprintPath);
             const moduleName = moduleId.split('/').pop() || moduleId;
             // Try different export patterns in order of preference
             let blueprint = this.tryDefaultExport(blueprintModule);
@@ -58,6 +42,60 @@ export class BlueprintLoader {
             };
         }
     }
+    static async loadModuleWithFallbacks(blueprintPath) {
+        const attempted = [];
+        const pathsToTry = this.buildCandidatePaths(blueprintPath);
+        let lastError = null;
+        for (const candidate of pathsToTry) {
+            attempted.push(candidate);
+            try {
+                if (candidate.endsWith('.ts')) {
+                    await this.ensureTypeScriptLoader();
+                }
+                const fileUrl = pathToFileURL(candidate).href;
+                return await import(fileUrl);
+            }
+            catch (error) {
+                lastError = error;
+                continue;
+            }
+        }
+        const errorMessage = lastError instanceof Error ? lastError.message : String(lastError);
+        throw new Error(`Failed to load blueprint from any source. Attempted: ${attempted.join(', ')}. Last error: ${errorMessage}`);
+    }
+    static buildCandidatePaths(blueprintPath) {
+        const candidates = new Set();
+        const normalizedPath = this.normalizePath(blueprintPath);
+        if (existsSync(normalizedPath)) {
+            candidates.add(normalizedPath);
+        }
+        if (normalizedPath.endsWith('.ts')) {
+            const compiledPath = normalizedPath.replace(/\.ts$/, '.js');
+            if (existsSync(compiledPath)) {
+                candidates.add(compiledPath);
+            }
+        }
+        else if (normalizedPath.endsWith('.js')) {
+            const sourcePath = normalizedPath.replace(/\.js$/, '.ts');
+            if (existsSync(sourcePath)) {
+                candidates.add(sourcePath);
+            }
+        }
+        return Array.from(candidates);
+    }
+    static normalizePath(targetPath) {
+        return targetPath.startsWith('file://')
+            ? new URL(targetPath).pathname
+            : targetPath;
+    }
+    static tsLoaderInitialized = false;
+    static async ensureTypeScriptLoader() {
+        if (this.tsLoaderInitialized) {
+            return;
+        }
+        await import('tsx/esm');
+        this.tsLoaderInitialized = true;
+    }
     /**
      * Try to get blueprint from default export
      */
@@ -66,8 +104,9 @@ export class BlueprintLoader {
             return null;
         const defaultExport = blueprintModule.default;
         // If default export is a function, it's a dynamic blueprint (valid)
+        // Return it wrapped so the preprocessor can recognize it
         if (typeof defaultExport === 'function') {
-            return defaultExport;
+            return { default: defaultExport };
         }
         // If default export is already a blueprint (has id, name, actions)
         if (this.isBlueprint(defaultExport)) {
