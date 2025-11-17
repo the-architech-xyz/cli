@@ -20,7 +20,6 @@ export declare class OrchestratorAgent {
     private blueprintPreprocessor;
     private appManifestGenerator;
     private moduleConfigService;
-    private componentDependencyResolver;
     private projectBootstrapService;
     constructor(projectManager: ProjectManager);
     /**
@@ -37,20 +36,16 @@ export declare class OrchestratorAgent {
      */
     private executeUnifiedPlan;
     /**
-     * Resolve component dependencies across all features
-     * Collects required components from feature manifests and ensures UI technologies install them
-     */
-    /**
-     * Resolve component dependencies (delegates to ComponentDependencyResolver)
-     */
-    private resolveComponentDependencies;
-    /**
      * Execute a single module with its own transactional VFS
      * Each blueprint gets: Create VFS → Execute → Flush to Disk
      */
     private executeModule;
     /**
-     * Install dependencies
+     * Ensure workspaces are configured in root package.json for monorepos
+     */
+    private ensureWorkspacesConfigured;
+    /**
+     * Install dependencies (monorepo-aware)
      */
     private installDependencies;
     /**

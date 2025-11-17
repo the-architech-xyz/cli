@@ -1,0 +1,1173 @@
+ℹ️  INFO: 🚀 Creating new project with genome: ../marketplace/genomes/architech-saas-v1.genome.ts
+ℹ️  INFO: 🔍 Resolving genome...
+ℹ️  INFO: ✅ Resolved genome: architech-saas-v1
+ℹ️  INFO: 📁 Source: file-path
+ℹ️  INFO: 🔧 Executing TypeScript genome...
+ℹ️  INFO: ✅ TypeScript genome executed successfully
+ℹ️  INFO: 🔄 Transforming genome...
+ℹ️  INFO: 🔄 Transforming genome via marketplace adapter...
+[core-marketplace] 🔧 Initializing default transformers {
+  enabledOptions: {
+    capabilityResolution: true,
+    moduleExpansion: true,
+    parameterDistribution: true,
+    connectorAutoInclusion: true
+  },
+  transformersLoaded: 10
+}
+[core-marketplace] 📦 Loaded marketplace module metadata { modules: 108 }
+[core-marketplace] 🚀 Starting genome transformation pipeline { originalModules: 14, transformers: 10, hasCapabilities: true }
+[core-marketplace] 🔧 Transformer execution order: {
+  transformers: [
+    {
+      name: 'Legacy Module ID Normalizer',
+      priority: 0,
+      description: 'Normalizes legacy module IDs to new adapter paths and de-duplicates.'
+    },
+    {
+      name: 'Capability Normalization',
+      priority: 1,
+      description: 'Converts capability declarations to executable modules'
+    },
+    {
+      name: 'Manifest Feature Resolver',
+      priority: 2,
+      description: 'Resolves abstract feature modules using manifests to concrete implementations'
+    },
+    {
+      name: 'Module Expansion',
+      priority: 2,
+      description: 'Expands feature modules and adds required dependencies'
+    },
+    {
+      name: 'Parameter Distribution',
+      priority: 3,
+      description: 'Distributes capability parameters to modules with validation'
+    },
+    {
+      name: 'Connector Auto-Inclusion',
+      priority: 4,
+      description: 'Automatically adds connectors that bridge selected technologies'
+    },
+    {
+      name: 'Final Validation',
+      priority: 5,
+      description: 'Performs final validation and preparation for execution'
+    },
+    {
+      name: 'FrameworkStripper',
+      priority: 60,
+      description: 'Removes adapters/framework/* modules (frameworks are executed outside the module pipeline).'
+    },
+    {
+      name: 'Path Requirements Extractor',
+      priority: 95,
+      description: 'Extracts path requirements from modules for dynamic path generation'
+    },
+    {
+      name: 'Execution Order',
+      priority: 98,
+      description: 'Orders modules deterministically for execution (adapters -> connectors -> features)'
+    }
+  ]
+}
+[core-marketplace] 🔄 Running transformer: Legacy Module ID Normalizer (priority: 0) {
+  modulesBefore: 14,
+  description: 'Normalizes legacy module IDs to new adapter paths and de-duplicates.'
+}
+[core-marketplace] 🔄 [Legacy Module ID Normalizer] Normalizing legacy module IDs { modules: 14 }
+[core-marketplace] ✅ [Legacy Module ID Normalizer] Legacy module IDs normalized { modules: 14 }
+[core-marketplace] ✅ Transformer "Legacy Module ID Normalizer" completed { duration: '1ms', modulesAfter: 14, modulesAdded: 0 }
+[core-marketplace] ✅ Legacy Module ID Normalizer completed { duration: 1, modulesCount: 14 }
+[core-marketplace] 🔄 Running transformer: Capability Normalization (priority: 1) {
+  modulesBefore: 14,
+  description: 'Converts capability declarations to executable modules'
+}
+[core-marketplace] 🔄 [Capability Normalization] Converting capabilities to modules {
+  capabilities: [ 'auth', 'payments', 'teams-management', 'emailing', 'monitoring' ]
+}
+[core-marketplace] 🔄 [Capability Normalization] Resolving auth capability {
+  provider: 'better-auth',
+  hasAdapter: true,
+  hasFrontend: true,
+  hasTechStack: true
+}
+[core-marketplace] 🔄 [Capability Normalization] Resolving payments capability {
+  provider: 'stripe',
+  hasAdapter: true,
+  hasFrontend: true,
+  hasTechStack: true
+}
+[core-marketplace] 🔄 [Capability Normalization] Resolving teams-management capability {
+  provider: 'custom',
+  hasAdapter: true,
+  hasFrontend: true,
+  hasTechStack: true
+}
+[core-marketplace] ⚠️ Adapter not found: adapters/teams-management/custom 
+[core-marketplace] 🔄 [Capability Normalization] Resolving emailing capability {
+  provider: 'resend',
+  hasAdapter: true,
+  hasFrontend: true,
+  hasTechStack: true
+}
+[core-marketplace] 🔄 [Capability Normalization] Resolving monitoring capability {
+  provider: 'custom',
+  hasAdapter: true,
+  hasFrontend: false,
+  hasTechStack: true
+}
+[core-marketplace] ⚠️ Adapter not found: adapters/observability/custom 
+[core-marketplace] ⚠️ Frontend layer not found: features/monitoring/frontend 
+[core-marketplace] ✅ [Capability Normalization] Capability resolution complete {
+  resolvedModules: 12,
+  capabilities: [ 'auth', 'payments', 'teams-management', 'emailing', 'monitoring' ]
+}
+[core-marketplace] ✅ Transformer "Capability Normalization" completed { duration: '5ms', modulesAfter: 26, modulesAdded: 12 }
+[core-marketplace] ✅ Capability Normalization completed { duration: 5, modulesCount: 26 }
+[core-marketplace] 🔄 Running transformer: Manifest Feature Resolver (priority: 2) {
+  modulesBefore: 26,
+  description: 'Resolves abstract feature modules using manifests to concrete implementations'
+}
+[core-marketplace] 🔄 [Manifest Feature Resolver] Resolving feature modules via manifests { modules: 26 }
+[core-marketplace] ✅ [Manifest Feature Resolver] Feature resolution complete { modules: 26 }
+[core-marketplace] ✅ Transformer "Manifest Feature Resolver" completed { duration: '3ms', modulesAfter: 26, modulesAdded: 0 }
+[core-marketplace] ✅ Manifest Feature Resolver completed { duration: 3, modulesCount: 26 }
+[core-marketplace] 🔄 Running transformer: Module Expansion (priority: 2) {
+  modulesBefore: 26,
+  description: 'Expands feature modules and adds required dependencies'
+}
+[core-marketplace] 🔄 [Module Expansion] Expanding modules and adding dependencies { modules: 26 }
+[core-marketplace] Skipping default adapter (metadata missing): adapters/core/framework 
+[core-marketplace] Skipping default adapter (metadata missing): adapters/core/monorepo 
+[core-marketplace] Skipping default adapter (metadata missing): adapters/core/ui 
+[core-marketplace] ✅ [Module Expansion] Module expansion complete { originalModules: 26, expandedModules: 51, addedModules: 25 }
+[core-marketplace] ✅ Transformer "Module Expansion" completed { duration: '4ms', modulesAfter: 51, modulesAdded: 25 }
+[core-marketplace] ✅ Module Expansion completed { duration: 4, modulesCount: 51 }
+[core-marketplace] 🔄 Running transformer: Parameter Distribution (priority: 3) {
+  modulesBefore: 51,
+  description: 'Distributes capability parameters to modules with validation'
+}
+[core-marketplace] 🔄 [Parameter Distribution] Distributing capability parameters to modules { capabilities: 5, modules: 51 }
+[INFO] 🔄 Distributing capability parameters to modules... { operation: 'parameter_distribution', capabilities: 5, modules: 51 }
+[INFO] 🔍 Loading module parameter schemas... { operation: 'parameter_distribution' }
+[INFO] ✅ Loaded 84 module schemas { operation: 'parameter_distribution' }
+[INFO] 🔧 Deduplicated modules: 51 → 26 { operation: 'parameter_distribution' }
+[INFO]   📦 Processing capability: auth { operation: 'parameter_distribution', capability: 'auth' }
+[DEBUG] 🔍 Processing rule: auth.adapter.oauthProviders -> adapters/auth/better-auth.oauthProviders {
+  operation: 'parameter_distribution',
+  targetModuleId: 'adapters/auth/better-auth',
+  targetModuleCategory: 'adapters'
+}
+[DEBUG] ✅ Applied parameter: adapters/auth/better-auth.oauthProviders = [] {
+  operation: 'parameter_distribution',
+  moduleId: 'adapters/auth/better-auth',
+  moduleCategory: 'adapters',
+  allParameters: [ 'oauthProviders' ]
+}
+[DEBUG] 🔍 Processing rule: auth.adapter.twoFactor -> adapters/auth/better-auth.twoFactor {
+  operation: 'parameter_distribution',
+  targetModuleId: 'adapters/auth/better-auth',
+  targetModuleCategory: 'adapters'
+}
+[DEBUG] ✅ Applied parameter: adapters/auth/better-auth.twoFactor = false {
+  operation: 'parameter_distribution',
+  moduleId: 'adapters/auth/better-auth',
+  moduleCategory: 'adapters',
+  allParameters: [ 'oauthProviders', 'twoFactor' ]
+}
+[DEBUG] 🔍 Processing rule: auth.adapter.organizations -> adapters/auth/better-auth.organizations {
+  operation: 'parameter_distribution',
+  targetModuleId: 'adapters/auth/better-auth',
+  targetModuleCategory: 'adapters'
+}
+[DEBUG] ✅ Applied parameter: adapters/auth/better-auth.organizations = true {
+  operation: 'parameter_distribution',
+  moduleId: 'adapters/auth/better-auth',
+  moduleCategory: 'adapters',
+  allParameters: [ 'oauthProviders', 'twoFactor', 'organizations' ]
+}
+[DEBUG] 🔍 Processing rule: auth.adapter.emailPassword -> adapters/auth/better-auth.emailPassword {
+  operation: 'parameter_distribution',
+  targetModuleId: 'adapters/auth/better-auth',
+  targetModuleCategory: 'adapters'
+}
+[DEBUG] ✅ Applied parameter: adapters/auth/better-auth.emailPassword = true {
+  operation: 'parameter_distribution',
+  moduleId: 'adapters/auth/better-auth',
+  moduleCategory: 'adapters',
+  allParameters: [ 'oauthProviders', 'twoFactor', 'organizations', 'emailPassword' ]
+}
+[DEBUG] 🔍 Processing rule: auth.adapter.emailVerification -> adapters/auth/better-auth.emailVerification {
+  operation: 'parameter_distribution',
+  targetModuleId: 'adapters/auth/better-auth',
+  targetModuleCategory: 'adapters'
+}
+[DEBUG] ✅ Applied parameter: adapters/auth/better-auth.emailVerification = true {
+  operation: 'parameter_distribution',
+  moduleId: 'adapters/auth/better-auth',
+  moduleCategory: 'adapters',
+  allParameters: [
+    'oauthProviders',
+    'twoFactor',
+    'organizations',
+    'emailPassword',
+    'emailVerification'
+  ]
+}
+[DEBUG] 🔍 Processing rule: auth.frontend.features.signIn -> features/auth/frontend.features.signIn {
+  operation: 'parameter_distribution',
+  targetModuleId: 'features/auth/frontend',
+  targetModuleCategory: 'features'
+}
+[DEBUG] ✅ Applied parameter: features/auth/frontend.features.signIn = true {
+  operation: 'parameter_distribution',
+  moduleId: 'features/auth/frontend',
+  moduleCategory: 'features',
+  allParameters: [ 'features' ]
+}
+[DEBUG] 🔍 Processing rule: auth.frontend.features.signUp -> features/auth/frontend.features.signUp {
+  operation: 'parameter_distribution',
+  targetModuleId: 'features/auth/frontend',
+  targetModuleCategory: 'features'
+}
+[DEBUG] ✅ Applied parameter: features/auth/frontend.features.signUp = true {
+  operation: 'parameter_distribution',
+  moduleId: 'features/auth/frontend',
+  moduleCategory: 'features',
+  allParameters: [ 'features' ]
+}
+[DEBUG] 🔍 Processing rule: auth.frontend.features.organizationManagement -> features/auth/frontend.features.organizationManagement {
+  operation: 'parameter_distribution',
+  targetModuleId: 'features/auth/frontend',
+  targetModuleCategory: 'features'
+}
+[DEBUG] ✅ Applied parameter: features/auth/frontend.features.organizationManagement = true {
+  operation: 'parameter_distribution',
+  moduleId: 'features/auth/frontend',
+  moduleCategory: 'features',
+  allParameters: [ 'features' ]
+}
+[DEBUG] 🔍 Processing rule: auth.adapter.oauthProviders -> features/auth/frontend.features.socialLogins {
+  operation: 'parameter_distribution',
+  targetModuleId: 'features/auth/frontend',
+  targetModuleCategory: 'features'
+}
+[DEBUG] ✅ Applied parameter: features/auth/frontend.features.socialLogins = false {
+  operation: 'parameter_distribution',
+  moduleId: 'features/auth/frontend',
+  moduleCategory: 'features',
+  allParameters: [ 'features' ]
+}
+[DEBUG] 🔍 Processing rule: auth.techStack.hasTypes -> features/auth/tech-stack.hasTypes {
+  operation: 'parameter_distribution',
+  targetModuleId: 'features/auth/tech-stack',
+  targetModuleCategory: 'features'
+}
+[DEBUG] ✅ Applied parameter: features/auth/tech-stack.hasTypes = true {
+  operation: 'parameter_distribution',
+  moduleId: 'features/auth/tech-stack',
+  moduleCategory: 'features',
+  allParameters: [ 'hasTypes' ]
+}
+[DEBUG] 🔍 Processing rule: auth.techStack.hasSchemas -> features/auth/tech-stack.hasSchemas {
+  operation: 'parameter_distribution',
+  targetModuleId: 'features/auth/tech-stack',
+  targetModuleCategory: 'features'
+}
+[DEBUG] ✅ Applied parameter: features/auth/tech-stack.hasSchemas = true {
+  operation: 'parameter_distribution',
+  moduleId: 'features/auth/tech-stack',
+  moduleCategory: 'features',
+  allParameters: [ 'hasTypes', 'hasSchemas' ]
+}
+[DEBUG] 🔍 Processing rule: auth.techStack.hasHooks -> features/auth/tech-stack.hasHooks {
+  operation: 'parameter_distribution',
+  targetModuleId: 'features/auth/tech-stack',
+  targetModuleCategory: 'features'
+}
+[DEBUG] ✅ Applied parameter: features/auth/tech-stack.hasHooks = true {
+  operation: 'parameter_distribution',
+  moduleId: 'features/auth/tech-stack',
+  moduleCategory: 'features',
+  allParameters: [ 'hasTypes', 'hasSchemas', 'hasHooks' ]
+}
+[DEBUG] 🔍 Processing rule: auth.techStack.hasStores -> features/auth/tech-stack.hasStores {
+  operation: 'parameter_distribution',
+  targetModuleId: 'features/auth/tech-stack',
+  targetModuleCategory: 'features'
+}
+[DEBUG] ✅ Applied parameter: features/auth/tech-stack.hasStores = true {
+  operation: 'parameter_distribution',
+  moduleId: 'features/auth/tech-stack',
+  moduleCategory: 'features',
+  allParameters: [ 'hasTypes', 'hasSchemas', 'hasHooks', 'hasStores' ]
+}
+[INFO]   📦 Processing capability: payments { operation: 'parameter_distribution', capability: 'payments' }
+[INFO]   📦 Processing capability: teams-management { operation: 'parameter_distribution', capability: 'teams-management' }
+[INFO]   📦 Processing capability: emailing { operation: 'parameter_distribution', capability: 'emailing' }
+[INFO]   📦 Processing capability: monitoring { operation: 'parameter_distribution', capability: 'monitoring' }
+[INFO] ✅ Parameter distribution complete {
+  operation: 'parameter_distribution',
+  success: true,
+  errors: 0,
+  warnings: 17
+}
+[core-marketplace] ✅ [Parameter Distribution] Parameter distribution complete { modules: 26, errors: 0, warnings: 17 }
+[core-marketplace] ✅ Transformer "Parameter Distribution" completed { duration: '156ms', modulesAfter: 26, modulesAdded: -25 }
+[core-marketplace] ✅ Parameter Distribution completed { duration: 156, modulesCount: 26 }
+[core-marketplace] 🔄 Running transformer: Connector Auto-Inclusion (priority: 4) {
+  modulesBefore: 26,
+  description: 'Automatically adds connectors that bridge selected technologies'
+}
+[core-marketplace] 🔄 [Connector Auto-Inclusion] Analyzing modules for connector requirements { modules: 26 }
+[core-marketplace] Found 19 connectors in marketplace { operation: 'connector_auto_inclusion' }
+[core-marketplace] ✅ [Connector Auto-Inclusion] Connector auto-inclusion complete {
+  originalModules: 26,
+  addedConnectors: 0,
+  finalModules: 26,
+  availableConnectors: 19
+}
+[core-marketplace] ✅ Transformer "Connector Auto-Inclusion" completed { duration: '4ms', modulesAfter: 26, modulesAdded: 0 }
+[core-marketplace] ✅ Connector Auto-Inclusion completed { duration: 4, modulesCount: 26 }
+[core-marketplace] 🔄 Running transformer: Final Validation (priority: 5) {
+  modulesBefore: 26,
+  description: 'Performs final validation and preparation for execution'
+}
+[core-marketplace] 🔄 [Final Validation] Performing final validation { modules: 26 }
+[core-marketplace] ✅ [Final Validation] Final validation complete { modules: 26, warnings: 0, conflicts: 0 }
+[core-marketplace] ✅ Transformer "Final Validation" completed { duration: '5ms', modulesAfter: 26, modulesAdded: 0 }
+[core-marketplace] ✅ Final Validation completed { duration: 5, modulesCount: 26 }
+[core-marketplace] ⏭️  Skipping transformer "FrameworkStripper" (canTransform returned false) 
+[core-marketplace] 🔄 Running transformer: Path Requirements Extractor (priority: 95) {
+  modulesBefore: 26,
+  description: 'Extracts path requirements from modules for dynamic path generation'
+}
+[core-marketplace] 🔄 [Path Requirements Extractor] Extracting path requirements from modules { modules: 26 }
+[core-marketplace] [PathRequirementsExtractor] Extracted domain "auth" from module "adapters/auth/better-auth" 
+[core-marketplace] [PathRequirementsExtractor] Extracted domain "payment" from module "adapters/payment/stripe" 
+[core-marketplace] [PathRequirementsExtractor] No domain extracted from module "adapters/email/resend" 
+[core-marketplace] [PathRequirementsExtractor] Extracted domain "projects" from module "features/projects/database/drizzle" 
+[core-marketplace] [PathRequirementsExtractor] Extracted domain "projects" from module "features/projects/tech-stack" 
+[core-marketplace] [PathRequirementsExtractor] Extracted domain "projects" from module "features/projects/frontend" 
+[core-marketplace] [PathRequirementsExtractor] Extracted domain "projects" from module "features/projects/backend/nextjs" 
+[core-marketplace] [PathRequirementsExtractor] Extracted domain "auth" from module "features/auth/frontend" 
+[core-marketplace] [PathRequirementsExtractor] Extracted domain "auth" from module "features/auth/tech-stack" 
+[core-marketplace] [PathRequirementsExtractor] Extracted domain "payment" from module "features/payments/frontend" 
+[core-marketplace] [PathRequirementsExtractor] Extracted domain "payment" from module "features/payments/tech-stack" 
+[core-marketplace] [PathRequirementsExtractor] Extracted domain "teams" from module "features/teams-management/frontend" 
+[core-marketplace] [PathRequirementsExtractor] Extracted domain "teams" from module "features/teams-management/tech-stack" 
+[core-marketplace] [PathRequirementsExtractor] Extracted domain "email" from module "features/emailing/frontend" 
+[core-marketplace] [PathRequirementsExtractor] Extracted domain "email" from module "features/emailing/tech-stack" 
+[core-marketplace] [PathRequirementsExtractor] Extracted domain "monitoring" from module "features/monitoring/tech-stack" 
+[core-marketplace] [PathRequirementsExtractor] No domain extracted from module "adapters/ui/tamagui" 
+[core-marketplace] [PathRequirementsExtractor] No domain extracted from module "connectors/ui/tamagui-nextjs" 
+[core-marketplace] [PathRequirementsExtractor] No domain extracted from module "adapters/monorepo/turborepo" 
+[core-marketplace] [PathRequirementsExtractor] No domain extracted from module "adapters/database/drizzle" 
+[core-marketplace] [PathRequirementsExtractor] No domain extracted from module "adapters/jobs/bullmq" 
+[core-marketplace] [PathRequirementsExtractor] No domain extracted from module "adapters/core/golden-stack" 
+[core-marketplace] [PathRequirementsExtractor] No domain extracted from module "adapters/data-fetching/tanstack-query" 
+[core-marketplace] [PathRequirementsExtractor] No domain extracted from module "connectors/infrastructure/tanstack-query-nextjs" 
+[core-marketplace] [PathRequirementsExtractor] No domain extracted from module "adapters/observability/sentry" 
+[core-marketplace] [PathRequirementsExtractor] No domain extracted from module "adapters/deployment/vercel" 
+[core-marketplace] [PathRequirementsExtractor] Found 6 unique domains: auth, payment, projects, teams, email, monitoring 
+[core-marketplace] [PathRequirementsExtractor] Added standard paths for domain "auth" 
+[core-marketplace] [PathRequirementsExtractor] Module "adapters/auth/better-auth" requires additional paths: packages.shared.src.auth.session, packages.shared.src.auth.middleware 
+[core-marketplace] [PathRequirementsExtractor] Module "features/auth/frontend" requires additional paths: packages.shared.src.auth.session, packages.shared.src.auth.middleware 
+[core-marketplace] [PathRequirementsExtractor] Module "features/auth/tech-stack" requires additional paths: packages.shared.src.auth.session, packages.shared.src.auth.middleware 
+[core-marketplace] [PathRequirementsExtractor] Added standard paths for domain "payment" 
+[core-marketplace] [PathRequirementsExtractor] Module "adapters/payment/stripe" requires additional paths: packages.shared.src.payment.webhooks, apps.api.routes.payment.webhook 
+[core-marketplace] [PathRequirementsExtractor] Added standard paths for domain "projects" 
+[core-marketplace] [PathRequirementsExtractor] Added standard paths for domain "teams" 
+[core-marketplace] [PathRequirementsExtractor] Added standard paths for domain "email" 
+[core-marketplace] [PathRequirementsExtractor] Added standard paths for domain "monitoring" 
+[core-marketplace] [PathRequirementsExtractor] Module "features/monitoring/tech-stack" requires additional paths: packages.shared.src.monitoring.utils, packages.shared.src.monitoring.hooks 
+[core-marketplace] ✅ [Path Requirements Extractor] Path requirements extracted {
+  domains: 6,
+  requiredPaths: 28,
+  domainList: [ 'auth', 'payment', 'projects', 'teams', 'email', 'monitoring' ],
+  pathList: [
+    'packages.shared.src.auth.config',
+    'packages.shared.src.auth.types',
+    'packages.shared.src.auth.client',
+    'packages.shared.src.auth.session',
+    'packages.shared.src.auth.middleware',
+    'packages.shared.src.payment.config',
+    'packages.shared.src.payment.types',
+    'packages.shared.src.payment.client',
+    'packages.shared.src.payment.webhooks',
+    'apps.api.routes.payment.webhook'
+  ]
+}
+[core-marketplace] [PathRequirementsExtractor] Generated 28 required paths (24 unique) 
+[core-marketplace] ✅ Transformer "Path Requirements Extractor" completed { duration: '2ms', modulesAfter: 26, modulesAdded: 0 }
+[core-marketplace] ✅ Path Requirements Extractor completed { duration: 2, modulesCount: 26 }
+[core-marketplace] 🔄 Running transformer: Execution Order (priority: 98) {
+  modulesBefore: 26,
+  description: 'Orders modules deterministically for execution (adapters -> connectors -> features)'
+}
+[core-marketplace] 🔄 [Execution Order] Ordering modules for execution { modules: 26 }
+[core-marketplace] ✅ [Execution Order] Modules ordered { ordered: 26 }
+[core-marketplace] ✅ Transformer "Execution Order" completed { duration: '0ms', modulesAfter: 26, modulesAdded: 0 }
+[core-marketplace] ✅ Execution Order completed { duration: 0, modulesCount: 26 }
+[core-marketplace] 🎉 Genome transformation completed successfully { totalDuration: 199, steps: 9, finalModules: 26, originalModules: 14 }
+ℹ️  INFO: ✅ Genome transformed via adapter: 14 → 26 modules
+
+🔍 Validating Genome
+   Checking project configuration and dependencies
+📁 Initializing project: architech-saas
+✅ Project directory created
+  ⚡ Running command: cd ../.. && if [ -f package.json ]; then mv package.json package.json.tmp; fi
+  📁 Working directory: /Users/antoine/Documents/Code/architech/Architech/architech-saas/apps/web
+  🔧 Shell execution: enabled
+- Running shell command
+✔ Command completed successfully
+  ✅ Command executed successfully
+  ⚡ Running command: npx create-next-app@latest . --typescript --app --src-dir --import-alias "@/" --skip-install --yes
+  📁 Working directory: /Users/antoine/Documents/Code/architech/Architech/architech-saas/apps/web
+  🔧 Shell execution: disabled
+- Running npx
+  ✅ Command executed successfully
+  ⚡ Running command: cd ../.. && if [ -f package.json.tmp ]; then mv package.json.tmp package.json; fi
+  📁 Working directory: /Users/antoine/Documents/Code/architech/Architech/architech-saas/apps/web
+  🔧 Shell execution: enabled
+- Running shell command
+✔ Command completed successfully
+  ✅ Command executed successfully
+  ⚡ Running command: cd ../.. && if [ -f package.json ]; then mv package.json package.json.tmp; fi
+  📁 Working directory: /Users/antoine/Documents/Code/architech/Architech/architech-saas/apps/api
+  🔧 Shell execution: enabled
+- Running shell command
+✔ Command completed successfully
+  ✅ Command executed successfully
+  ⚡ Running command: npx create-next-app@latest . --typescript --app --src-dir --import-alias "@/" --skip-install --yes
+  📁 Working directory: /Users/antoine/Documents/Code/architech/Architech/architech-saas/apps/api
+  🔧 Shell execution: disabled
+- Running npx
+  ✅ Command executed successfully
+  ⚡ Running command: cd ../.. && if [ -f package.json.tmp ]; then mv package.json.tmp package.json; fi
+  📁 Working directory: /Users/antoine/Documents/Code/architech/Architech/architech-saas/apps/api
+  🔧 Shell execution: enabled
+- Running shell command
+✔ Command completed successfully
+  ✅ Command executed successfully
+   ✅ Completed in 7106ms
+
+📋 Planning Execution
+   Analyzing dependencies and creating execution plan
+[path-init] explicit ui framework shadcn
+[path-init] active UI framework shadcn
+[path-init] ui marketplace path /Users/antoine/Documents/Code/architech/ui-marketplaces/marketplace-shadcn/ui
+   ✅ Completed in 10ms
+  📦 Installing packages: better-auth in packages/shared
+  ✅ Packages installed successfully
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+  📦 Installing packages: stripe, @stripe/stripe-js in packages/shared
+  ✅ Packages installed successfully
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+  📦 Installing packages: resend, @react-email/render in packages/shared
+  ✅ Packages installed successfully
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp',
+  'constitutional'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp',
+  'constitutional'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+  📦 Installing packages: @tamagui/core, @tamagui/config, tamagui in packages/ui
+  ✅ Packages installed successfully
+  📦 Installing packages: @tamagui/web in packages/ui
+  ✅ Packages installed successfully
+  📦 Installing packages: @tamagui/animations-react-native, @tamagui/lucide-icons in packages/ui
+  ✅ Packages installed successfully
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp',
+  'theme'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+  📦 Installing packages: turbo in packages/shared
+  ✅ Packages installed successfully
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+🔄 File already exists: package.json, applying conflict resolution...
+  🔀 Merging with existing file: package.json
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+  🔧 Applying modifier 'package-json-merger' to package.json
+  ✨ Enhanced file: package.json
+  🔀 Delegation merge completed: package.json
+  📦 Installing packages: drizzle-orm, postgres in packages/database
+  ✅ Packages installed successfully
+  📦 Installing packages: drizzle-kit, @types/pg in packages/database
+  ✅ Packages installed successfully
+  📦 Installing packages: bullmq, ioredis in packages/shared
+  ✅ Packages installed successfully
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+  📦 Installing packages: zustand in packages/shared
+  ✅ Packages installed successfully
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+  📦 Installing packages: vitest, @vitejs/plugin-react, jsdom, @testing-library/react, @testing-library/jest-dom, @testing-library/user-event, @types/react, @types/react-dom in packages/shared
+  ✅ Packages installed successfully
+  📦 Installing packages: eslint, @eslint/eslintrc in packages/shared
+  ✅ Packages installed successfully
+  📦 Installing packages: prettier in packages/shared
+  ✅ Packages installed successfully
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+  📦 Installing packages: zod in packages/shared
+  ✅ Packages installed successfully
+  📦 Installing packages: @tanstack/react-query in packages/shared
+  ✅ Packages installed successfully
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+✅ Simple template processing successful
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+  🔧 Applying modifier 'package-json-merger' to package.json
+  ✨ Enhanced file: package.json
+  🔄 Path resolved: ${paths.apps.web.src}app/layout.tsx → apps/web/src/app/layout.tsx
+  🔧 Applying modifier 'jsx-children-wrapper' to apps/web/src/app/layout.tsx
+  ✨ Enhanced file: apps/web/src/app/layout.tsx
+  🔄 Path resolved: ${paths.apps.web.src}app/layout.tsx → apps/web/src/app/layout.tsx
+  🔧 Applying modifier 'jsx-children-wrapper' to apps/web/src/app/layout.tsx
+  ✨ Enhanced file: apps/web/src/app/layout.tsx
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+  📦 Installing packages: zod, @tanstack/react-query, zustand, immer in packages/shared
+  ✅ Packages installed successfully
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+🔍 EJS Context keys: [
+  'project',
+  'module',
+  'framework',
+  'paths',
+  'modules',
+  'pathHandler',
+  'env',
+  'marketplace',
+  'params',
+  'platforms',
+  'importPath',
+  'targetPackage',
+  'frontendApps',
+  'hasMultipleFrontendApps',
+  'hasWebApp',
+  'hasMobileApp'
+]
+🔍 Has project? true
+🔍 Has modules? true (26 items)
+✅ EJS processing successful
+  📦 Installing packages: better-auth, react-hook-form, @hookform/resolvers, lucide-react, class-variance-authority, clsx, tailwind-merge in apps/web
+  ✅ Packages installed successfully
+  ✅ Auto-generated web wrapper: apps/web/src/app/(auth)/login/page.tsx
+✅ Simple template processing successful
+  ✅ Auto-generated web wrapper: apps/web/src/app/(auth)/signup/page.tsx
+  ✅ Auto-generated web wrapper: apps/web/src/app/(auth)/profile/page.tsx
+✅ Simple template processing successful
+  📦 Installing packages: zod, @tanstack/react-query, zustand, immer, sonner in packages/shared
+  ✅ Packages installed successfully
+🔄 File already exists: packages/shared/src/auth/types.ts, applying conflict resolution...
+  ⏭️ Skipping file creation: packages/shared/src/auth/types.ts
+  📦 Installing packages: @stripe/stripe-js, @stripe/react-stripe-js, react-hook-form, @hookform/resolvers, lucide-react, date-fns, framer-motion in apps/web
+  ✅ Packages installed successfully
+  ✅ Auto-generated web wrapper: apps/web/src/app/checkout/page.tsx
+  📦 Installing packages: zod, @tanstack/react-query, zustand, immer, sonner in packages/shared
+  ✅ Packages installed successfully
+  📦 Installing packages: date-fns@^2.30.0, lucide-react@^0.294.0, react-hook-form, @hookform/resolvers in apps/web
+  ✅ Packages installed successfully
+  📦 Installing packages: zod, @tanstack/react-query, zustand, immer, sonner in packages/shared
+  ✅ Packages installed successfully
+  ✅ Auto-generated web wrapper: apps/web/src/app/emailing/page.tsx
+  📦 Installing packages: zod, @tanstack/react-query, zustand, immer, sonner in packages/shared
+  ✅ Packages installed successfully
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: '@vitejs/plugin-react@5.1.1',
+npm warn EBADENGINE   required: { node: '^20.19.0 || >=22.12.0' },
+npm warn EBADENGINE   current: { node: 'v22.3.0', npm: '10.8.1' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'jsdom@27.2.0',
+npm warn EBADENGINE   required: { node: '^20.19.0 || ^22.12.0 || >=24.0.0' },
+npm warn EBADENGINE   current: { node: 'v22.3.0', npm: '10.8.1' }
+npm warn EBADENGINE }
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'vite@7.2.2',
+npm warn EBADENGINE   required: { node: '^20.19.0 || >=22.12.0' },
+npm warn EBADENGINE   current: { node: 'v22.3.0', npm: '10.8.1' }
+npm warn EBADENGINE }
+npm warn deprecated path-match@1.2.4: This package is archived and no longer maintained. For support, visit https://github.com/expressjs/express/discussions
+npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.is
+npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.is
+[dependency_installation] Failed to install dependencies. For more details, run with --verbose.
+[2025-11-17T18:11:01.824Z] ERROR [trace=729e918f-5e84-4fbd-9ebb-777cac43e6d5 op=dependency_installation]: ❌ Failed to install dependencies. For more details, run with --verbose.
+[2025-11-17T18:11:01.824Z] ERROR [trace=729e918f-5e84-4fbd-9ebb-777cac43e6d5 op=orchestrator_execution duration=101602ms]: Failed execution trace: orchestrator_execution
+Error: Failed to install dependencies: Command failed: npm install
+    at OrchestratorAgent.installDependencies (file:///Users/antoine/Documents/Code/architech/Architech/dist/agents/orchestrator-agent.js:731:19)
+    at async OrchestratorAgent.executeRecipe (file:///Users/antoine/Documents/Code/architech/Architech/dist/agents/orchestrator-agent.js:199:17)
+    at async Command.<anonymous> (file:///Users/antoine/Documents/Code/architech/Architech/dist/commands/new.js:214:28)
+
+❌ Project creation failed:
+
+❌   - Failed to install dependencies. For more details, run with --verbose.

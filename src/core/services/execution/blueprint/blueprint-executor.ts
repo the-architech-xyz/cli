@@ -19,7 +19,7 @@ import { YamlMergerModifier } from '../../file-system/modifiers/yaml-merger.js';
 import { ActionHandlerRegistry } from './action-handlers/index.js';
 import { ArchitechError, ArchitechErrorCode } from '../../infrastructure/error/architech-error.js';
 import { TemplateService } from '../../file-system/template/template-service.js';
-import { PathKeyRegistry } from '../../path/path-key-registry.js';
+import { PathService } from '../../path/path-service.js';
 
 // Simple modifier interface for now
 interface ModifierDefinition {
@@ -157,7 +157,7 @@ export class BlueprintExecutor {
         ? 'single-app'
         : undefined;
 
-    const validation = await PathKeyRegistry.validatePathKeyUsage(
+    const validation = await PathService.validatePathKeyUsage(
       templatePath,
       marketplaceName,
       projectStructure

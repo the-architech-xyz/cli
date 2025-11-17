@@ -47,9 +47,35 @@ export declare class MarketplaceService {
      */
     static getBlueprintPath(module: Module, blueprintFileName?: string): string;
     /**
-     * Load module blueprint using BlueprintLoader
+     * Load module blueprint (consolidated from BlueprintLoader)
      */
     static loadModuleBlueprint(module: Module, blueprintFileName?: string): Promise<any>;
+    /**
+     * Load and normalize a blueprint from a module
+     * @private
+     */
+    private static loadBlueprint;
+    private static loadModuleWithFallbacks;
+    private static buildCandidatePaths;
+    private static normalizePath;
+    private static tsLoaderInitialized;
+    private static ensureTypeScriptLoader;
+    /**
+     * Try to get blueprint from default export
+     */
+    private static tryDefaultExport;
+    /**
+     * Try to get blueprint from named export (moduleNameBlueprint)
+     */
+    private static tryNamedExport;
+    /**
+     * Try to get blueprint from wrapped export
+     */
+    private static tryWrappedExport;
+    /**
+     * Check if an object is a valid blueprint
+     */
+    private static isBlueprint;
     /**
      * Check if a module exists in the marketplace
      */

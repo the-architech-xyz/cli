@@ -31,6 +31,21 @@ export declare class FrameworkContextService {
      */
     static createProjectContext(genome: ResolvedGenome, module: Module, pathHandler: PathService, modulesRecord: Record<string, Module>): Promise<ProjectContext>;
     /**
+     * Convert flat dot-notation path keys to nested object structure
+     * Example: { 'packages.shared.src': './packages/shared/src' }
+     *       -> { packages: { shared: { src: './packages/shared/src' } } }
+     *
+     * This is needed because EJS templates expect nested access like:
+     * paths.packages.shared.src.payment.config
+     */
+    private static buildNestedPathsObject;
+    /**
+     * Set nested value in object using dot notation
+     * Creates intermediate objects as needed
+     * @private
+     */
+    private static setNestedValue;
+    /**
      * Load framework configuration from marketplace
      */
     private static loadFrameworkConfig;

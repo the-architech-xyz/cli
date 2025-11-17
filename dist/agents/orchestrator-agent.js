@@ -13,11 +13,6 @@ import { MarketplaceService } from "../core/services/marketplace/marketplace-ser
 import { CacheManagerService } from "../core/services/infrastructure/cache/cache-manager.js";
 import { Logger, ExecutionTracer, LogLevel, } from "../core/services/infrastructure/logging/index.js";
 import { ErrorHandler } from "../core/services/infrastructure/error/index.js";
-// import { DependencyGraph } from "../core/services/execution-planning/dependency-graph.js";
-// import { ManifestDrivenFeatureResolver } from "../core/services/feature-resolution/manifest-driven-feature-resolver.js";
-// import { ModuleClassifier } from "../core/services/orchestration/module-classifier.js";
-// import { ModuleAutoInclusionService } from "../core/services/orchestration/module-auto-inclusion.js";
-import { ComponentDependencyResolver } from "../core/services/orchestration/component-dependency-resolver.js";
 import { BlueprintPreprocessor } from "../core/services/execution/blueprint/blueprint-preprocessor.js";
 import { AppManifestGenerator } from "../core/services/project/app-manifest-generator.js";
 import { ModuleConfigurationService } from "../core/services/orchestration/module-configuration-service.js";
@@ -31,7 +26,6 @@ export class OrchestratorAgent {
     blueprintPreprocessor;
     appManifestGenerator;
     moduleConfigService;
-    componentDependencyResolver;
     projectBootstrapService;
     constructor(projectManager) {
         this.projectManager = projectManager;
@@ -39,7 +33,6 @@ export class OrchestratorAgent {
         this.cacheManager = new CacheManagerService();
         this.moduleService = new ModuleService(this.cacheManager);
         this.moduleConfigService = new ModuleConfigurationService();
-        this.componentDependencyResolver = new ComponentDependencyResolver();
         this.blueprintPreprocessor = new BlueprintPreprocessor();
         this.appManifestGenerator = new AppManifestGenerator();
         this.projectBootstrapService = new ProjectBootstrapService(this.moduleService, this.pathHandler, this.blueprintPreprocessor, this.moduleConfigService);
@@ -108,62 +101,17 @@ export class OrchestratorAgent {
             }
             ExecutionTracer.logOperation(traceId, "Bootstrapping project foundations");
             const frameworkAdapterConfig = await this.projectBootstrapService.bootstrap(genome, structureResult);
-            // Note: Genome transformation is done in the command layer (new.ts)
+            // Genome transformation is done in the command layer (new.ts)
             // The orchestrator receives a pre-transformed genome with modules already resolved
-            // 1.3-1.8. All resolution/auto-inclusion is now done by the transformer
-            const enhancedGenome = genome;
-            // 1.75. COMPONENT DEPENDENCY RESOLUTION - Auto-install required UI components
-            Logger.info("📦 Resolving component dependencies", {
-                traceId,
-                operation: "component_dependency_resolution",
-            });
-            const componentDependencies = await this.resolveComponentDependencies(enhancedGenome);
-            // Inject resolved components into UI technology modules
-            if (componentDependencies.size > 0) {
-                for (const module of enhancedGenome.modules) {
-                    for (const [uiTechId, requiredComponents] of componentDependencies.entries()) {
-                        // Match module to UI technology - handle both formats:
-                        // - 'ui/shadcn-ui' (from feature.json)
-                        // - 'adapters/ui/shadcn-ui' (after transformation)
-                        const matches = module.id === uiTechId ||
-                            module.id === `adapters/${uiTechId}` ||
-                            module.id.endsWith(`/${uiTechId}`);
-                        if (matches) {
-                            // Merge required components with user-specified components
-                            const userComponents = module.parameters?.components || [];
-                            const allComponents = Array.from(new Set([...userComponents, ...requiredComponents])).sort();
-                            // Update module parameters
-                            module.parameters = {
-                                ...module.parameters,
-                                components: allComponents
-                            };
-                            Logger.info(`✅ Injected components into ${module.id}: [${requiredComponents.join(', ')}]`, {
-                                traceId,
-                                operation: "component_injection",
-                            });
-                        }
-                    }
-                }
-            }
-            // 1.6. All dependency resolution handled by transformer
-            const resolvedGenome = enhancedGenome;
-            // 2. Load and validate modules
-            ExecutionTracer.logOperation(traceId, "Loading modules");
-            Logger.info(`📦 Loading ${resolvedGenome.modules.length} resolved modules`, {
-                traceId,
-                operation: "module_loading",
-            });
+            // All transformation logic (dependency resolution, module expansion, execution ordering)
+            // is handled by the marketplace adapter's GenomeTransformer
+            const resolvedGenome = genome;
             // Complete validation phase
             if (enhancedLogger) {
                 enhancedLogger.completePhase();
-            }
-            // 2.5. Architectural validation handled by transformer; proceed
-            // Enhanced logging: Start planning phase
-            if (enhancedLogger) {
                 enhancedLogger.startPhase("planning");
             }
-            // 3-4. Skip classification and CLI dependency graph (handled by transformer ordering)
-            // 5.5. Initialize all paths centrally (BEFORE framework setup and module execution)
+            // Initialize all paths centrally (BEFORE framework setup and module execution)
             // This ensures paths (including marketplace UI) are available during blueprint execution
             ExecutionTracer.logOperation(traceId, "Initializing project paths");
             const { PathInitializationService } = await import('../core/services/project/path-initialization-service.js');
@@ -172,12 +120,16 @@ export class OrchestratorAgent {
                 marketplaceInfo: executionOptions.marketplaceInfo,
                 runtimeOverrides: executionOptions.pathOverrides,
             });
-            // 6-10. Skip CLI planning/graph; execute modules sequentially in transformer order
+            // Execute modules sequentially in transformer order
             if (enhancedLogger) {
                 enhancedLogger.completePhase();
                 enhancedLogger.setTotalModules(resolvedGenome.modules.length);
                 enhancedLogger.startPhase("modules");
             }
+            Logger.info(`📦 Executing ${resolvedGenome.modules.length} modules`, {
+                traceId,
+                operation: "module_execution",
+            });
             for (const mod of resolvedGenome.modules) {
                 const execResult = await this.executeModule(mod, resolvedGenome, traceId, enhancedLogger);
                 if (!execResult.success) {
@@ -189,15 +141,66 @@ export class OrchestratorAgent {
                         warnings
                     };
                 }
+                results.push(execResult);
                 // Optional progress update if logger supports it
                 if (enhancedLogger && typeof enhancedLogger.incrementModule === 'function') {
                     enhancedLogger.incrementModule();
                 }
             }
-            // 11. Install dependencies (only if all modules succeeded)
+            // Log completion of module execution
+            Logger.info("🎉 All modules executed successfully", {
+                traceId,
+                modulesExecuted: results.length,
+                operation: "module_execution_complete"
+            });
+            // Ensure workspaces are configured for monorepos (before dependency installation)
+            Logger.debug("🔍 Checking if workspace configuration is needed", {
+                traceId,
+                structure: resolvedGenome.project.structure,
+                isMonorepo: resolvedGenome.project.structure === 'monorepo',
+                operation: "workspace_configuration_check"
+            });
+            if (resolvedGenome.project.structure === 'monorepo') {
+                Logger.info("🔧 Monorepo detected, ensuring workspaces are configured...", {
+                    traceId,
+                    operation: "workspace_configuration_start"
+                });
+                ExecutionTracer.logOperation(traceId, "Ensuring workspaces are configured");
+                try {
+                    await this.ensureWorkspacesConfigured();
+                    Logger.info("✅ Workspace configuration completed successfully", {
+                        traceId,
+                        operation: "workspace_configuration_complete"
+                    });
+                }
+                catch (error) {
+                    Logger.warn(`⚠️  Failed to ensure workspaces configuration: ${error instanceof Error ? error.message : 'Unknown error'}`, {
+                        traceId,
+                        operation: "workspace_configuration",
+                        error: error instanceof Error ? error.stack : String(error)
+                    });
+                    warnings.push(`Workspace configuration warning: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                }
+            }
+            else {
+                Logger.debug("⏭️  Skipping workspace configuration (not a monorepo)", {
+                    traceId,
+                    structure: resolvedGenome.project.structure,
+                    operation: "workspace_configuration_skip"
+                });
+            }
+            // Install dependencies (only if all modules succeeded)
+            Logger.info("📦 Starting final dependency installation...", {
+                traceId,
+                operation: "dependency_installation_start"
+            });
             ExecutionTracer.logOperation(traceId, "Installing dependencies");
             try {
                 await this.installDependencies();
+                Logger.info("✅ Final dependency installation completed successfully", {
+                    traceId,
+                    operation: "dependency_installation_complete"
+                });
             }
             catch (error) {
                 const dependencyErrorResult = ErrorHandler.handleDependencyFailure(error, verbose);
@@ -214,14 +217,7 @@ export class OrchestratorAgent {
                     warnings,
                 };
             }
-            // 12. Validate success
-            ExecutionTracer.logOperation(traceId, "Validating success");
-            // For now, skip success validation as it's not fully implemented
-            Logger.info(`✅ Success validation completed`, {
-                traceId,
-                operation: "success_validation",
-            });
-            // 13. Generate app manifest
+            // Generate app manifest
             ExecutionTracer.logOperation(traceId, "Generating app manifest");
             try {
                 const projectPath = this.projectManager.getProjectConfig().path || './';
@@ -380,16 +376,6 @@ export class OrchestratorAgent {
             });
             return { success: false, results, errors };
         }
-    }
-    /**
-     * Resolve component dependencies across all features
-     * Collects required components from feature manifests and ensures UI technologies install them
-     */
-    /**
-     * Resolve component dependencies (delegates to ComponentDependencyResolver)
-     */
-    async resolveComponentDependencies(genome) {
-        return this.componentDependencyResolver.resolveComponentDependencies(genome);
     }
     /**
      * Execute a single module with its own transactional VFS
@@ -606,21 +592,132 @@ export class OrchestratorAgent {
         }
     }
     /**
-     * Install dependencies
+     * Ensure workspaces are configured in root package.json for monorepos
+     */
+    async ensureWorkspacesConfigured() {
+        const projectRoot = this.pathHandler.getProjectRoot();
+        const packageJsonPath = path.join(projectRoot, "package.json");
+        const fs = await import("fs/promises");
+        Logger.info("🔧 [ensureWorkspacesConfigured] Starting workspace configuration check", {
+            projectRoot,
+            packageJsonPath,
+            operation: "workspace_configuration_method"
+        });
+        try {
+            const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
+            const packageJson = JSON.parse(packageJsonContent);
+            // Check if workspaces are already configured
+            if (packageJson.workspaces && Array.isArray(packageJson.workspaces) && packageJson.workspaces.length > 0) {
+                Logger.debug("✅ Workspaces already configured in root package.json", {
+                    workspaces: packageJson.workspaces
+                });
+                return;
+            }
+            // Check if monorepo structure exists
+            const appsDir = path.join(projectRoot, 'apps');
+            const packagesDir = path.join(projectRoot, 'packages');
+            let hasApps = false;
+            let hasPackages = false;
+            try {
+                const appsStats = await fs.stat(appsDir);
+                hasApps = appsStats.isDirectory();
+            }
+            catch {
+                // apps directory doesn't exist
+            }
+            try {
+                const packagesStats = await fs.stat(packagesDir);
+                hasPackages = packagesStats.isDirectory();
+            }
+            catch {
+                // packages directory doesn't exist
+            }
+            if (!hasApps && !hasPackages) {
+                Logger.debug("No monorepo structure detected, skipping workspace configuration");
+                return;
+            }
+            // Add workspaces property
+            const workspaces = [];
+            if (hasApps) {
+                workspaces.push('apps/*');
+            }
+            if (hasPackages) {
+                workspaces.push('packages/*');
+            }
+            packageJson.workspaces = workspaces;
+            Logger.info("📦 Adding workspaces configuration to root package.json", {
+                workspaces
+            });
+            await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2) + '\n', 'utf-8');
+            Logger.info("✅ Workspaces configured successfully", {
+                workspaces
+            });
+        }
+        catch (error) {
+            Logger.error("❌ Failed to ensure workspaces configuration", {
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+            throw error;
+        }
+    }
+    /**
+     * Install dependencies (monorepo-aware)
      */
     async installDependencies() {
         const projectRoot = this.pathHandler.getProjectRoot();
         const packageJsonPath = path.join(projectRoot, "package.json");
+        Logger.info("📦 [installDependencies] Starting dependency installation", {
+            projectRoot,
+            packageJsonPath,
+            operation: "dependency_installation_method"
+        });
         // Check if package.json exists
         const fs = await import("fs/promises");
         try {
             await fs.access(packageJsonPath);
+            Logger.debug("✅ [installDependencies] package.json found", { packageJsonPath });
         }
         catch {
-            Logger.debug("No package.json found, skipping dependency installation");
+            Logger.warn("⚠️  [installDependencies] No package.json found, skipping dependency installation", {
+                packageJsonPath,
+                operation: "dependency_installation_skip"
+            });
             return;
         }
-        Logger.info("📦 Installing dependencies with npm...");
+        // Read package.json to check for workspaces
+        const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
+        const packageJson = JSON.parse(packageJsonContent);
+        const hasWorkspaces = packageJson.workspaces && Array.isArray(packageJson.workspaces) && packageJson.workspaces.length > 0;
+        if (hasWorkspaces) {
+            Logger.info("📦 Installing dependencies with npm (workspace-aware)...", {
+                workspaces: packageJson.workspaces
+            });
+        }
+        else {
+            // Check if monorepo structure exists
+            const appsDir = path.join(projectRoot, 'apps');
+            const packagesDir = path.join(projectRoot, 'packages');
+            let isMonorepo = false;
+            try {
+                await fs.access(appsDir);
+                isMonorepo = true;
+            }
+            catch {
+                try {
+                    await fs.access(packagesDir);
+                    isMonorepo = true;
+                }
+                catch {
+                    // Not a monorepo
+                }
+            }
+            if (isMonorepo) {
+                Logger.warn("⚠️  Monorepo structure detected but workspaces not configured in root package.json", {
+                    suggestion: "Workspaces should be configured for proper dependency installation"
+                });
+            }
+            Logger.info("📦 Installing dependencies with npm...");
+        }
         // Run npm install in the project directory
         const { execSync } = await import('child_process');
         try {

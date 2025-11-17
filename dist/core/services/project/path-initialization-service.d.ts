@@ -4,11 +4,15 @@
  * Centralized service for initializing all project paths before module execution.
  * This ensures paths are available during blueprint preprocessing and execution.
  *
+ * DOCTRINE: The CLI does NOT compute paths. All paths come from the marketplace adapter.
+ *
  * Path initialization order:
  * 1. Framework paths (from adapter config)
- * 2. Monorepo paths (from genome structure)
- * 3. Smart paths (auth_config, payment_config, etc.)
- * 4. Marketplace paths
+ * 2. Marketplace path defaults (from adapter.resolvePathDefaults() - REQUIRED)
+ * 3. Marketplace paths (UI marketplace detection)
+ * 4. Runtime overrides (user-provided)
+ *
+ * The service will FAIL FAST if the marketplace adapter does not provide path defaults.
  */
 import { PathService } from '../path/path-service.js';
 import { ResolvedGenome } from '@thearchitech.xyz/types';
@@ -24,12 +28,6 @@ export declare class PathInitializationService {
      * This should be called ONCE before any module execution
      */
     static initializePaths(genome: ResolvedGenome, pathHandler: PathService, frameworkAdapter?: AdapterConfig, options?: PathInitializationOptions): Promise<void>;
-    private static computeWorkspacePaths;
-    private static computeSingleAppPaths;
-    /**
-     * Compute monorepo-specific paths
-     */
-    private static computeMonorepoPaths;
     private static applyPaths;
     private static cleanBasePath;
     private static joinPath;

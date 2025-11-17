@@ -12,7 +12,7 @@ import { createAddCommand } from './commands/add.js';
 import { createScaleCommand } from './commands/scale.js';
 import { createListGenomesCommand } from './commands/list-genomes.js';
 import { createMarketplaceCommand } from './commands/marketplace.js';
-import { createAnalyzeCommand } from './commands/analyze.js';
+// import { createAnalyzeCommand } from './commands/analyze.js'; // TODO: File not yet implemented
 import { createConfigCommand } from './commands/config.js';
 import { displayBanner } from './core/cli/banner.js';
 import { PathService } from './core/services/path/path-service.js';
@@ -33,7 +33,7 @@ program.addCommand(createAddCommand());
 program.addCommand(createScaleCommand());
 program.addCommand(createListGenomesCommand());
 program.addCommand(createMarketplaceCommand());
-program.addCommand(createAnalyzeCommand());
+// program.addCommand(createAnalyzeCommand()); // TODO: File not yet implemented
 program.addCommand(createConfigCommand());
 // Default command (show help)
 program

@@ -13,7 +13,6 @@ import { PathService } from '../path/path-service.js';
 import { MarketplaceService } from '../marketplace/marketplace-service.js';
 import { MarketplaceRegistry } from '../marketplace/marketplace-registry.js';
 import { Logger } from '../infrastructure/logging/logger.js';
-import { ImportPathResolver } from '../path/import-path-resolver.js';
 import { getProjectFramework, getProjectApps, getProjectProperty } from '../../utils/genome-helpers.js';
 import * as path from 'path';
 
@@ -73,8 +72,9 @@ export class FrameworkContextService {
       
       // Create project context
       // NOTE: paths are now read from pathHandler (already initialized by PathInitializationService)
-      // We only need framework-specific paths for the context object
-      const contextPaths: Record<string, string> = { ...paths };
+      // We need to convert flat dot-notation paths to nested structure for EJS templates
+      // EJS templates expect: paths.packages.shared.src, not paths['packages.shared.src']
+      const nestedPaths = this.buildNestedPathsObject(pathHandler);
       
       // Get marketplace UI from PathService (SINGLE SOURCE OF TRUTH)
       // Marketplace UI is initialized once by PathInitializationService and read-only after
@@ -97,14 +97,14 @@ export class FrameworkContextService {
         },
         module: module,
         framework: framework || 'unknown',
-        paths: contextPaths,
+        paths: nestedPaths,
         modules: modulesRecord,
         pathHandler: pathHandler,
         env: env,
         parameters: (genome as any).options || {},
         
         // Add import path helper function
-        importPath: (filePath: string) => ImportPathResolver.resolveImportPath(filePath, context),
+        importPath: (filePath: string) => PathService.resolveImportPath(filePath, context),
         
         // Add marketplace paths for template resolution
         // NOTE: Marketplace UI is initialized by PathInitializationService (single source of truth)
@@ -140,6 +140,53 @@ export class FrameworkContextService {
       // Fallback to basic context
       return this.createFallbackContext(genome, module, pathHandler, modulesRecord);
     }
+  }
+
+  /**
+   * Convert flat dot-notation path keys to nested object structure
+   * Example: { 'packages.shared.src': './packages/shared/src' }
+   *       -> { packages: { shared: { src: './packages/shared/src' } } }
+   * 
+   * This is needed because EJS templates expect nested access like:
+   * paths.packages.shared.src.payment.config
+   */
+  private static buildNestedPathsObject(pathHandler: PathService): Record<string, any> {
+    const nested: Record<string, any> = {};
+    const allPathKeys = pathHandler.getAvailablePaths();
+    
+    for (const key of allPathKeys) {
+      try {
+        const value = pathHandler.getPath(key);
+        this.setNestedValue(nested, key, value);
+      } catch (error) {
+        // Skip paths that can't be retrieved
+        continue;
+      }
+    }
+    
+    return nested;
+  }
+
+  /**
+   * Set nested value in object using dot notation
+   * Creates intermediate objects as needed
+   * @private
+   */
+  private static setNestedValue(obj: Record<string, any>, path: string, value: string): void {
+    const keys = path.split('.');
+    const lastKey = keys.pop()!;
+    
+    // Navigate/create intermediate objects
+    let current = obj;
+    for (const key of keys) {
+      if (!current[key] || typeof current[key] !== 'object') {
+        current[key] = {};
+      }
+      current = current[key];
+    }
+    
+    // Set the final value
+    current[lastKey] = value;
   }
 
   /**
@@ -502,6 +549,8 @@ export class FrameworkContextService {
     
     // NOTE: Smart paths are now handled by PathInitializationService
     // We only need basic paths for fallback context
+    // Convert flat paths to nested structure for EJS templates
+    const nestedPaths = this.buildNestedPathsObject(pathHandler);
     
     // Get marketplace UI from PathService (SINGLE SOURCE OF TRUTH)
     // Marketplace UI is initialized once by PathInitializationService and read-only after
@@ -524,7 +573,7 @@ export class FrameworkContextService {
       },
       module: module,
       framework: getProjectFramework(genome) || 'unknown',
-      paths: paths,
+      paths: nestedPaths,
       modules: modulesRecord,
       pathHandler: pathHandler,
       env: {
@@ -546,7 +595,7 @@ export class FrameworkContextService {
     };
     
     // Add import path helper
-    context.importPath = (filePath: string) => ImportPathResolver.resolveImportPath(filePath, context);
+    context.importPath = (filePath: string) => PathService.resolveImportPath(filePath, context);
     
     return context;
   }

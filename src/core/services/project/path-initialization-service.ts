@@ -4,11 +4,15 @@
  * Centralized service for initializing all project paths before module execution.
  * This ensures paths are available during blueprint preprocessing and execution.
  * 
+ * DOCTRINE: The CLI does NOT compute paths. All paths come from the marketplace adapter.
+ * 
  * Path initialization order:
  * 1. Framework paths (from adapter config)
- * 2. Monorepo paths (from genome structure)
- * 3. Smart paths (auth_config, payment_config, etc.)
- * 4. Marketplace paths
+ * 2. Marketplace path defaults (from adapter.resolvePathDefaults() - REQUIRED)
+ * 3. Marketplace paths (UI marketplace detection)
+ * 4. Runtime overrides (user-provided)
+ * 
+ * The service will FAIL FAST if the marketplace adapter does not provide path defaults.
  */
 
 import { PathService } from '../path/path-service.js';
@@ -17,6 +21,7 @@ import type { AdapterConfig, GenomeMarketplace, MarketplaceAdapter } from '@thea
 import { Logger } from '../infrastructure/logging/logger.js';
 import { MarketplaceRegistry } from '../marketplace/marketplace-registry.js';
 import { getProjectApps, getProjectProperty } from '../../utils/genome-helpers.js';
+import { validatePathOverrides } from '@thearchitech.xyz/types';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
@@ -68,71 +73,51 @@ export class PathInitializationService {
       }
     }
 
-    let adapterProvidedDefaults = false;
-
-    if (context.marketplaceAdapter?.resolvePathDefaults) {
-      try {
-        const workspaceRoot = pathHandler.hasPath(PathKey.WORKSPACE_ROOT)
-          ? pathHandler.getPath(PathKey.WORKSPACE_ROOT)
-          : undefined;
-
-        const defaults = await context.marketplaceAdapter.resolvePathDefaults({
-          genome,
-          project: genome.project,
-          workspaceRoot,
-          overrides: context.runtimeOverrides
-        });
-        if (defaults && typeof defaults === 'object') {
-          this.applyPaths(pathHandler, defaults, { overwrite: true });
-          adapterProvidedDefaults = Object.keys(defaults).length > 0;
-          Logger.debug('✅ Applied marketplace path defaults', {
-            operation: 'path_initialization',
-            marketplace: marketplaceName,
-            pathCount: Object.keys(defaults).length
-          });
-        }
-      } catch (error) {
-        Logger.warn('⚠️ Failed to resolve marketplace path defaults', {
-          operation: 'path_initialization',
-          marketplace: marketplaceName,
-          error: error instanceof Error ? error.message : String(error)
-        });
-      }
+    // CRITICAL: Path defaults MUST come from marketplace adapter
+    // The CLI no longer computes paths itself - this is marketplace responsibility
+    if (!context.marketplaceAdapter?.resolvePathDefaults) {
+      throw new Error(
+        `Marketplace adapter must provide resolvePathDefaults() method. ` +
+        `The CLI no longer computes paths - this is marketplace responsibility. ` +
+        `Marketplace: ${marketplaceName}`
+      );
     }
 
-    if (!adapterProvidedDefaults) {
-      Logger.warn('⚠️ Marketplace adapter did not supply path defaults; using legacy CLI fallbacks.', {
-        operation: 'path_initialization',
-        marketplace: marketplaceName
+    try {
+      const workspaceRoot = pathHandler.hasPath(PathKey.WORKSPACE_ROOT)
+        ? pathHandler.getPath(PathKey.WORKSPACE_ROOT)
+        : undefined;
+
+      const defaults = await context.marketplaceAdapter.resolvePathDefaults({
+        genome,
+        project: genome.project,
+        workspaceRoot,
+        overrides: context.runtimeOverrides
       });
 
-      const workspacePaths = this.computeWorkspacePaths();
-      this.applyPaths(pathHandler, workspacePaths, { overwrite: false });
-      Logger.debug('✅ Registered workspace paths (legacy fallback)', {
-        operation: 'path_initialization',
-        pathCount: Object.keys(workspacePaths).length
-      });
-
-      if (genome.project.structure === 'monorepo') {
-        const monorepoPaths = this.computeMonorepoPaths(genome);
-        this.applyPaths(pathHandler, monorepoPaths, { overwrite: false });
-        Logger.debug('✅ Registered monorepo paths (legacy fallback)', {
-          operation: 'path_initialization',
-          pathCount: Object.keys(monorepoPaths).length
-        });
-      } else {
-        const singleAppPaths = this.computeSingleAppPaths();
-        this.applyPaths(pathHandler, singleAppPaths, { overwrite: false });
-        Logger.debug('✅ Registered single-app paths (legacy fallback)', {
-          operation: 'path_initialization',
-          pathCount: Object.keys(singleAppPaths).length
-        });
+      if (!defaults || typeof defaults !== 'object' || Object.keys(defaults).length === 0) {
+        throw new Error(
+          `Marketplace adapter resolvePathDefaults() returned empty or invalid path defaults. ` +
+          `Marketplace: ${marketplaceName}`
+        );
       }
-    } else {
-      Logger.debug('✅ Marketplace adapter provided complete path defaults; skipping legacy fallbacks.', {
+
+      this.applyPaths(pathHandler, defaults, { overwrite: true });
+      Logger.info('✅ Applied marketplace path defaults', {
+        operation: 'path_initialization',
+        marketplace: marketplaceName,
+        pathCount: Object.keys(defaults).length
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      Logger.error(`❌ Failed to resolve marketplace path defaults: ${errorMessage}`, {
         operation: 'path_initialization',
         marketplace: marketplaceName
       });
+      throw new Error(
+        `Path initialization failed: ${errorMessage}. ` +
+        `Marketplace adapter must provide valid path defaults via resolvePathDefaults().`
+      );
     }
 
     const marketplacePaths = await this.computeMarketplacePaths(genome, context.marketplaceInfo);
@@ -142,8 +127,57 @@ export class PathInitializationService {
       pathCount: Object.keys(marketplacePaths).length
     });
 
+    // Extract and validate user path overrides from genome
+    const userPathOverrides = genome.project.paths || {};
+    if (Object.keys(userPathOverrides).length > 0) {
+      // Validate overrides against marketplace path keys
+      if (context.marketplaceAdapter?.loadPathKeys) {
+        try {
+          const pathKeys = await context.marketplaceAdapter.loadPathKeys();
+          if (pathKeys) {
+            const validation = await validatePathOverrides(
+              userPathOverrides,
+              pathKeys,
+              genome.project.structure
+            );
+            
+            if (!validation.valid) {
+              Logger.warn('⚠️ Path override validation found errors', {
+                operation: 'path_initialization',
+                errors: validation.errors
+              });
+            }
+            
+            if (validation.warnings.length > 0) {
+              Logger.warn('⚠️ Path override validation warnings', {
+                operation: 'path_initialization',
+                warnings: validation.warnings
+              });
+            }
+          }
+        } catch (error) {
+          Logger.warn('⚠️ Failed to validate path overrides', {
+            operation: 'path_initialization',
+            error: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
+      
+      // Set user overrides in PathService (takes precedence over adapter paths)
+      pathHandler.setUserOverrides(userPathOverrides);
+      
+      Logger.info('✅ Applied user path overrides', {
+        operation: 'path_initialization',
+        overrideCount: Object.keys(userPathOverrides).length
+      });
+    }
+
+    // Apply runtime overrides (from options, lowest priority)
     if (context.runtimeOverrides && Object.keys(context.runtimeOverrides).length > 0) {
-      this.applyPaths(pathHandler, context.runtimeOverrides, { overwrite: true });
+      // Runtime overrides are merged into user overrides (they're both user-provided)
+      const mergedOverrides = { ...userPathOverrides, ...context.runtimeOverrides };
+      pathHandler.setUserOverrides(mergedOverrides);
+      
       Logger.debug('✅ Applied runtime path overrides', {
         operation: 'path_initialization',
         pathCount: Object.keys(context.runtimeOverrides).length
@@ -158,102 +192,10 @@ export class PathInitializationService {
     });
   }
 
-  private static computeWorkspacePaths(): Record<string, string> {
-    return {
-      [PathKey.WORKSPACE_ROOT]: './',
-      [PathKey.WORKSPACE_SCRIPTS]: './scripts/',
-      [PathKey.WORKSPACE_DOCS]: './docs/',
-      [PathKey.WORKSPACE_ENV]: './.env',
-      [PathKey.WORKSPACE_CONFIG]: './config/'
-    };
-  }
-
-  private static computeSingleAppPaths(): Record<string, string> {
-    return {
-      [PathKey.APPS_WEB_ROOT]: './',
-      [PathKey.APPS_WEB_SRC]: './src/',
-      [PathKey.APPS_WEB_APP]: './src/app/',
-      [PathKey.APPS_WEB_COMPONENTS]: './src/components/',
-      [PathKey.APPS_WEB_PUBLIC]: './public/',
-      [PathKey.APPS_WEB_MIDDLEWARE]: './src/middleware/',
-      [PathKey.APPS_WEB_SERVER]: './src/server/',
-      [PathKey.APPS_WEB_COLLECTIONS]: './src/collections/',
-
-      [PathKey.APPS_API_ROOT]: './src/',
-      [PathKey.APPS_API_SRC]: './src/server/',
-      [PathKey.APPS_API_ROUTES]: './src/server/api/',
-
-      [PathKey.PACKAGES_SHARED_ROOT]: './src/',
-      [PathKey.PACKAGES_SHARED_SRC]: './src/lib/',
-      [PathKey.PACKAGES_SHARED_COMPONENTS]: './src/lib/components/',
-      [PathKey.PACKAGES_SHARED_HOOKS]: './src/lib/hooks/',
-      [PathKey.PACKAGES_SHARED_PROVIDERS]: './src/lib/providers/',
-      [PathKey.PACKAGES_SHARED_STORES]: './src/lib/stores/',
-      [PathKey.PACKAGES_SHARED_TYPES]: './src/lib/types/',
-      [PathKey.PACKAGES_SHARED_UTILS]: './src/lib/utils/',
-      [PathKey.PACKAGES_SHARED_SCRIPTS]: './scripts/',
-      [PathKey.PACKAGES_SHARED_ROUTES]: './src/lib/routes/',
-      [PathKey.PACKAGES_SHARED_JOBS]: './src/lib/jobs/',
-
-      [PathKey.PACKAGES_DATABASE_ROOT]: './src/lib/database/',
-      [PathKey.PACKAGES_DATABASE_SRC]: './src/lib/database/',
-
-      [PathKey.PACKAGES_UI_ROOT]: './src/lib/ui/',
-      [PathKey.PACKAGES_UI_SRC]: './src/lib/ui/'
-    };
-  }
-
-  /**
-   * Compute monorepo-specific paths
-   */
-  private static computeMonorepoPaths(genome: ResolvedGenome): Record<string, string> {
-    const pkgs = (genome.project.monorepo as any)?.packages || {};
-    const apps = getProjectApps(genome);
-
-    const apiApp = apps.find((a: any) => a.type === 'api' || a.framework === 'hono');
-    const webApp = apps.find((a: any) => a.type === 'web');
-
-    const apiPath = apiApp?.package || pkgs.api || './apps/api/';
-    const webPath = webApp?.package || pkgs.web || './apps/web/';
-    const sharedPath = pkgs.shared || './packages/shared/';
-    const databasePath = pkgs.database || './packages/database/';
-    const uiPath = pkgs.ui || './packages/ui/';
-
-    const paths: Record<string, string> = {
-      [PathKey.APPS_WEB_ROOT]: this.cleanBasePath(webPath),
-      [PathKey.APPS_WEB_SRC]: this.joinPath(webPath, 'src/'),
-      [PathKey.APPS_WEB_APP]: this.joinPath(webPath, 'src/app/'),
-      [PathKey.APPS_WEB_COMPONENTS]: this.joinPath(webPath, 'src/components/'),
-      [PathKey.APPS_WEB_PUBLIC]: this.joinPath(webPath, 'public/'),
-      [PathKey.APPS_WEB_MIDDLEWARE]: this.joinPath(webPath, 'src/middleware/'),
-      [PathKey.APPS_WEB_SERVER]: this.joinPath(webPath, 'src/server/'),
-      [PathKey.APPS_WEB_COLLECTIONS]: this.joinPath(webPath, 'src/collections/'),
-
-      [PathKey.APPS_API_ROOT]: this.cleanBasePath(apiPath),
-      [PathKey.APPS_API_SRC]: this.joinPath(apiPath, 'src/'),
-      [PathKey.APPS_API_ROUTES]: this.joinPath(apiPath, 'src/routes/'),
-
-      [PathKey.PACKAGES_SHARED_ROOT]: this.cleanBasePath(sharedPath),
-      [PathKey.PACKAGES_SHARED_SRC]: this.joinPath(sharedPath, 'src/'),
-      [PathKey.PACKAGES_SHARED_COMPONENTS]: this.joinPath(sharedPath, 'src/components/'),
-      [PathKey.PACKAGES_SHARED_HOOKS]: this.joinPath(sharedPath, 'src/hooks/'),
-      [PathKey.PACKAGES_SHARED_PROVIDERS]: this.joinPath(sharedPath, 'src/providers/'),
-      [PathKey.PACKAGES_SHARED_STORES]: this.joinPath(sharedPath, 'src/stores/'),
-      [PathKey.PACKAGES_SHARED_TYPES]: this.joinPath(sharedPath, 'src/types/'),
-      [PathKey.PACKAGES_SHARED_UTILS]: this.joinPath(sharedPath, 'src/utils/'),
-      [PathKey.PACKAGES_SHARED_SCRIPTS]: this.joinPath(sharedPath, 'src/scripts/'),
-      [PathKey.PACKAGES_SHARED_ROUTES]: this.joinPath(sharedPath, 'src/routes/'),
-      [PathKey.PACKAGES_SHARED_JOBS]: this.joinPath(sharedPath, 'src/jobs/'),
-
-      [PathKey.PACKAGES_DATABASE_ROOT]: this.cleanBasePath(databasePath),
-      [PathKey.PACKAGES_DATABASE_SRC]: this.joinPath(databasePath, 'src/'),
-
-      [PathKey.PACKAGES_UI_ROOT]: this.cleanBasePath(uiPath),
-      [PathKey.PACKAGES_UI_SRC]: this.joinPath(uiPath, 'src/')
-    };
-
-    return paths;
-  }
+  // REMOVED: computeWorkspacePaths, computeMonorepoPaths, computeSingleAppPaths
+  // These methods were CLI fallbacks that violated the "CLI is dumb, Marketplace is smart" doctrine.
+  // Path computation is now the exclusive responsibility of the marketplace adapter via resolvePathDefaults().
+  // If a marketplace adapter does not provide path defaults, the service will fail fast with a clear error.
 
   private static applyPaths(
     pathHandler: PathService,

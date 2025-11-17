@@ -2,34 +2,25 @@
  * Genome Resolver Service
  *
  * Main service for resolving genome shorthands to actual file paths.
- * Supports multiple resolution strategies with fallback chain.
+ * Simplified implementation without strategy pattern.
  *
  * Resolution order:
  * 1. Check if input is already a file path → use directly
  * 2. Try local marketplace (../marketplace/genomes/official/)
- * 3. Try NPM package (@architech/marketplace)
- * 4. Try custom sources (from config)
- * 5. Throw helpful error with suggestions
+ * 3. Throw helpful error with suggestions
  */
+import * as fs from 'fs/promises';
 import * as path from 'path';
-import { FilePathStrategy, LocalMarketplaceStrategy } from './strategies/index.js';
+import { MarketplaceRegistry } from '../marketplace/marketplace-registry.js';
 export class GenomeResolver {
     config;
     cache = new Map();
-    strategies = [];
     constructor(config) {
         this.config = config;
-        // Strategies will be registered dynamically
-    }
-    /**
-     * Register a resolution strategy
-     */
-    registerStrategy(strategy) {
-        this.strategies.push(strategy);
     }
     /**
      * Main resolution method
-     * Tries all strategies in order until one succeeds
+     * Tries file path first, then local marketplace
      */
     async resolve(input, options) {
         // Validate input
@@ -41,22 +32,31 @@ export class GenomeResolver {
         if (!options?.skipCache && this.cache.has(trimmedInput)) {
             return this.cache.get(trimmedInput);
         }
-        // Try each strategy in order
-        for (const strategy of this.strategies) {
+        // Try file path resolution first
+        if (this.looksLikeFilePath(trimmedInput)) {
             try {
-                const resolved = await strategy.resolve(trimmedInput);
+                const resolved = await this.resolveFilePath(trimmedInput);
                 if (resolved) {
-                    // Cache successful resolution
                     this.cache.set(trimmedInput, resolved);
                     return resolved;
                 }
             }
             catch (error) {
-                // Strategy failed, try next one
-                continue;
+                // File path failed, try marketplace
             }
         }
-        // No strategy succeeded - throw helpful error
+        // Try local marketplace resolution
+        try {
+            const resolved = await this.resolveLocalMarketplace(trimmedInput);
+            if (resolved) {
+                this.cache.set(trimmedInput, resolved);
+                return resolved;
+            }
+        }
+        catch (error) {
+            // Marketplace resolution failed
+        }
+        // No resolution succeeded - throw helpful error
         throw this.createNotFoundError(trimmedInput, options);
     }
     /**
@@ -71,6 +71,102 @@ export class GenomeResolver {
             input.startsWith('~') ||
             path.isAbsolute(input);
     }
+    /**
+     * Resolve as file path
+     * @private
+     */
+    async resolveFilePath(input) {
+        if (!this.looksLikeFilePath(input)) {
+            return null;
+        }
+        // Resolve to absolute path
+        const absolutePath = path.resolve(process.cwd(), input);
+        // Verify file exists
+        try {
+            const stats = await fs.stat(absolutePath);
+            if (!stats.isFile()) {
+                throw new Error(`Path exists but is not a file: ${absolutePath}`);
+            }
+            // Verify it's a .genome.ts file
+            if (!absolutePath.endsWith('.genome.ts') && !absolutePath.endsWith('.ts')) {
+                throw new Error(`File must be a .genome.ts file: ${absolutePath}`);
+            }
+            return {
+                name: path.basename(absolutePath, '.genome.ts').replace(/^\d+-/, ''),
+                path: absolutePath,
+                source: 'file-path'
+            };
+        }
+        catch (error) {
+            if (error.code === 'ENOENT') {
+                throw new Error(`Genome file not found: ${absolutePath}\n` +
+                    `Tip: Make sure the file path is correct and the file exists.`);
+            }
+            throw error;
+        }
+    }
+    /**
+     * Resolve from local marketplace
+     * @private
+     */
+    async resolveLocalMarketplace(input) {
+        if (this.looksLikeFilePath(input)) {
+            return null;
+        }
+        try {
+            // Get marketplace root
+            const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
+            const normalized = input;
+            const officialPath = path.join(marketplaceRoot, 'genomes', 'official', `${normalized}.genome.ts`);
+            try {
+                await fs.access(officialPath);
+                return {
+                    name: input, // Use original input as display name
+                    path: officialPath,
+                    source: 'local-marketplace'
+                };
+            }
+            catch {
+                // Not in official directory
+            }
+            // Try community genomes (future)
+            const communityPath = path.join(marketplaceRoot, 'genomes', 'community', `${normalized}.genome.ts`);
+            try {
+                await fs.access(communityPath);
+                return {
+                    name: input,
+                    path: communityPath,
+                    source: 'local-marketplace'
+                };
+            }
+            catch {
+                // Not in community directory either
+            }
+            // Not found in local marketplace
+            return null;
+        }
+        catch (error) {
+            // Marketplace root not found - this strategy can't be used
+            return null;
+        }
+    }
+    /**
+     * List all available genomes in local marketplace
+     */
+    async listAvailable() {
+        try {
+            const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
+            const officialDir = path.join(marketplaceRoot, 'genomes', 'official');
+            const files = await fs.readdir(officialDir);
+            return files
+                .filter(f => f.endsWith('.genome.ts'))
+                .map(f => f.replace('.genome.ts', '').replace(/^\d+-/, ''))
+                .sort();
+        }
+        catch {
+            return [];
+        }
+    }
     async createNotFoundError(input, _options) {
         return new Error(`Genome not found: "${input}".\n` +
             `Specify a full path (architech new /path/to/genome.genome.ts) or use --list to view available genomes.`);
@@ -83,14 +179,11 @@ export class GenomeResolver {
     }
 }
 /**
- * Create a GenomeResolver with the default strategy chain (file path, local marketplace, npm, custom sources).
- * Keeps genome alias resolution decoupled from template marketplace handling.
+ * Create a GenomeResolver with default configuration.
+ * Simplified implementation without strategy pattern.
  */
 export function createGenomeResolver(config) {
-    const resolver = new GenomeResolver(config);
-    resolver.registerStrategy(new FilePathStrategy(resolver));
-    resolver.registerStrategy(new LocalMarketplaceStrategy(resolver));
-    return resolver;
+    return new GenomeResolver(config);
 }
 /**
  * Create a GenomeResolver using configuration loaded from disk.

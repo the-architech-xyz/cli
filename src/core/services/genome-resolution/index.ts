@@ -12,5 +12,4 @@
 
 export { GenomeResolver, createGenomeResolver, createGenomeResolverFromConfig } from './genome-resolver.js';
 export * from './types.js';
-export * from './strategies/index.js';
 

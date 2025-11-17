@@ -3,12 +3,20 @@
  *
  * Centralized path management for The Architech.
  * Handles both basic path operations and decentralized path resolution.
+ *
+ * CONSOLIDATED: This service now includes:
+ * - Path storage and resolution (core functionality)
+ * - Module ID translation (from DumbPathTranslator)
+ * - Import path resolution (from ImportPathResolver)
+ * - Path key validation (from PathKeyRegistry)
  */
-import { AdapterConfig } from '@thearchitech.xyz/types';
+import { AdapterConfig, MarketplacePathKeys } from '@thearchitech.xyz/types';
+import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 export declare class PathService {
     private projectRoot;
     private projectName;
     private pathMap;
+    private userOverrides;
     private frameworkProjectRoot;
     private static cliRoot;
     constructor(projectRoot: string, projectName?: string, frameworkAdapter?: AdapterConfig);
@@ -25,6 +33,19 @@ export declare class PathService {
      */
     setPath(key: string, value: string): void;
     /**
+     * Set user-defined path overrides from genome.project.paths
+     * These overrides take precedence over marketplace adapter paths
+     */
+    setUserOverrides(overrides: Record<string, string>): void;
+    /**
+     * Get user-defined path overrides
+     */
+    getUserOverrides(): Record<string, string>;
+    /**
+     * Clear user overrides
+     */
+    clearUserOverrides(): void;
+    /**
      * Get project root path
      */
     getProjectRoot(): string;
@@ -33,7 +54,14 @@ export declare class PathService {
      */
     getProjectName(): string;
     /**
-     * Get a specific path from the framework's path map (decentralized)
+     * Get a specific path with contextual resolution
+     *
+     * Resolution order:
+     * 1. User override (from genome.project.paths) - HIGHEST PRIORITY
+     * 2. Marketplace adapter path (from adapter.resolvePathDefaults)
+     * 3. Error if not found
+     *
+     * This implements the "Reference Structure with Explicit Overrides" doctrine.
      */
     getPath(key: string): string;
     /**
@@ -140,10 +168,132 @@ export declare class PathService {
      *
      * The CLI knows nothing about module types. It just performs simple string transformations.
      * This is the only "intelligence" in the CLI.
+     *
+     * Rules:
+     * 1. Take the part before the ':', add an 's', use as first folder
+     * 2. Take the part after the ':', use as the rest of the path
+     *
+     * Examples:
+     * - connector:docker-drizzle -> connectors/docker-drizzle
+     * - feature:teams/backend/nextjs-drizzle -> features/teams/backend/nextjs-drizzle
+     * - adapter:database/drizzle -> adapters/database/drizzle
      */
     static resolveModuleId(moduleId: string): Promise<string>;
+    /**
+     * Translate module ID to marketplace path
+     * @private
+     */
+    private static translateModuleId;
+    /**
+     * Get the full file system path for a module
+     */
+    static getModulePath(moduleId: string): Promise<string>;
+    /**
+     * Check if a module exists
+     */
+    static moduleExists(moduleId: string): Promise<boolean>;
+    /**
+     * Convert file path to import path based on project structure
+     *
+     * @param filePath - File path to convert (e.g., './src/server/trpc/router')
+     * @param context - Project context with structure information
+     * @returns Import path (e.g., '@/server/trpc/router' or '@repo/api/router')
+     */
+    static resolveImportPath(filePath: string, context: ProjectContext): string;
+    /**
+     * Convert packages/ path to workspace protocol
+     * @private
+     */
+    private static convertToWorkspacePath;
+    /**
+     * Convert src/ path to @/ alias
+     * @private
+     */
+    private static convertToAliasPath;
+    /**
+     * Remove file extensions from import paths
+     * @private
+     */
+    private static removeFileExtension;
+    /**
+     * Pre-compute import paths from file paths (optional optimization)
+     *
+     * @param filePaths - Record of path keys to file paths
+     * @param context - Project context
+     * @returns Record of path keys to import paths
+     */
+    static computeImportPaths(filePaths: Record<string, string>, context: ProjectContext): Record<string, string>;
+    private static pathKeyCache;
+    private static defaultPathKeys;
+    /**
+     * Load path keys from marketplace
+     * Falls back to default PathKey enum if marketplace doesn't define path-keys.json
+     */
+    static loadPathKeys(marketplaceName?: string): Promise<MarketplacePathKeys>;
+    /**
+     * Get default path keys (from PathKey enum)
+     * Used as fallback when marketplace doesn't define path-keys.json
+     */
+    private static getDefaultPathKeys;
+    /**
+     * Validate path key definition structure
+     */
+    private static validatePathKeys;
+    /**
+     * Check if a path key is valid for the marketplace
+     */
+    static isValidPathKey(key: string, marketplaceName?: string, projectStructure?: 'monorepo' | 'single-app'): Promise<boolean>;
+    /**
+     * Get all valid path keys for a marketplace and structure
+     */
+    static getValidPathKeys(marketplaceName?: string, projectStructure?: 'monorepo' | 'single-app'): Promise<string[]>;
+    /**
+     * Validate path key usage in a template string
+     * Returns validation result with errors and suggestions
+     */
+    static validatePathKeyUsage(template: string, marketplaceName?: string, projectStructure?: 'monorepo' | 'single-app'): Promise<{
+        valid: boolean;
+        errors: Array<{
+            key: string;
+            message: string;
+        }>;
+        suggestions: string[];
+    }>;
+    /**
+     * Get suggestions for a misspelled path key
+     */
+    private static getSuggestions;
+    /**
+     * Calculate string similarity (simple implementation)
+     */
+    private static similarity;
+    /**
+     * Calculate Levenshtein distance
+     */
+    private static levenshteinDistance;
+    /**
+     * Clear path key cache (useful for testing or reloading)
+     */
+    static clearPathKeyCache(): void;
     /**
      * Calculate CLI root directory by finding the package.json with @thearchitech.xyz/cli
      */
     private static calculateCliRoot;
 }
+/**
+ * @deprecated Use PathService.resolveImportPath() instead
+ */
+export declare const ImportPathResolver: {
+    resolveImportPath: typeof PathService.resolveImportPath;
+    computeImportPaths: typeof PathService.computeImportPaths;
+};
+/**
+ * @deprecated Use PathService methods directly instead
+ */
+export declare const PathKeyRegistry: {
+    loadPathKeys: typeof PathService.loadPathKeys;
+    isValidPathKey: typeof PathService.isValidPathKey;
+    getValidPathKeys: typeof PathService.getValidPathKeys;
+    validatePathKeyUsage: typeof PathService.validatePathKeyUsage;
+    clearCache: typeof PathService.clearPathKeyCache;
+};

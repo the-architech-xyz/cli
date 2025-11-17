@@ -28,13 +28,23 @@ export declare class BlueprintExecutor {
     private createExpandedAction;
     private enforcePathKeyContractOnAction;
     /**
-     * Analyze actions and blueprint to determine which files need to be loaded into VFS
-     * Consolidates logic from BlueprintAnalyzer (now removed)
+     * Intelligent VFS Pre-loader: Automatically analyze blueprint to determine which files need to be loaded
      *
-     * Includes:
-     * - Files needed by actions (ENHANCE_FILE, MERGE_JSON, INSTALL_PACKAGES, etc.)
-     * - blueprint.contextualFiles (if available)
-     * - module.externalFiles (if available)
+     * This method implements the "Intelligent VFS Pre-loader" doctrine:
+     * - Automatically detects files from action analysis
+     * - Always includes default files (package.json)
+     * - Supports contextualFiles as escape hatch
+     * - Handles forEach actions recursively
+     *
+     * @param actions - Blueprint actions to analyze
+     * @param context - Project context
+     * @param blueprint - Optional blueprint (for contextualFiles)
+     * @returns Array of unique file paths to pre-load
+     */
+    private analyzeAndPreloadRequiredFiles;
+    /**
+     * @deprecated Use analyzeAndPreloadRequiredFiles instead
+     * Kept for backward compatibility
      */
     private analyzeFilesToLoad;
     /**
