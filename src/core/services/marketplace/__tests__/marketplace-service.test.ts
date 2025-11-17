@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import * as path from 'path';
 import { MarketplaceService } from '../marketplace-service.js';
 
-const readFileMock = vi.fn();
+const readFileMock = vi.hoisted(() => vi.fn());
 
 // Mock fs/promises used inside MarketplaceService
 vi.mock('fs/promises', () => ({
@@ -22,48 +22,91 @@ vi.mock('../marketplace-registry.js', () => ({
   },
 }));
 
-describe('MarketplaceService.loadTemplate (namespaces)', () => {
-  beforeEach(() => {
-    readFileMock.mockReset();
-  });
+describe('MarketplaceService.loadTemplate (UI marketplace handling)', () => {
 
-  it('loads template from specific namespace when available', async () => {
-    readFileMock.mockResolvedValueOnce('namespace-template');
+  it('loads UI template from active marketplace root when template starts with ui/', async () => {
+    readFileMock.mockImplementation((filePath: string) => {
+      if (filePath === '/mock/ui-marketplace-shadcn/manifest.json') {
+        return Promise.resolve(JSON.stringify({
+          components: {
+            LoginPage: {
+              path: './ui/auth/LoginPage.tsx.tpl'
+            }
+          }
+        }));
+      }
+      if (filePath === '/mock/ui-marketplace-shadcn/ui/auth/LoginPage.tsx.tpl') {
+        return Promise.resolve('ui-template');
+      }
+      return Promise.reject(new Error('not found'));
+    });
 
     const context: any = {
       marketplace: {
-        namespaces: {
-          'components.ui.shadcn': '/mock/ui-marketplace-shadcn',
-        },
         core: '/mock/core-marketplace',
         ui: {
           default: 'shadcn',
-          shadcn: '/mock/ui-marketplace-shadcn',
+          root: '/mock/ui-marketplace-shadcn',
         },
       },
       module: { id: 'ui/shadcn-ui' },
     };
 
-    const templatePath = 'components/ui/shadcn/ui/auth/LoginPage.tsx.tpl';
+    const templatePath = 'ui/auth/LoginPage.tsx.tpl';
     const content = await MarketplaceService.loadTemplate('ui/shadcn-ui', templatePath, context);
 
-    expect(content).toBe('namespace-template');
-    expect(readFileMock).toHaveBeenCalledWith(
-      path.join('/mock/ui-marketplace-shadcn', 'ui/auth/LoginPage.tsx.tpl'),
-      'utf-8'
-    );
+    expect(content).toBe('ui-template');
   });
 
-  it('falls back to core components namespace when specific namespace missing', async () => {
-    readFileMock.mockResolvedValueOnce('core-template');
+  it('loads template from components/ui/ using same marketplace root', async () => {
+    readFileMock.mockImplementation((filePath: string) => {
+      if (filePath === '/mock/ui-marketplace-tamagui/manifest.json') {
+        return Promise.resolve(JSON.stringify({
+          components: {
+            Dashboard: {
+              path: './ui/screens/Dashboard.tsx.tpl'
+            }
+          }
+        }));
+      }
+      if (filePath === '/mock/ui-marketplace-tamagui/ui/screens/Dashboard.tsx.tpl') {
+        return Promise.resolve('ui-template');
+      }
+      return Promise.reject(new Error('not found'));
+    });
 
     const context: any = {
       marketplace: {
-        namespaces: {
-          'components.core': '/mock/core-marketplace',
-        },
         core: '/mock/core-marketplace',
-        ui: { default: '', },
+        ui: {
+          default: 'tamagui',
+          root: '/mock/ui-marketplace-tamagui',
+        },
+      },
+      module: { id: 'ui/tamagui' },
+    };
+
+    const templatePath = 'components/ui/screens/Dashboard.tsx.tpl';
+    const content = await MarketplaceService.loadTemplate('ui/tamagui', templatePath, context);
+
+    expect(content).toBe('ui-template');
+  });
+
+  it('falls back to core marketplace when template is not part of UI marketplace', async () => {
+    readFileMock.mockImplementation((filePath: string) => {
+      if (filePath === '/mock/core-marketplace/features/auth/templates/components/core/auth/email/WelcomeEmail.tsx.tpl') {
+        return Promise.resolve('core-template');
+      }
+      if (filePath.endsWith('manifest.json')) {
+        return Promise.resolve(JSON.stringify({ components: {} }));
+      }
+      return Promise.reject(new Error('not found'));
+    });
+
+    const context: any = {
+      marketplace: {
+        core: '/mock/core-marketplace',
+        ui: { default: '', root: '' },
       },
       module: { id: 'features/auth' },
     };
@@ -72,36 +115,5 @@ describe('MarketplaceService.loadTemplate (namespaces)', () => {
     const content = await MarketplaceService.loadTemplate('features/auth', templatePath, context);
 
     expect(content).toBe('core-template');
-    expect(readFileMock).toHaveBeenCalledWith(
-      path.join('/mock/core-marketplace', 'auth/email/WelcomeEmail.tsx.tpl'),
-      'utf-8'
-    );
-  });
-
-  it('supports legacy ui/ paths via namespace fallback', async () => {
-    readFileMock.mockResolvedValueOnce('legacy-template');
-
-    const context: any = {
-      marketplace: {
-        namespaces: {
-          'components.ui.shadcn': '/mock/ui-marketplace-shadcn',
-        },
-        core: '/mock/core-marketplace',
-        ui: {
-          default: 'shadcn',
-          shadcn: '/mock/ui-marketplace-shadcn',
-        },
-      },
-      module: { id: 'ui/shadcn-ui' },
-    };
-
-    const templatePath = 'ui/common/Button.tsx.tpl';
-    const content = await MarketplaceService.loadTemplate('ui/shadcn-ui', templatePath, context);
-
-    expect(content).toBe('legacy-template');
-    expect(readFileMock).toHaveBeenCalledWith(
-      path.join('/mock/ui-marketplace-shadcn', 'common/Button.tsx.tpl'),
-      'utf-8'
-    );
   });
 });

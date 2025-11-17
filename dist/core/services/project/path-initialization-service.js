@@ -10,8 +10,10 @@
  * 3. Smart paths (auth_config, payment_config, etc.)
  * 4. Marketplace paths
  */
+import { PathKey } from '@thearchitech.xyz/types';
 import { Logger } from '../infrastructure/logging/logger.js';
 import { MarketplaceRegistry } from '../marketplace/marketplace-registry.js';
+import { getProjectApps, getProjectProperty } from '../../utils/genome-helpers.js';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 export class PathInitializationService {
@@ -19,13 +21,15 @@ export class PathInitializationService {
      * Initialize all paths for the project
      * This should be called ONCE before any module execution
      */
-    static async initializePaths(genome, pathHandler, frameworkAdapter) {
+    static async initializePaths(genome, pathHandler, frameworkAdapter, options) {
+        const context = options ?? {};
+        const marketplaceName = context.marketplaceInfo?.name ?? 'core';
         Logger.info('📁 Initializing project paths', {
             operation: 'path_initialization',
             structure: genome.project.structure,
+            marketplace: marketplaceName,
             hasFrameworkAdapter: !!frameworkAdapter
         });
-        // 1. Start with framework paths (if any)
         if (frameworkAdapter?.paths) {
             pathHandler.mergeFrameworkPaths(frameworkAdapter.paths);
             Logger.debug('✅ Merged framework paths', {
@@ -33,340 +37,349 @@ export class PathInitializationService {
                 pathCount: Object.keys(frameworkAdapter.paths).length
             });
         }
-        // 2. Add monorepo paths (if monorepo structure)
-        if (genome.project.structure === 'monorepo') {
-            const monorepoPaths = this.computeMonorepoPaths(genome);
-            for (const [key, value] of Object.entries(monorepoPaths)) {
-                pathHandler.setPath(key, value);
+        if (context.marketplaceAdapter?.loadPathKeys) {
+            try {
+                await context.marketplaceAdapter.loadPathKeys();
             }
-            Logger.debug('✅ Added monorepo paths', {
+            catch (error) {
+                Logger.warn('⚠️ Failed to load marketplace path keys', {
+                    operation: 'path_initialization',
+                    marketplace: marketplaceName,
+                    error: error instanceof Error ? error.message : String(error)
+                });
+            }
+        }
+        let adapterProvidedDefaults = false;
+        if (context.marketplaceAdapter?.resolvePathDefaults) {
+            try {
+                const workspaceRoot = pathHandler.hasPath(PathKey.WORKSPACE_ROOT)
+                    ? pathHandler.getPath(PathKey.WORKSPACE_ROOT)
+                    : undefined;
+                const defaults = await context.marketplaceAdapter.resolvePathDefaults({
+                    genome,
+                    project: genome.project,
+                    workspaceRoot,
+                    overrides: context.runtimeOverrides
+                });
+                if (defaults && typeof defaults === 'object') {
+                    this.applyPaths(pathHandler, defaults, { overwrite: true });
+                    adapterProvidedDefaults = Object.keys(defaults).length > 0;
+                    Logger.debug('✅ Applied marketplace path defaults', {
+                        operation: 'path_initialization',
+                        marketplace: marketplaceName,
+                        pathCount: Object.keys(defaults).length
+                    });
+                }
+            }
+            catch (error) {
+                Logger.warn('⚠️ Failed to resolve marketplace path defaults', {
+                    operation: 'path_initialization',
+                    marketplace: marketplaceName,
+                    error: error instanceof Error ? error.message : String(error)
+                });
+            }
+        }
+        if (!adapterProvidedDefaults) {
+            Logger.warn('⚠️ Marketplace adapter did not supply path defaults; using legacy CLI fallbacks.', {
                 operation: 'path_initialization',
-                pathCount: Object.keys(monorepoPaths).length
+                marketplace: marketplaceName
+            });
+            const workspacePaths = this.computeWorkspacePaths();
+            this.applyPaths(pathHandler, workspacePaths, { overwrite: false });
+            Logger.debug('✅ Registered workspace paths (legacy fallback)', {
+                operation: 'path_initialization',
+                pathCount: Object.keys(workspacePaths).length
+            });
+            if (genome.project.structure === 'monorepo') {
+                const monorepoPaths = this.computeMonorepoPaths(genome);
+                this.applyPaths(pathHandler, monorepoPaths, { overwrite: false });
+                Logger.debug('✅ Registered monorepo paths (legacy fallback)', {
+                    operation: 'path_initialization',
+                    pathCount: Object.keys(monorepoPaths).length
+                });
+            }
+            else {
+                const singleAppPaths = this.computeSingleAppPaths();
+                this.applyPaths(pathHandler, singleAppPaths, { overwrite: false });
+                Logger.debug('✅ Registered single-app paths (legacy fallback)', {
+                    operation: 'path_initialization',
+                    pathCount: Object.keys(singleAppPaths).length
+                });
+            }
+        }
+        else {
+            Logger.debug('✅ Marketplace adapter provided complete path defaults; skipping legacy fallbacks.', {
+                operation: 'path_initialization',
+                marketplace: marketplaceName
             });
         }
-        // 3. Add smart paths (auth_config, payment_config, etc.)
-        const smartPaths = this.computeSmartPaths(genome, pathHandler);
-        for (const [key, value] of Object.entries(smartPaths)) {
-            pathHandler.setPath(key, value);
-        }
-        Logger.debug('✅ Added smart paths', {
-            operation: 'path_initialization',
-            pathCount: Object.keys(smartPaths).length
-        });
-        // 4. Add marketplace paths
-        const marketplacePaths = await this.computeMarketplacePaths(genome);
-        for (const [key, value] of Object.entries(marketplacePaths)) {
-            pathHandler.setPath(key, value);
-        }
-        Logger.debug('✅ Added marketplace paths', {
+        const marketplacePaths = await this.computeMarketplacePaths(genome, context.marketplaceInfo);
+        this.applyPaths(pathHandler, marketplacePaths, { overwrite: true });
+        Logger.debug('✅ Registered marketplace paths', {
             operation: 'path_initialization',
             pathCount: Object.keys(marketplacePaths).length
         });
-        // 5. Validate paths
+        if (context.runtimeOverrides && Object.keys(context.runtimeOverrides).length > 0) {
+            this.applyPaths(pathHandler, context.runtimeOverrides, { overwrite: true });
+            Logger.debug('✅ Applied runtime path overrides', {
+                operation: 'path_initialization',
+                pathCount: Object.keys(context.runtimeOverrides).length
+            });
+        }
         this.validatePaths(pathHandler);
         Logger.info('✅ Path initialization complete', {
             operation: 'path_initialization',
             totalPaths: pathHandler.getAvailablePaths().length
         });
     }
+    static computeWorkspacePaths() {
+        return {
+            [PathKey.WORKSPACE_ROOT]: './',
+            [PathKey.WORKSPACE_SCRIPTS]: './scripts/',
+            [PathKey.WORKSPACE_DOCS]: './docs/',
+            [PathKey.WORKSPACE_ENV]: './.env',
+            [PathKey.WORKSPACE_CONFIG]: './config/'
+        };
+    }
+    static computeSingleAppPaths() {
+        return {
+            [PathKey.APPS_WEB_ROOT]: './',
+            [PathKey.APPS_WEB_SRC]: './src/',
+            [PathKey.APPS_WEB_APP]: './src/app/',
+            [PathKey.APPS_WEB_COMPONENTS]: './src/components/',
+            [PathKey.APPS_WEB_PUBLIC]: './public/',
+            [PathKey.APPS_WEB_MIDDLEWARE]: './src/middleware/',
+            [PathKey.APPS_WEB_SERVER]: './src/server/',
+            [PathKey.APPS_WEB_COLLECTIONS]: './src/collections/',
+            [PathKey.APPS_API_ROOT]: './src/',
+            [PathKey.APPS_API_SRC]: './src/server/',
+            [PathKey.APPS_API_ROUTES]: './src/server/api/',
+            [PathKey.PACKAGES_SHARED_ROOT]: './src/',
+            [PathKey.PACKAGES_SHARED_SRC]: './src/lib/',
+            [PathKey.PACKAGES_SHARED_COMPONENTS]: './src/lib/components/',
+            [PathKey.PACKAGES_SHARED_HOOKS]: './src/lib/hooks/',
+            [PathKey.PACKAGES_SHARED_PROVIDERS]: './src/lib/providers/',
+            [PathKey.PACKAGES_SHARED_STORES]: './src/lib/stores/',
+            [PathKey.PACKAGES_SHARED_TYPES]: './src/lib/types/',
+            [PathKey.PACKAGES_SHARED_UTILS]: './src/lib/utils/',
+            [PathKey.PACKAGES_SHARED_SCRIPTS]: './scripts/',
+            [PathKey.PACKAGES_SHARED_ROUTES]: './src/lib/routes/',
+            [PathKey.PACKAGES_SHARED_JOBS]: './src/lib/jobs/',
+            [PathKey.PACKAGES_DATABASE_ROOT]: './src/lib/database/',
+            [PathKey.PACKAGES_DATABASE_SRC]: './src/lib/database/',
+            [PathKey.PACKAGES_UI_ROOT]: './src/lib/ui/',
+            [PathKey.PACKAGES_UI_SRC]: './src/lib/ui/'
+        };
+    }
     /**
      * Compute monorepo-specific paths
      */
     static computeMonorepoPaths(genome) {
         const pkgs = genome.project.monorepo?.packages || {};
-        const apps = genome.project.apps || [];
-        // Determine actual app and package locations
+        const apps = getProjectApps(genome);
         const apiApp = apps.find((a) => a.type === 'api' || a.framework === 'hono');
         const webApp = apps.find((a) => a.type === 'web');
-        const mobileApp = apps.find((a) => a.type === 'mobile');
-        // Resolve package paths with proper structure
         const apiPath = apiApp?.package || pkgs.api || './apps/api/';
         const webPath = webApp?.package || pkgs.web || './apps/web/';
         const sharedPath = pkgs.shared || './packages/shared/';
         const databasePath = pkgs.database || './packages/database/';
         const uiPath = pkgs.ui || './packages/ui/';
-        const mobilePath = mobileApp?.package || pkgs.mobile || './apps/mobile/';
-        // Ensure paths end with / for consistency
-        const normalizePath = (p) => p.endsWith('/') ? p : `${p}/`;
-        // CRITICAL: Store paths as ABSOLUTE (with package prefix) for monorepo
-        // This eliminates ambiguity - paths know their target package
-        // VFS will handle normalization based on execution context
-        // Helper to create absolute paths
-        const absPath = (packagePath, subPath) => {
-            // Remove leading ./ if present
-            let cleanPackage = packagePath.replace(/^\.\//, '');
-            // Ensure package path ends with / (for proper joining)
-            if (!cleanPackage.endsWith('/')) {
-                cleanPackage = cleanPackage + '/';
-            }
-            // Remove leading / from subPath if present (to avoid double slashes)
-            const cleanSubPath = subPath.startsWith('/') ? subPath.substring(1) : subPath;
-            // Join paths
-            const joined = cleanPackage + cleanSubPath;
-            // Only normalize (add trailing slash) if it's a directory path (ends with / or has no extension)
-            // Don't normalize file paths (they have extensions)
-            if (joined.endsWith('/') || !joined.match(/\.\w+$/)) {
-                return normalizePath(joined);
-            }
-            return joined;
+        const paths = {
+            [PathKey.APPS_WEB_ROOT]: this.cleanBasePath(webPath),
+            [PathKey.APPS_WEB_SRC]: this.joinPath(webPath, 'src/'),
+            [PathKey.APPS_WEB_APP]: this.joinPath(webPath, 'src/app/'),
+            [PathKey.APPS_WEB_COMPONENTS]: this.joinPath(webPath, 'src/components/'),
+            [PathKey.APPS_WEB_PUBLIC]: this.joinPath(webPath, 'public/'),
+            [PathKey.APPS_WEB_MIDDLEWARE]: this.joinPath(webPath, 'src/middleware/'),
+            [PathKey.APPS_WEB_SERVER]: this.joinPath(webPath, 'src/server/'),
+            [PathKey.APPS_WEB_COLLECTIONS]: this.joinPath(webPath, 'src/collections/'),
+            [PathKey.APPS_API_ROOT]: this.cleanBasePath(apiPath),
+            [PathKey.APPS_API_SRC]: this.joinPath(apiPath, 'src/'),
+            [PathKey.APPS_API_ROUTES]: this.joinPath(apiPath, 'src/routes/'),
+            [PathKey.PACKAGES_SHARED_ROOT]: this.cleanBasePath(sharedPath),
+            [PathKey.PACKAGES_SHARED_SRC]: this.joinPath(sharedPath, 'src/'),
+            [PathKey.PACKAGES_SHARED_COMPONENTS]: this.joinPath(sharedPath, 'src/components/'),
+            [PathKey.PACKAGES_SHARED_HOOKS]: this.joinPath(sharedPath, 'src/hooks/'),
+            [PathKey.PACKAGES_SHARED_PROVIDERS]: this.joinPath(sharedPath, 'src/providers/'),
+            [PathKey.PACKAGES_SHARED_STORES]: this.joinPath(sharedPath, 'src/stores/'),
+            [PathKey.PACKAGES_SHARED_TYPES]: this.joinPath(sharedPath, 'src/types/'),
+            [PathKey.PACKAGES_SHARED_UTILS]: this.joinPath(sharedPath, 'src/utils/'),
+            [PathKey.PACKAGES_SHARED_SCRIPTS]: this.joinPath(sharedPath, 'src/scripts/'),
+            [PathKey.PACKAGES_SHARED_ROUTES]: this.joinPath(sharedPath, 'src/routes/'),
+            [PathKey.PACKAGES_SHARED_JOBS]: this.joinPath(sharedPath, 'src/jobs/'),
+            [PathKey.PACKAGES_DATABASE_ROOT]: this.cleanBasePath(databasePath),
+            [PathKey.PACKAGES_DATABASE_SRC]: this.joinPath(databasePath, 'src/'),
+            [PathKey.PACKAGES_UI_ROOT]: this.cleanBasePath(uiPath),
+            [PathKey.PACKAGES_UI_SRC]: this.joinPath(uiPath, 'src/')
         };
-        // Provide comprehensive path mapping for monorepo
-        return {
-            // App paths (absolute from project root)
-            api: normalizePath(apiPath),
-            web: normalizePath(webPath),
-            mobile: normalizePath(mobilePath),
-            // Package paths (absolute from project root)
-            shared: normalizePath(sharedPath),
-            database: normalizePath(databasePath),
-            ui: normalizePath(uiPath),
-            // Sub-paths (ABSOLUTE from project root WITH package prefix)
-            // This ensures paths are unambiguous and resolve correctly regardless of execution context
-            // NOTE: shared package does NOT use /src subfolder (cleaner structure)
-            shared_library: absPath(sharedPath, "lib/"), // packages/shared/lib/
-            api_src: absPath(apiPath, "src/"), // apps/api/src/
-            api_routes: absPath(apiPath, "src/routes/"), // apps/api/src/routes/
-            web_src: absPath(webPath, "src/"), // apps/web/src/
-            web_app: absPath(webPath, "src/app/"), // apps/web/src/app/
-            // Package-specific library paths (for modules targeting specific packages)
-            // These allow blueprints to explicitly target their intended package
-            ui_library: absPath(uiPath, "lib/"), // packages/ui/lib/
-            database_library: absPath(databasePath, "lib/"), // packages/database/lib/
-            // Framework paths for web app (absolute from project root)
-            // Only set if webApp exists
-            ...(webApp ? {
-                components: absPath(webPath, "src/components/"), // apps/web/src/components/
-                ui_components: absPath(webPath, "src/components/ui/"), // apps/web/src/components/ui/
-                layouts: absPath(webPath, "src/components/layouts/"), // apps/web/src/components/layouts/
-                providers: absPath(webPath, "src/components/providers/"), // apps/web/src/components/providers/
-            } : {}),
-            // Mobile app path (only set if mobileApp exists, otherwise empty string for type safety)
-            mobile_app: mobileApp ? absPath(mobilePath, "app/") : '', // apps/mobile/app/ (Expo Router) or empty string
-            // Framework adapter paths (absolute from project root)
-            // These should match framework adapter.json paths but be absolute in monorepo
-            source_root: webApp ? absPath(webPath, "src/") : './src/', // apps/web/src/ or ./src/
-            app_root: webApp ? absPath(webPath, "src/app/") : './src/app/', // apps/web/src/app/ or ./src/app/
-            // Legacy compatibility paths
-            src: webApp ? absPath(webPath, "src/") : './src/', // Absolute for monorepo, relative for single-repo
-            lib: absPath(sharedPath, "lib/"), // packages/shared/lib/ (no src/ subfolder) - DEPRECATED: Use package-specific paths
-        };
+        return paths;
     }
-    /**
-     * Compute smart paths (auth_config, payment_config, etc.)
-     * These paths are computed based on project structure (single-app vs monorepo)
-     */
-    static computeSmartPaths(genome, pathHandler) {
-        const isMonorepo = genome.project.structure === 'monorepo';
-        if (isMonorepo) {
-            // Smart paths are ABSOLUTE from project root (with package prefix)
-            // Most smart paths go to packages/shared (auth, payment, email, etc.)
-            // Server path goes to apps/web
-            // tRPC router goes to apps/api
-            // Get package paths for absolute path construction
-            const monorepoConfig = genome.project.monorepo;
-            const apps = genome.project.apps || [];
-            const webApp = apps.find((a) => a.type === 'web');
-            const apiApp = apps.find((a) => a.type === 'api');
-            const pkgs = monorepoConfig?.packages || {};
-            const sharedPath = pkgs.shared || './packages/shared/';
-            const webPath = webApp?.package || pkgs.web || './apps/web/';
-            const apiPath = apiApp?.package || pkgs.api || './apps/api/';
-            // Helper to create absolute paths
-            const absPath = (packagePath, subPath) => {
-                // Remove leading ./ if present
-                let cleanPackage = packagePath.replace(/^\.\//, '');
-                // Ensure package path ends with / (for proper joining)
-                if (!cleanPackage.endsWith('/')) {
-                    cleanPackage = cleanPackage + '/';
-                }
-                // Remove leading / from subPath if present (to avoid double slashes)
-                const cleanSubPath = subPath.startsWith('/') ? subPath.substring(1) : subPath;
-                // Join paths
-                const joined = cleanPackage + cleanSubPath;
-                // Only normalize (add trailing slash) if it's a directory path (ends with / or has no extension)
-                // Don't normalize file paths (they have extensions)
-                if (joined.endsWith('/') || !joined.match(/\.\w+$/)) {
-                    return joined.endsWith('/') ? joined : joined + '/';
-                }
-                return joined;
-            };
-            return {
-                // Server path (for Next.js server components, tRPC, etc.)
-                // Absolute: apps/web/src/server/
-                server: absPath(webPath, "src/server/"),
-                // tRPC paths (absolute)
-                // Note: trpcRouter is a base path (no extension, no trailing slash) for building file paths
-                trpcRouter: absPath(apiPath, "src/router").replace(/\/$/, ''), // apps/api/src/router (no trailing slash)
-                trpcClient: absPath(sharedPath, "lib/trpc/client"), // packages/shared/lib/trpc/client/ (no src/)
-                trpcServer: absPath(sharedPath, "lib/trpc/server"), // packages/shared/lib/trpc/server/ (no src/)
-                // Shared code paths (absolute: packages/shared/... - no src/ subfolder)
-                sharedSchemas: absPath(sharedPath, "schemas"),
-                sharedTypes: absPath(sharedPath, "types"),
-                sharedUtils: absPath(sharedPath, "utils"),
-                // Auth paths (absolute: packages/shared/... - no src/ subfolder)
-                // These are directory paths (config, hooks, types), so they should have trailing slashes
-                auth_config: absPath(sharedPath, "auth/config"),
-                authConfig: absPath(sharedPath, "auth/config"), // Alias for compatibility
-                authHooks: absPath(sharedPath, "lib/auth/hooks"),
-                authTypes: absPath(sharedPath, "auth/types"),
-                // Payment paths (absolute: packages/shared/... - no src/ subfolder)
-                payment_config: absPath(sharedPath, "payment/config"),
-                paymentConfig: absPath(sharedPath, "payment/config"), // Alias for compatibility
-                paymentHooks: absPath(sharedPath, "lib/payment/hooks"),
-                paymentTypes: absPath(sharedPath, "payment/types"),
-                // Teams paths (absolute: packages/shared/... - no src/ subfolder)
-                teams_config: absPath(sharedPath, "teams/config"),
-                teamsConfig: absPath(sharedPath, "teams/config"), // Alias for compatibility
-                teamsHooks: absPath(sharedPath, "lib/teams/hooks"),
-                teamsTypes: absPath(sharedPath, "teams/types"),
-                // Email paths (absolute: packages/shared/... - no src/ subfolder)
-                email_config: absPath(sharedPath, "email/config"),
-                emailConfig: absPath(sharedPath, "email/config"), // Alias for compatibility
-                emailHooks: absPath(sharedPath, "lib/email/hooks"),
-                emailTypes: absPath(sharedPath, "email/types"),
-                // Database paths (absolute: packages/shared/... - no src/ subfolder)
-                database_config: absPath(sharedPath, "database/config"),
-                databaseConfig: absPath(sharedPath, "database/config"), // Alias for compatibility
-                databaseSchema: absPath(sharedPath, "database/schema"),
-                databaseClient: absPath(sharedPath, "database/client"),
-            };
+    static applyPaths(pathHandler, paths, options = {}) {
+        if (!paths) {
+            return;
         }
-        else {
-            // Single app paths
-            return {
-                // Server path (for Next.js server components, tRPC, etc.)
-                server: './src/server/',
-                // tRPC paths (single app)
-                trpcRouter: './src/server/trpc/router',
-                trpcClient: './src/lib/trpc/client',
-                trpcServer: './src/lib/trpc/server',
-                // Shared code paths (single app)
-                sharedSchemas: './src/lib/schemas',
-                sharedTypes: './src/lib/types',
-                sharedUtils: './src/lib/utils',
-                // Auth paths (use snake_case as standard)
-                auth_config: './src/lib/auth/config',
-                authConfig: './src/lib/auth/config', // Alias for compatibility
-                authHooks: './src/lib/auth/hooks',
-                authTypes: './src/lib/auth/types',
-                // Payment paths
-                payment_config: './src/lib/payment/config',
-                paymentConfig: './src/lib/payment/config', // Alias for compatibility
-                paymentHooks: './src/lib/payment/hooks',
-                paymentTypes: './src/lib/payment/types',
-                // Teams paths
-                teams_config: './src/lib/teams/config',
-                teamsConfig: './src/lib/teams/config', // Alias for compatibility
-                teamsHooks: './src/lib/teams/hooks',
-                teamsTypes: './src/lib/teams/types',
-                // Email paths
-                email_config: './src/lib/email/config',
-                emailConfig: './src/lib/email/config', // Alias for compatibility
-                emailHooks: './src/lib/email/hooks',
-                emailTypes: './src/lib/email/types',
-                // Database paths
-                database_config: './src/lib/database/config',
-                databaseConfig: './src/lib/database/config', // Alias for compatibility
-                databaseSchema: './src/lib/database/schema',
-                databaseClient: './src/lib/database/client',
-            };
+        const overwrite = options.overwrite ?? true;
+        for (const [key, value] of Object.entries(paths)) {
+            if (value === undefined || value === null || value === '') {
+                continue;
+            }
+            if (!overwrite && pathHandler.hasPath(key)) {
+                continue;
+            }
+            pathHandler.setPath(key, value);
         }
+    }
+    static cleanBasePath(raw) {
+        if (!raw) {
+            return '';
+        }
+        let normalized = raw.trim();
+        if (normalized === '.') {
+            normalized = './';
+        }
+        if (!normalized.startsWith('./') && !normalized.startsWith('/')) {
+            normalized = normalized.replace(/^\/+/, '');
+            normalized = `./${normalized}`;
+        }
+        normalized = normalized.replace(/\/\/+/g, '/');
+        if (!normalized.endsWith('/')) {
+            normalized = `${normalized}/`;
+        }
+        return normalized;
+    }
+    static joinPath(base, subPath) {
+        if (!subPath) {
+            return this.cleanBasePath(base);
+        }
+        const baseNormalized = this.cleanBasePath(base);
+        const trimmedSub = subPath.replace(/^\.?\/+/, '');
+        const combined = `${baseNormalized}${trimmedSub}`;
+        return this.ensureTrailingSlash(combined);
+    }
+    static ensureTrailingSlash(value) {
+        if (!value || value.endsWith('/') || /\.\w+$/.test(value)) {
+            return value;
+        }
+        return `${value}/`;
+    }
+    static normalizeMarketplaceKey(name) {
+        if (!name) {
+            return 'custom';
+        }
+        const sanitized = name.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        return sanitized ? sanitized.toLowerCase() : 'custom';
     }
     /**
      * Compute marketplace paths
      * SINGLE SOURCE OF TRUTH for marketplace UI framework detection
      */
-    static async computeMarketplacePaths(genome) {
+    static async computeMarketplacePaths(genome, marketplaceInfo) {
         const paths = {};
-        try {
-            // Core marketplace path
-            const coreMarketplacePath = await MarketplaceRegistry.getCoreMarketplacePath();
-            paths['core.path'] = coreMarketplacePath;
-            // UI Framework Detection (COMPLETE LOGIC - single source of truth)
-            const uiFramework = await this.detectUIFramework(genome);
-            if (uiFramework) {
-                const uiMarketplacePath = await MarketplaceRegistry.getUIMarketplacePath(uiFramework);
-                if (uiMarketplacePath) {
-                    // Store UI framework and paths for later retrieval
-                    paths['ui.framework'] = uiFramework;
-                    paths['ui.path'] = uiMarketplacePath;
-                    paths[`ui.path.${uiFramework}`] = uiMarketplacePath;
-                    Logger.debug('✅ Detected UI framework', {
-                        operation: 'marketplace_initialization',
-                        uiFramework: uiFramework,
-                        uiMarketplacePath: uiMarketplacePath
-                    });
-                }
+        if (marketplaceInfo) {
+            const key = this.normalizeMarketplaceKey(marketplaceInfo.name);
+            if (marketplaceInfo.root) {
+                paths[`marketplace.${key}.root`] = marketplaceInfo.root;
             }
-            else {
-                Logger.debug('⚠️ No UI framework detected', {
-                    operation: 'marketplace_initialization'
-                });
+            if (marketplaceInfo.manifest) {
+                paths[`marketplace.${key}.manifest`] = marketplaceInfo.manifest;
+            }
+            if (marketplaceInfo.adapter) {
+                paths[`marketplace.${key}.adapter`] = marketplaceInfo.adapter;
             }
         }
+        try {
+            const coreMarketplacePath = await MarketplaceRegistry.getCoreMarketplacePath();
+            paths['core.path'] = coreMarketplacePath;
+        }
         catch (error) {
-            Logger.warn('Failed to compute marketplace paths', {
+            Logger.warn('⚠️ Failed to resolve core marketplace path', {
                 operation: 'path_initialization',
                 error: error instanceof Error ? error.message : 'Unknown error'
             });
         }
+        const activeUI = this.determineActiveUIFramework(genome);
+        if (activeUI) {
+            console.log('[path-init] active UI framework', activeUI);
+            try {
+                const rawMarketplacePath = await MarketplaceRegistry.getUIMarketplacePath(activeUI);
+                const uiMarketplacePath = await this.resolveUIRoot(rawMarketplacePath);
+                if (uiMarketplacePath) {
+                    paths['ui.marketplace'] = uiMarketplacePath;
+                    // Maintain legacy key for backward compatibility
+                    paths['ui.path'] = uiMarketplacePath;
+                    console.log('[path-init] ui marketplace path', uiMarketplacePath);
+                }
+                Logger.debug('✅ Registered UI marketplace', {
+                    operation: 'marketplace_initialization',
+                    framework: activeUI,
+                    path: uiMarketplacePath
+                });
+            }
+            catch (error) {
+                Logger.warn('⚠️ Failed to resolve UI marketplace path', {
+                    operation: 'marketplace_initialization',
+                    framework: activeUI,
+                    error: error instanceof Error ? error.message : 'Unknown error'
+                });
+            }
+        }
         return paths;
     }
-    /**
-     * Detect UI framework from genome
-     * PRIORITY: Modules (explicit) > Genome options > Framework inference > Package.json
-     *
-     * This is the SINGLE SOURCE OF TRUTH for UI framework detection.
-     * All other layers should read from PathService, not detect independently.
-     */
-    static async detectUIFramework(genome) {
-        // 1. Check modules FIRST (highest priority - explicit declaration in genome)
-        if (genome.modules) {
-            for (const module of genome.modules) {
-                const moduleId = module.id || '';
-                if (moduleId.includes('ui/tamagui') || moduleId.includes('adapters/ui/tamagui') || moduleId.includes('connectors/ui/tamagui')) {
-                    return 'tamagui';
-                }
-                if (moduleId.includes('ui/shadcn') || moduleId.includes('adapters/ui/shadcn') || moduleId.includes('connectors/ui/shadcn') || moduleId.includes('ui/shadcn-ui')) {
-                    return 'shadcn';
-                }
-            }
+    static determineActiveUIFramework(genome) {
+        const explicit = this.extractExplicitUIFramework(genome);
+        if (explicit) {
+            console.log('[path-init] explicit ui framework', explicit);
+            return explicit;
         }
-        // 2. Check genome parameters for explicit UI framework
-        if (genome.options?.uiFramework) {
-            return genome.options.uiFramework;
+        // ResolvedGenome guarantees modules is always an array
+        const modules = genome.modules;
+        console.log('[path-init] modules for UI framework detection', modules.map(module => typeof module === 'string' ? module : module?.id || '<unknown>'));
+        const loweredIds = modules
+            .map(module => (typeof module === 'string' ? module : module?.id) || '')
+            .map(id => id.toLowerCase());
+        const hasTamaguiModule = loweredIds.some(id => id.includes('tamagui'));
+        const hasShadcnModule = loweredIds.some(id => id.includes('shadcn'));
+        const hasMantineModule = loweredIds.some(id => id.includes('mantine'));
+        const apps = getProjectApps(genome);
+        const hasMobileApp = apps.some((app) => app?.type === 'mobile' || app?.framework === 'expo' || app?.framework === 'react-native');
+        if (hasTamaguiModule || hasMobileApp) {
+            return 'tamagui';
         }
-        // 3. Check framework name for UI framework indicators (lowest priority - inference)
-        const apps = genome.project.apps || [];
-        const webApp = apps.find((a) => a.type === 'web');
-        const framework = webApp?.framework || genome.project.framework;
-        if (framework) {
-            const frameworkLower = framework.toLowerCase();
-            if (frameworkLower.includes('expo') || frameworkLower.includes('react-native')) {
-                return 'tamagui';
-            }
-            if (frameworkLower.includes('nextjs') || frameworkLower.includes('next')) {
-                return 'shadcn';
-            }
+        if (hasShadcnModule) {
+            return 'shadcn';
         }
-        // 4. Check project path for package.json (if project exists)
-        const projectPath = genome.project.path || './';
-        const packageJsonPath = path.join(projectPath, 'package.json');
+        if (hasMantineModule) {
+            return 'mantine';
+        }
+        return null;
+    }
+    static extractExplicitUIFramework(genome) {
+        const optionsFramework = genome?.options?.uiFramework;
+        if (typeof optionsFramework === 'string' && optionsFramework.trim()) {
+            return optionsFramework.trim().toLowerCase();
+        }
+        // Note: uiFramework is not in ProjectConfig type, but may exist in some genomes
+        const projectFramework = getProjectProperty(genome, 'uiFramework');
+        if (typeof projectFramework === 'string' && projectFramework.trim()) {
+            return projectFramework.trim().toLowerCase();
+        }
+        return null;
+    }
+    static async resolveUIRoot(basePath) {
+        if (!basePath) {
+            return basePath;
+        }
         try {
-            const packageJson = JSON.parse(await fs.readFile(packageJsonPath, 'utf-8'));
-            const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
-            if (deps['expo'] || deps['react-native']) {
-                return 'tamagui';
-            }
-            if (deps['next'] || deps['react']) {
-                return 'shadcn';
+            const uiDir = path.join(basePath, 'ui');
+            const stats = await fs.stat(uiDir);
+            if (stats.isDirectory()) {
+                return uiDir;
             }
         }
         catch {
-            // Package.json not found yet (project being created) - continue
+            // ignore, fall back to base path
         }
-        // 5. No UI framework detected
-        return null;
+        return basePath;
     }
     /**
      * Validate paths (check for conflicts, normalize, etc.)

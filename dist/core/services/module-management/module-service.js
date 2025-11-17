@@ -4,7 +4,6 @@
  * Consolidates ModuleFetcherService, ModuleLoaderService, and AdapterLoader
  * into a single, cohesive service for module management
  */
-import { convertGenomeModulesToModules } from './genome-module-converter.js';
 import { MarketplaceService } from '../marketplace/marketplace-service.js';
 import { ErrorHandler } from '../infrastructure/error/index.js';
 import { FrameworkContextService } from '../project/framework-context-service.js';
@@ -66,17 +65,13 @@ export class ModuleService {
      */
     async createProjectContext(genome, pathHandler, module) {
         try {
-            // Convert modules array to Record<string, Module>
+            // ResolvedGenome guarantees modules is always an array
+            const modules = genome.modules;
             const modulesRecord = {};
-            const moduleIndex = this.getModuleIndex(genome);
-            const convertedModules = convertGenomeModulesToModules(genome.modules || []);
-            convertedModules.forEach((mod) => {
-                const resolvedModule = this.resolveModuleDefinition(mod.id, mod, moduleIndex);
-                if (resolvedModule) {
-                    modulesRecord[mod.id] = resolvedModule;
-                }
+            modules.forEach((mod) => {
+                modulesRecord[mod.id] = mod;
             });
-            const targetModule = this.resolveModuleDefinition(module.id, module, moduleIndex) || module;
+            const targetModule = modulesRecord[module.id] || module;
             const context = await FrameworkContextService.createProjectContext(genome, targetModule, pathHandler, modulesRecord);
             return {
                 success: true,
@@ -90,36 +85,6 @@ export class ModuleService {
                 error: errorResult.error
             };
         }
-    }
-    getModuleIndex(genome) {
-        return genome?.metadata?.moduleIndex || null;
-    }
-    resolveModuleDefinition(moduleId, existingModule, moduleIndex, parametersOverride) {
-        const metadata = moduleIndex ? moduleIndex[moduleId] : undefined;
-        if (!existingModule && !metadata) {
-            return null;
-        }
-        const resolved = {
-            ...(existingModule || { id: moduleId, parameters: {} }),
-            id: moduleId,
-            category: existingModule?.category || metadata?.category || metadata?.type || 'module',
-            parameters: {
-                ...(existingModule?.parameters || {}),
-                ...(parametersOverride || {})
-            },
-            parameterSchema: existingModule?.parameterSchema || metadata?.parameters,
-            features: existingModule?.features || {},
-            externalFiles: existingModule?.externalFiles || [],
-            source: existingModule?.source || metadata?.source,
-            manifest: existingModule?.manifest || metadata?.manifest,
-            blueprint: existingModule?.blueprint || metadata?.blueprint,
-            templates: existingModule?.templates && existingModule.templates.length > 0
-                ? existingModule.templates
-                : metadata?.templates || [],
-            marketplace: existingModule?.marketplace || metadata?.marketplace,
-            resolved: existingModule?.resolved || metadata?.resolved
-        };
-        return resolved;
     }
     /**
      * Get cached adapter

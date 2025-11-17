@@ -37,7 +37,9 @@ export declare class CommandRunner {
     private detectPackageManager;
     private getPackageManagerCommands;
     execCommand(cmdArray: string[], options?: CommandRunnerOptions): Promise<CommandResult>;
+    execShellCommand(command: string, options?: CommandRunnerOptions): Promise<CommandResult>;
     private execWithDirectSpawn;
+    private spawnProcess;
     getVersion(): Promise<string>;
     createProject(projectName: string, framework?: string, options?: string[]): Promise<CommandResult>;
     install(packages?: string[], isDev?: boolean, cwd?: string): Promise<CommandResult>;

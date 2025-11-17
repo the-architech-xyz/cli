@@ -31,18 +31,14 @@ export class LocalMarketplaceStrategy {
         try {
             // Get marketplace root
             const marketplaceRoot = await MarketplaceRegistry.getCoreMarketplacePath();
-            // Normalize the genome name
-            const normalized = this.resolver.normalizeGenomeName(input);
-            // Try official genomes first
+            const normalized = input;
             const officialPath = path.join(marketplaceRoot, 'genomes', 'official', `${normalized}.genome.ts`);
             try {
                 await fs.access(officialPath);
-                const metadata = await this.resolver.extractMetadata(officialPath);
                 return {
                     name: input, // Use original input as display name
                     path: officialPath,
-                    source: 'local-marketplace',
-                    metadata
+                    source: 'local-marketplace'
                 };
             }
             catch {
@@ -52,12 +48,10 @@ export class LocalMarketplaceStrategy {
             const communityPath = path.join(marketplaceRoot, 'genomes', 'community', `${normalized}.genome.ts`);
             try {
                 await fs.access(communityPath);
-                const metadata = await this.resolver.extractMetadata(communityPath);
                 return {
                     name: input,
                     path: communityPath,
-                    source: 'local-marketplace',
-                    metadata
+                    source: 'local-marketplace'
                 };
             }
             catch {

@@ -60,6 +60,7 @@ export declare class TemplateService {
     static processTemplateWithStrictValidation(template: string, context: ProjectContext, options?: Omit<TemplateProcessingOptions, 'strictPathValidation'>): string;
     /**
      * Validate path variables in a template without processing
+     * Note: Marketplace validation is async, but this method provides sync validation
      */
     static validateTemplatePaths(template: string, context: ProjectContext): {
         valid: boolean;

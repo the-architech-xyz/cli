@@ -5,7 +5,7 @@
  * into a single, cohesive service for module management
  */
 
-import { Genome } from '@thearchitech.xyz/marketplace';
+import { Genome, ResolvedGenome } from '@thearchitech.xyz/types';
 import { AdapterConfig, Blueprint, Module } from '@thearchitech.xyz/types';
 import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 import { PathService } from '../path/path-service.js';
@@ -100,12 +100,13 @@ export class ModuleService {
    * Create project context for module execution
    */
   async createProjectContext(
-    genome: Genome,
+    genome: ResolvedGenome,
     pathHandler: PathService,
     module: Module
   ): Promise<ProjectContextResult> {
     try {
-      const modules = genome.modules || [];
+      // ResolvedGenome guarantees modules is always an array
+      const modules = genome.modules;
       const modulesRecord: Record<string, Module> = {};
       modules.forEach((mod) => {
         modulesRecord[mod.id] = mod;

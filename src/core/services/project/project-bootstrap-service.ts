@@ -1,9 +1,10 @@
-import { Genome } from '@thearchitech.xyz/types';
+import { Genome, ResolvedGenome } from '@thearchitech.xyz/types';
 import type { AdapterConfig } from '@thearchitech.xyz/types';
 import * as path from 'path';
 import { PathService } from '../path/path-service.js';
 import { ModuleService } from '../module-management/module-service.js';
 import { BlueprintPreprocessor } from '../execution/blueprint/blueprint-preprocessor.js';
+import { getProjectStructure, getProjectApps, getProjectFramework } from '../../utils/genome-helpers.js';
 import { ModuleConfigurationService } from '../orchestration/module-configuration-service.js';
 import { FrameworkContextService } from './framework-context-service.js';
 import { Logger } from '../infrastructure/logging/logger.js';
@@ -40,16 +41,11 @@ export class ProjectBootstrapService {
   ) {}
 
   async bootstrap(
-    genome: Genome,
+    genome: ResolvedGenome,
     structureResult?: StructureInitializationResult
   ): Promise<AdapterConfig | undefined> {
+    // ResolvedGenome guarantees metadata.moduleIndex exists
     const moduleIndex = this.getModuleIndex(genome);
-    if (!moduleIndex) {
-      Logger.debug('No module index metadata present; skipping project bootstrap.', {
-        operation: 'project_bootstrap'
-      });
-      return undefined;
-    }
 
     const plans = this.buildFrameworkPlans(genome, moduleIndex, structureResult);
     if (plans.length === 0) {
@@ -77,22 +73,24 @@ export class ProjectBootstrapService {
     return preferredAdapter;
   }
 
-  private getModuleIndex(genome: Genome): Record<string, any> | null {
-    return ((genome as any)?.metadata?.moduleIndex as Record<string, any> | undefined) || null;
+  private getModuleIndex(genome: ResolvedGenome): Record<string, any> {
+    // ResolvedGenome guarantees metadata.moduleIndex exists
+    return genome.metadata.moduleIndex;
   }
 
-  private getFrameworkMetadata(genome: Genome): FrameworkMetadataEntry[] {
-    const bootstrapMeta = ((genome as any)?.metadata?.bootstrap || {}) as Record<string, any>;
-    return (bootstrapMeta.frameworks as FrameworkMetadataEntry[] | undefined) || [];
+  private getFrameworkMetadata(genome: ResolvedGenome): FrameworkMetadataEntry[] {
+    // ResolvedGenome guarantees metadata exists
+    const bootstrapMeta = genome.metadata.bootstrap;
+    return (bootstrapMeta?.frameworks as FrameworkMetadataEntry[] | undefined) || [];
   }
 
   private buildFrameworkPlans(
-    genome: Genome,
+    genome: ResolvedGenome,
     moduleIndex: Record<string, any>,
     structureResult?: StructureInitializationResult
   ): FrameworkBootstrapPlan[] {
     const plans: FrameworkBootstrapPlan[] = [];
-    const structure = ((genome.project as any)?.structure as string) || 'single-app';
+    const structure = getProjectStructure(genome);
     const frameworkMetadata = this.getFrameworkMetadata(genome);
     const packagesByName = new Map<string, PackageStructure>();
 
@@ -103,7 +101,7 @@ export class ProjectBootstrapService {
     }
 
     if (structure === 'monorepo') {
-      const apps: Array<any> = (genome.project as any)?.apps || [];
+      const apps = getProjectApps(genome);
       for (const app of apps) {
         if (!app?.framework) continue;
         const frameworkId = `framework/${app.framework}`;
@@ -123,9 +121,9 @@ export class ProjectBootstrapService {
 
         module.parameters = parameters;
 
-        const packageName = app.package || app.id || frameworkId.replace('framework/', '');
+        const packageName = this.getAppPackageName(app);
         const packageStructure = packagesByName.get(packageName);
-        const targetRelPath = packageStructure?.path || `apps/${packageName}`;
+        const targetRelPath = packageStructure?.path || this.getAppPackagePath(app, packageName);
         const targetPath = path.join(this.pathHandler.getProjectRoot(), targetRelPath);
 
         plans.push({
@@ -139,13 +137,21 @@ export class ProjectBootstrapService {
         });
       }
     } else {
-      const framework = (genome.project as any)?.framework;
+      // For single-app, check both project.framework and apps[0].framework
+      // This handles genomes that specify framework via the apps array pattern
+      const framework = getProjectFramework(genome);
+      
       if (!framework) {
-        Logger.warn('No project.framework specified; skipping framework bootstrap.', {
+        Logger.warn('No project.framework or apps[0].framework specified; skipping framework bootstrap.', {
           operation: 'project_bootstrap'
         });
         return plans;
       }
+
+      // For single-app with apps[0].framework, also get parameters from the app config
+      const apps = getProjectApps(genome);
+      const appConfig = apps.length > 0 ? apps[0] : undefined;
+      const appParameters = appConfig?.parameters || {};
 
       const frameworkId = `framework/${framework}`;
       const module = this.buildModuleDefinition(frameworkId, moduleIndex, frameworkMetadata);
@@ -159,7 +165,10 @@ export class ProjectBootstrapService {
       const parameters = {
         ...(module.parameters || {}),
         ...(this.getFrameworkParameters(frameworkMetadata, frameworkId) || {}),
-        ...(((genome.project as any)?.parameters) || {})
+        // Note: genome.project.parameters doesn't exist in ProjectConfig type
+        // If needed, it should be added to the type definition
+        ...({} as Record<string, unknown>),
+        ...appParameters  // Merge app-specific parameters (e.g., from apps[0].parameters)
       };
 
       module.parameters = parameters;
@@ -217,7 +226,7 @@ export class ProjectBootstrapService {
     return match?.parameters;
   }
 
-  private async executeFrameworkPlan(plan: FrameworkBootstrapPlan, genome: Genome): Promise<AdapterConfig> {
+  private async executeFrameworkPlan(plan: FrameworkBootstrapPlan, genome: ResolvedGenome): Promise<AdapterConfig> {
     Logger.info(`🏗️ Bootstrapping framework ${plan.frameworkId}`, {
       operation: 'project_bootstrap',
       targetPath: plan.targetPath,
@@ -295,6 +304,38 @@ export class ProjectBootstrapService {
     }
     await this.moduleService.initialize();
     this.moduleServiceInitialized = true;
+  }
+
+  private getAppPackageName(app: any): string {
+    if (app?.package && typeof app.package === 'string') {
+      const parts = app.package.split('/').filter(Boolean);
+      if (parts.length > 0) {
+        return parts[parts.length - 1];
+      }
+    }
+    if (app?.id) {
+      return app.id;
+    }
+    if (app?.type) {
+      return app.type;
+    }
+    return 'app';
+  }
+
+  private getAppPackagePath(app: any, packageName: string): string {
+    if (app?.package && typeof app.package === 'string') {
+      return app.package;
+    }
+    switch (app?.type) {
+      case 'web':
+        return `apps/${packageName}`;
+      case 'api':
+        return `apps/${packageName}`;
+      case 'mobile':
+        return `apps/${packageName}`;
+      default:
+        return `apps/${packageName}`;
+    }
   }
 }
 

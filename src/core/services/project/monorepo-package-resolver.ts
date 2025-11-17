@@ -8,7 +8,8 @@
  * - Genome structure and apps configuration
  */
 
-import { Genome, Module } from '@thearchitech.xyz/types';
+import { Genome, ResolvedGenome, Module } from '@thearchitech.xyz/types';
+import { getProjectApps } from '../../utils/genome-helpers.js';
 import { Logger } from '../infrastructure/logging/logger.js';
 
 export interface ModuleUsage {
@@ -38,14 +39,14 @@ export class MonorepoPackageResolver {
    * - Full-stack modules → packages/shared (shared between apps)
    * - Tech-stack layers → packages/shared (shared utilities)
    */
-  static resolveTargetPackage(module: Module, genome: Genome): string | null {
+  static resolveTargetPackage(module: Module, genome: ResolvedGenome): string | null {
     // Check if genome defines monorepo structure
     if (genome.project.structure !== 'monorepo' || !genome.project.monorepo) {
       return null;
     }
 
     const monorepoConfig = genome.project.monorepo;
-    const apps = (genome.project as any).apps || [];
+    const apps = getProjectApps(genome);
     
     Logger.debug(`🔍 Resolving target package for module: ${module.id}`, {
       operation: 'package_resolution',

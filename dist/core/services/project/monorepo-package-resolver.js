@@ -7,6 +7,7 @@
  * - Module usage (frontend-only, backend-only, or full-stack)
  * - Genome structure and apps configuration
  */
+import { getProjectApps } from '../../utils/genome-helpers.js';
 import { Logger } from '../infrastructure/logging/logger.js';
 export class MonorepoPackageResolver {
     /**
@@ -34,7 +35,7 @@ export class MonorepoPackageResolver {
             return null;
         }
         const monorepoConfig = genome.project.monorepo;
-        const apps = genome.project.apps || [];
+        const apps = getProjectApps(genome);
         Logger.debug(`🔍 Resolving target package for module: ${module.id}`, {
             operation: 'package_resolution',
             moduleId: module.id,

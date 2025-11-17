@@ -9,19 +9,15 @@
 import { MarketplaceService } from '../marketplace/marketplace-service.js';
 import { Logger } from '../infrastructure/logging/logger.js';
 import { ImportPathResolver } from '../path/import-path-resolver.js';
+import { getProjectFramework, getProjectApps, getProjectProperty } from '../../utils/genome-helpers.js';
 export class FrameworkContextService {
     /**
      * Create dynamic ProjectContext based on framework and parameters
      */
     static async createProjectContext(genome, module, pathHandler, modulesRecord) {
         try {
-            // Support new multi-app project model
-            let framework = genome.project.framework;
-            const apps = genome.project.apps;
-            if (apps && apps.length > 0) {
-                const preferred = apps.find(a => a.type === 'web') || apps[0];
-                framework = preferred.framework;
-            }
+            // Get framework using type-safe helper (handles both new and legacy structures)
+            const framework = getProjectFramework(genome);
             const frameworkModule = framework ? (modulesRecord[`adapters/framework/${framework}`] || modulesRecord[`framework/${framework}`]) : undefined;
             if (!frameworkModule) {
                 Logger.warn(`Framework module not found: adapters/framework/${framework} or framework/${framework}, using fallback configuration`);
@@ -47,15 +43,20 @@ export class FrameworkContextService {
             // Get marketplace UI from PathService (SINGLE SOURCE OF TRUTH)
             // Marketplace UI is initialized once by PathInitializationService and read-only after
             const marketplaceUI = pathHandler.getMarketplaceUI();
+            const uiMarketplacePath = pathHandler.hasPath('ui.marketplace')
+                ? pathHandler.getPath('ui.marketplace')
+                : pathHandler.hasPath('ui.path')
+                    ? pathHandler.getPath('ui.path')
+                    : '';
             const context = {
                 project: {
                     name: genome.project.name,
-                    framework: framework || genome.project.framework || 'unknown',
+                    framework: framework || 'unknown',
                     path: genome.project.path || './',
-                    description: genome.project.description,
-                    author: genome.project.author,
-                    version: genome.project.version,
-                    license: genome.project.license
+                    description: getProjectProperty(genome, 'description'),
+                    author: getProjectProperty(genome, 'author'),
+                    version: getProjectProperty(genome, 'version'),
+                    license: getProjectProperty(genome, 'license')
                 },
                 module: module,
                 framework: framework || 'unknown',
@@ -70,8 +71,15 @@ export class FrameworkContextService {
                 // NOTE: Marketplace UI is initialized by PathInitializationService (single source of truth)
                 marketplace: {
                     core: pathHandler.hasPath('core.path') ? pathHandler.getPath('core.path') : '',
-                    ui: marketplaceUI
+                    ui: {
+                        ...marketplaceUI,
+                        default: marketplaceUI.default || uiMarketplacePath || '',
+                        root: uiMarketplacePath
+                    }
                 },
+                // Initialize enriched properties (will be populated by OrchestratorAgent)
+                params: {},
+                platforms: { web: false, mobile: false },
             };
             Logger.info(`✅ Created dynamic context for framework: ${framework}`, {
                 operation: 'framework_context_creation',
@@ -84,7 +92,7 @@ export class FrameworkContextService {
         catch (error) {
             Logger.error(`❌ Failed to create framework context: ${error}`, {
                 operation: 'framework_context_creation',
-                framework: genome.project.framework,
+                framework: getProjectFramework(genome) || 'unknown',
                 error: error instanceof Error ? error.message : 'Unknown error'
             });
             // Fallback to basic context
@@ -326,53 +334,47 @@ export class FrameworkContextService {
     static async createFallbackContext(genome, module, pathHandler, modulesRecord) {
         Logger.warn('Using fallback context configuration', {
             operation: 'framework_context_creation',
-            framework: (genome.project.apps && genome.project.apps[0]?.framework) || genome.project.framework || 'unknown'
+            framework: getProjectFramework(genome) || 'unknown'
         });
+        // NOTE: Paths should already be initialized by PathInitializationService
+        // This fallback only provides minimal paths if initialization somehow failed
+        // Use PathKey enum values for consistency
+        const { PathKey } = await import('@thearchitech.xyz/types');
         const basePaths = {
-            app_root: './',
-            components: './src/components',
-            shared_library: './src/lib',
-            styles: './src/styles',
-            scripts: './src/scripts',
-            hooks: './src/hooks'
+            [PathKey.APPS_WEB_APP]: './src/app/',
+            [PathKey.APPS_WEB_COMPONENTS]: './src/components/',
+            [PathKey.PACKAGES_SHARED_SRC]: './src/lib/',
+            [PathKey.WORKSPACE_SCRIPTS]: './scripts/',
+            [PathKey.PACKAGES_SHARED_HOOKS]: './src/hooks/'
         };
         // Add monorepo-specific paths if monorepo structure detected (even in fallback)
         let paths = { ...basePaths };
         if (genome.project.structure === 'monorepo' && genome.project.monorepo) {
             const pkgs = genome.project.monorepo.packages || {};
-            const apps = genome.project.apps || [];
-            // Determine actual app and package locations
+            const apps = getProjectApps(genome);
             const apiApp = apps.find((a) => a.type === 'api' || a.framework === 'hono');
             const webApp = apps.find((a) => a.type === 'web');
-            // Resolve package paths with proper structure
             const apiPath = apiApp?.package || pkgs.api || './apps/api/';
             const webPath = webApp?.package || pkgs.web || './apps/web/';
             const sharedPath = pkgs.shared || './packages/shared/';
             const databasePath = pkgs.database || './packages/database/';
             const uiPath = pkgs.ui || './packages/ui/';
-            // Ensure paths end with / for consistency
             const normalizePath = (p) => p.endsWith('/') ? p : `${p}/`;
-            // Provide comprehensive path mapping for monorepo
             paths = {
                 ...basePaths,
-                // App paths
-                api: normalizePath(apiPath),
-                web: normalizePath(webPath),
-                mobile: pkgs.mobile ? normalizePath(pkgs.mobile) : './apps/mobile/',
-                // Package paths
-                shared: normalizePath(sharedPath),
-                database: normalizePath(databasePath),
-                ui: normalizePath(uiPath),
-                // Sub-paths (commonly used patterns)
-                // NOTE: shared package does NOT use /src subfolder (cleaner structure)
-                shared_library: `${normalizePath(sharedPath)}lib/`,
-                api_src: `${normalizePath(apiPath)}src/`,
-                api_routes: `${normalizePath(apiPath)}src/routes/`,
-                web_src: `${normalizePath(webPath)}src/`,
-                web_app: `${normalizePath(webPath)}src/app/`,
-                // Legacy compatibility paths
-                src: webApp ? `${normalizePath(webPath)}src/` : './src/',
-                lib: `${normalizePath(sharedPath)}lib/`, // packages/shared/lib/ (no src/ subfolder)
+                [PathKey.APPS_API_ROOT]: normalizePath(apiPath),
+                [PathKey.APPS_API_SRC]: `${normalizePath(apiPath)}src/`,
+                [PathKey.APPS_API_ROUTES]: `${normalizePath(apiPath)}src/routes/`,
+                [PathKey.APPS_WEB_ROOT]: normalizePath(webPath),
+                [PathKey.APPS_WEB_SRC]: `${normalizePath(webPath)}src/`,
+                [PathKey.APPS_WEB_APP]: `${normalizePath(webPath)}src/app/`,
+                [PathKey.APPS_WEB_COMPONENTS]: `${normalizePath(webPath)}src/components/`,
+                [PathKey.PACKAGES_SHARED_ROOT]: normalizePath(sharedPath),
+                [PathKey.PACKAGES_SHARED_SRC]: `${normalizePath(sharedPath)}src/`,
+                [PathKey.PACKAGES_DATABASE_ROOT]: normalizePath(databasePath),
+                [PathKey.PACKAGES_DATABASE_SRC]: `${normalizePath(databasePath)}src/`,
+                [PathKey.PACKAGES_UI_ROOT]: normalizePath(uiPath),
+                [PathKey.PACKAGES_UI_SRC]: `${normalizePath(uiPath)}src/`
             };
             // Add all resolved paths to PathService.pathMap for variable resolution
             for (const [key, value] of Object.entries(paths)) {
@@ -386,33 +388,44 @@ export class FrameworkContextService {
         // Get marketplace UI from PathService (SINGLE SOURCE OF TRUTH)
         // Marketplace UI is initialized once by PathInitializationService and read-only after
         const marketplaceUI = pathHandler.getMarketplaceUI();
+        const uiMarketplacePath = pathHandler.hasPath('ui.marketplace')
+            ? pathHandler.getPath('ui.marketplace')
+            : pathHandler.hasPath('ui.path')
+                ? pathHandler.getPath('ui.path')
+                : '';
         const context = {
             project: {
                 name: genome.project.name,
                 path: genome.project.path || './',
-                framework: (genome.project.apps && genome.project.apps[0]?.framework) || genome.project.framework || 'unknown',
-                description: genome.project.description,
-                author: genome.project.author,
-                version: genome.project.version,
-                license: genome.project.license
+                framework: getProjectFramework(genome) || 'unknown',
+                description: getProjectProperty(genome, 'description'),
+                author: getProjectProperty(genome, 'author'),
+                version: getProjectProperty(genome, 'version'),
+                license: getProjectProperty(genome, 'license')
             },
             module: module,
-            framework: (genome.project.apps && genome.project.apps[0]?.framework) || genome.project.framework || 'unknown',
+            framework: getProjectFramework(genome) || 'unknown',
             paths: paths,
             modules: modulesRecord,
             pathHandler: pathHandler,
             env: {
                 APP_URL: 'http://localhost:3000',
                 NODE_ENV: 'development'
-            }
+            },
+            marketplace: {
+                core: pathHandler.hasPath('core.path') ? pathHandler.getPath('core.path') : '',
+                ui: {
+                    ...marketplaceUI,
+                    default: marketplaceUI.default || uiMarketplacePath || '',
+                    root: uiMarketplacePath
+                }
+            },
+            // Initialize enriched properties (will be populated by OrchestratorAgent)
+            params: {},
+            platforms: { web: false, mobile: false },
         };
         // Add import path helper
         context.importPath = (filePath) => ImportPathResolver.resolveImportPath(filePath, context);
-        // Add marketplace paths for template resolution
-        context.marketplace = {
-            core: pathHandler.hasPath('core.path') ? pathHandler.getPath('core.path') : '',
-            ui: marketplaceUI
-        };
         return context;
     }
 }

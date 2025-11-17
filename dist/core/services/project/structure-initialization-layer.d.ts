@@ -9,7 +9,7 @@
  * - Package structure is initialized (package.json, tsconfig, etc.)
  * - Genome is updated with created packages
  */
-import { Genome } from '@thearchitech.xyz/types';
+import { ResolvedGenome } from '@thearchitech.xyz/types';
 import { PathService } from '../path/path-service.js';
 export interface PackageStructure {
     name: string;
@@ -28,7 +28,7 @@ export declare class StructureInitializationLayer {
     /**
      * Initialize project structure based on genome
      */
-    initialize(genome: Genome): Promise<StructureInitializationResult>;
+    initialize(genome: ResolvedGenome): Promise<StructureInitializationResult>;
     /**
      * Initialize single app structure
      */

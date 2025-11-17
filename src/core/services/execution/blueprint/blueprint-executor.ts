@@ -19,6 +19,7 @@ import { YamlMergerModifier } from '../../file-system/modifiers/yaml-merger.js';
 import { ActionHandlerRegistry } from './action-handlers/index.js';
 import { ArchitechError, ArchitechErrorCode } from '../../infrastructure/error/architech-error.js';
 import { TemplateService } from '../../file-system/template/template-service.js';
+import { PathKeyRegistry } from '../../path/path-key-registry.js';
 
 // Simple modifier interface for now
 interface ModifierDefinition {
@@ -138,31 +139,80 @@ export class BlueprintExecutor {
     return expandedAction;
   }
 
+  private async enforcePathKeyContractOnAction(action: BlueprintAction, context: ProjectContext): Promise<void> {
+    if (!action || typeof (action as any).path !== 'string') {
+      return;
+    }
+
+    const templatePath = (action as any).path;
+    if (typeof templatePath !== 'string' || !templatePath.includes('${paths.')) {
+      return;
+    }
+
+    const marketplaceName = (context.module as any)?.marketplace?.name || 'core';
+    const project = (context.project as any) || {};
+    const projectStructure = project.structure === 'monorepo'
+      ? 'monorepo'
+      : project.structure === 'single-app'
+        ? 'single-app'
+        : undefined;
+
+    const validation = await PathKeyRegistry.validatePathKeyUsage(
+      templatePath,
+      marketplaceName,
+      projectStructure
+    );
+
+    if (!validation.valid) {
+      const detail = validation.errors?.map((error) => `${error.key}: ${error.message}`).join('; ')
+        || 'Unknown path key error';
+      throw new Error(`Invalid path key in action path "${templatePath}": ${detail}`);
+    }
+  }
+
   /**
-   * Analyze actions and blueprint to determine which files need to be loaded into VFS
-   * Consolidates logic from BlueprintAnalyzer (now removed)
+   * Intelligent VFS Pre-loader: Automatically analyze blueprint to determine which files need to be loaded
    * 
-   * Includes:
-   * - Files needed by actions (ENHANCE_FILE, MERGE_JSON, INSTALL_PACKAGES, etc.)
-   * - blueprint.contextualFiles (if available)
-   * - module.externalFiles (if available)
+   * This method implements the "Intelligent VFS Pre-loader" doctrine:
+   * - Automatically detects files from action analysis
+   * - Always includes default files (package.json)
+   * - Supports contextualFiles as escape hatch
+   * - Handles forEach actions recursively
+   * 
+   * @param actions - Blueprint actions to analyze
+   * @param context - Project context
+   * @param blueprint - Optional blueprint (for contextualFiles)
+   * @returns Array of unique file paths to pre-load
    */
-  private analyzeFilesToLoad(
+  private analyzeAndPreloadRequiredFiles(
     actions: BlueprintAction[],
     context: ProjectContext,
     blueprint?: Blueprint
   ): string[] {
-    const filesToRead: string[] = [];
+    const filesToLoad = new Set<string>();
     
-    // 1. Analyze actions to determine files needed
+    // 1. Always include default files (doctrine requirement)
+    filesToLoad.add('package.json');
+    
+    // 2. Add contextualFiles if provided (escape hatch for edge cases)
+    if (blueprint?.contextualFiles && Array.isArray(blueprint.contextualFiles)) {
+      blueprint.contextualFiles.forEach(file => filesToLoad.add(file));
+    }
+    
+    // 3. Add module.externalFiles if available
+    if (context.module?.externalFiles && Array.isArray(context.module.externalFiles)) {
+      context.module.externalFiles.forEach(file => filesToLoad.add(file));
+    }
+    
+    // 4. Analyze actions to automatically detect file interactions
     for (const action of actions) {
       if (!action) continue;
       
       // Handle forEach actions (expand first, then analyze recursively)
       if ((action as any).forEach) {
         const expandedActions = this.expandForEachActions([action], context);
-        const expandedFiles = this.analyzeFilesToLoad(expandedActions, context, blueprint);
-        filesToRead.push(...expandedFiles);
+        const expandedFiles = this.analyzeAndPreloadRequiredFiles(expandedActions, context, blueprint);
+        expandedFiles.forEach(file => filesToLoad.add(file));
         continue;
       }
       
@@ -170,60 +220,59 @@ export class BlueprintExecutor {
       switch (action.type) {
         case 'INSTALL_PACKAGES':
         case 'ADD_SCRIPT':
-          filesToRead.push('package.json');
+        case 'ADD_DEPENDENCY':
+        case 'ADD_DEV_DEPENDENCY':
+          // These actions always need package.json (already in default list)
+          filesToLoad.add('package.json');
           break;
           
         case 'ENHANCE_FILE':
           if ((action as any).path) {
             // Only add if there's no fallback create option
+            // If fallback is 'create', the file might not exist yet
             if (!(action as any).fallback || (action as any).fallback !== 'create') {
-              filesToRead.push((action as any).path);
+              filesToLoad.add((action as any).path);
             }
           }
           break;
           
         case 'MERGE_JSON':
         case 'MERGE_CONFIG':
-          if ((action as any).path) {
-            filesToRead.push((action as any).path);
-          }
-          break;
-          
         case 'APPEND_TO_FILE':
         case 'PREPEND_TO_FILE':
-          if ((action as any).path) {
-            filesToRead.push((action as any).path);
-          }
-          break;
-          
         case 'ADD_TS_IMPORT':
         case 'EXTEND_SCHEMA':
         case 'WRAP_CONFIG':
+          // These actions modify existing files, so we need to pre-load them
           if ((action as any).path) {
-            filesToRead.push((action as any).path);
+            filesToLoad.add((action as any).path);
           }
           break;
           
-        default:
-          // Handle additional package.json actions
-          if ((action as any).type === 'ADD_DEPENDENCY' || (action as any).type === 'ADD_DEV_DEPENDENCY') {
-            filesToRead.push('package.json');
+        case 'CREATE_FILE':
+          // CREATE_FILE doesn't need pre-loading (file is created, not modified)
+          // However, if it has a merge strategy, we might need the existing file
+          if ((action as any).mergeStrategy && (action as any).path) {
+            filesToLoad.add((action as any).path);
           }
+          break;
       }
     }
     
-    // 2. Add blueprint.contextualFiles if available
-    if (blueprint?.contextualFiles && Array.isArray(blueprint.contextualFiles)) {
-      filesToRead.push(...blueprint.contextualFiles);
-    }
-    
-    // 3. Add module.externalFiles if available
-    if (context.module?.externalFiles && Array.isArray(context.module.externalFiles)) {
-      filesToRead.push(...context.module.externalFiles);
-    }
-    
-    // 4. Deduplicate and return
-    return Array.from(new Set(filesToRead));
+    // 5. Return deduplicated array
+    return Array.from(filesToLoad);
+  }
+  
+  /**
+   * @deprecated Use analyzeAndPreloadRequiredFiles instead
+   * Kept for backward compatibility
+   */
+  private analyzeFilesToLoad(
+    actions: BlueprintAction[],
+    context: ProjectContext,
+    blueprint?: Blueprint
+  ): string[] {
+    return this.analyzeAndPreloadRequiredFiles(actions, context, blueprint);
   }
 
   /**
@@ -423,9 +472,11 @@ export class BlueprintExecutor {
     const warnings: string[] = [];
     
     try {
-      // 1. Analyze actions to determine which files need to be loaded into VFS
-      // This includes files from actions, blueprint.contextualFiles, and module.externalFiles
-      const filesToRead = this.analyzeFilesToLoad(actions, context);
+      // 1. Intelligent analysis: Automatically detect files to pre-load
+      // This implements the "Intelligent VFS Pre-loader" doctrine
+      // Analyzes actions to determine which files need to be loaded into VFS
+      // Note: executeActions doesn't have blueprint context, so contextualFiles won't be available
+      const filesToRead = this.analyzeAndPreloadRequiredFiles(actions, context);
       
       // 2. Pre-populate VFS with existing files (intelligent pre-loading)
       // CRITICAL: Resolve path variables before passing to initializeWithFiles
@@ -460,7 +511,9 @@ export class BlueprintExecutor {
         }
         
         const actionPath = 'path' in action ? action.path : 'N/A';
-        
+
+        await this.enforcePathKeyContractOnAction(action, context);
+
         // CRITICAL: Use VFS projectRoot (which is set to targetPackagePath for monorepo)
         // This ensures commands and file operations run in the correct package directory
         const vfsProjectRoot = (vfs as any).projectRoot || context.project.path || '.';
@@ -530,20 +583,22 @@ export class BlueprintExecutor {
     const warnings: string[] = [];
     
     try {
-      // 1. Analyze blueprint to identify files to pre-load
-      const filesToRead = this.analyzeFilesToLoad(blueprint.actions, context, blueprint);
+      // 1. Intelligent analysis: Automatically detect files to pre-load
+      // This implements the "Intelligent VFS Pre-loader" doctrine
+      const filesToLoad = this.analyzeAndPreloadRequiredFiles(blueprint.actions, context, blueprint);
       
-      // 2. Pre-populate VFS with existing files (intelligent pre-loading)
+      // 2. Pre-populate VFS with detected files
       // CRITICAL: Resolve path variables before passing to initializeWithFiles
-      if (filesToRead.length > 0) {
-        const resolvedFilesToRead = filesToRead.map((filePath: string) => {
-          // Resolve path variables if present
+      // This handles monorepo vs single-app path resolution correctly
+      if (filesToLoad.length > 0) {
+        const resolvedFiles = filesToLoad.map((filePath: string) => {
+          // Resolve path variables if present (handles ${paths.*} templates)
           if (context.pathHandler?.resolveTemplate) {
             return context.pathHandler.resolveTemplate(filePath);
           }
           return filePath;
         });
-        await vfs.initializeWithFiles(resolvedFilesToRead);
+        await vfs.initializeWithFiles(resolvedFiles);
       }
       
       // 3. Expand forEach actions
@@ -561,8 +616,10 @@ export class BlueprintExecutor {
           continue;
         }
         
-        const actionPath = 'path' in action ? action.path : 'N/A';
-        
+        const actionPath = 'path' in action ? action.path : action.type;
+
+        await this.enforcePathKeyContractOnAction(action, context);
+
         // CRITICAL: Use VFS projectRoot (which is set to appTargetDir for framework setup)
         // This ensures commands run in the correct package directory (apps/web, apps/api, etc.)
         // The VFS is initialized with the correct directory in module-service.ts
@@ -684,3 +741,4 @@ export class BlueprintExecutor {
     return value;
   }
 }
+

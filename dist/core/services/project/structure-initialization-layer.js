@@ -10,6 +10,7 @@
  * - Genome is updated with created packages
  */
 import { Logger } from '../infrastructure/logging/logger.js';
+import { getProjectStructure, getProjectMonorepo, getProjectApps } from '../../utils/genome-helpers.js';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 export class StructureInitializationLayer {
@@ -22,9 +23,9 @@ export class StructureInitializationLayer {
      */
     async initialize(genome) {
         // Debug: Log genome structure
-        const projectStructure = genome.project.structure;
-        const hasMonorepo = genome.project.monorepo;
-        const hasApps = genome.project.apps;
+        const projectStructure = getProjectStructure(genome);
+        const hasMonorepo = !!getProjectMonorepo(genome);
+        const hasApps = getProjectApps(genome).length > 0;
         Logger.info(`🔍 Structure detection: structure=${projectStructure}, hasMonorepo=${!!hasMonorepo}, hasApps=${!!hasApps}`, {
             operation: 'structure_initialization',
             projectStructure,
@@ -78,10 +79,11 @@ export class StructureInitializationLayer {
             operation: 'structure_initialization'
         });
         const projectRoot = this.pathHandler.getProjectRoot();
-        const monorepoConfig = genome.project.monorepo;
-        const apps = genome.project.apps || [];
+        const monorepoConfig = getProjectMonorepo(genome);
+        const apps = getProjectApps(genome);
         const capabilities = genome.capabilities || {};
-        const modules = genome.modules || [];
+        // ResolvedGenome guarantees modules is always an array
+        const modules = genome.modules;
         Logger.info(`🔍 Monorepo initialization details:`, {
             operation: 'structure_initialization',
             projectRoot,
@@ -106,7 +108,15 @@ export class StructureInitializationLayer {
             requiredPackages
         });
         // Merge with explicit packages from config (explicit takes precedence)
-        const finalPackages = this.mergePackages(requiredPackages, monorepoConfig?.packages || {});
+        // Filter out undefined values from packages to match Record<string, string> type
+        const explicitPackages = monorepoConfig?.packages || {};
+        const filteredPackages = {};
+        for (const [key, value] of Object.entries(explicitPackages)) {
+            if (value !== undefined) {
+                filteredPackages[key] = value;
+            }
+        }
+        const finalPackages = this.mergePackages(requiredPackages, filteredPackages);
         Logger.info(`📦 Determined ${Object.keys(finalPackages).length} packages to create`, {
             packages: Object.keys(finalPackages),
             operation: 'structure_initialization'
@@ -172,11 +182,9 @@ export class StructureInitializationLayer {
         const usedPackages = new Set();
         // Import resolver dynamically to avoid circular dependencies (ESM import)
         const { MonorepoPackageResolver } = await import('./monorepo-package-resolver.js');
-        const { convertGenomeModuleToModule } = await import('../module-management/genome-module-converter.js');
         for (const module of modules) {
             try {
-                const convertedModule = convertGenomeModuleToModule(module);
-                const targetPackage = MonorepoPackageResolver.resolveTargetPackage(convertedModule, genome);
+                const targetPackage = MonorepoPackageResolver.resolveTargetPackage(module, genome);
                 if (targetPackage) {
                     usedPackages.add(targetPackage);
                     Logger.debug(`📦 Module ${module.id || module} will use package: ${targetPackage}`, {
@@ -408,7 +416,8 @@ export class StructureInitializationLayer {
         };
         await fs.writeFile(path.join(fullPath, 'tsconfig.json'), JSON.stringify(tsconfig, null, 2) + '\n');
         // Create index.ts placeholder
-        await this.createPackageIndex(packageName, fullPath, genome.capabilities || {}, genome.modules || []);
+        // ResolvedGenome guarantees modules is always an array
+        await this.createPackageIndex(packageName, fullPath, genome.capabilities || {}, genome.modules);
     }
     /**
      * Determine package configuration (dependencies, scripts, etc.) based on package name and genome

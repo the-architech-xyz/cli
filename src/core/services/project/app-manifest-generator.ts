@@ -5,7 +5,8 @@
  * including all installed modules, features, and configuration.
  */
 
-import { Genome } from '@thearchitech.xyz/types';
+import { Genome, ResolvedGenome } from '@thearchitech.xyz/types';
+import { getProjectFramework } from '../../utils/genome-helpers.js';
 import { PathService } from '../path/path-service.js';
 import { Logger } from '../infrastructure/logging/index.js';
 import * as fs from 'fs/promises';
@@ -36,7 +37,7 @@ export class AppManifestGenerator {
    * Generate and save application manifest
    */
   async generateAndSaveManifest(
-    genome: Genome,
+    genome: ResolvedGenome,
     projectPath: string
   ): Promise<void> {
     try {
@@ -69,7 +70,7 @@ export class AppManifestGenerator {
   /**
    * Generate manifest object
    */
-  private generateManifest(genome: Genome): AppManifest {
+  private generateManifest(genome: ResolvedGenome): AppManifest {
     const modules = genome.modules.map(module => ({
       id: module.id,
       category: this.getCategoryFromId(module.id),
@@ -90,7 +91,7 @@ export class AppManifestGenerator {
       project: {
         name: genome.project.name,
         description: genome.project.description,
-        framework: ((genome.project as any).apps && (genome.project as any).apps[0]?.framework) || (genome.project as any).framework || 'unknown'
+        framework: getProjectFramework(genome) || 'unknown'
       },
       modules,
       features

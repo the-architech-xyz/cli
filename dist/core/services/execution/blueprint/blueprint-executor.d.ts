@@ -26,6 +26,7 @@ export declare class BlueprintExecutor {
      * Create an expanded action by replacing {{item}} placeholders with the actual item value
      */
     private createExpandedAction;
+    private enforcePathKeyContractOnAction;
     /**
      * Analyze actions and blueprint to determine which files need to be loaded into VFS
      * Consolidates logic from BlueprintAnalyzer (now removed)

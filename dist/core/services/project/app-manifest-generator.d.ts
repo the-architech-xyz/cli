@@ -4,7 +4,7 @@
  * Generates a manifest.json file that describes the generated application,
  * including all installed modules, features, and configuration.
  */
-import { Genome } from '@thearchitech.xyz/types';
+import { ResolvedGenome } from '@thearchitech.xyz/types';
 export interface AppManifest {
     version: string;
     generatedAt: string;
@@ -28,7 +28,7 @@ export declare class AppManifestGenerator {
     /**
      * Generate and save application manifest
      */
-    generateAndSaveManifest(genome: Genome, projectPath: string): Promise<void>;
+    generateAndSaveManifest(genome: ResolvedGenome, projectPath: string): Promise<void>;
     /**
      * Generate manifest object
      */

@@ -11,15 +11,11 @@
  * 4. Try custom sources (from config)
  * 5. Throw helpful error with suggestions
  */
-import { ResolvedGenome, GenomeMetadata, ResolutionOptions, IResolutionStrategy, ArchitechConfig } from './types.js';
+import { ResolvedGenome, ResolutionOptions, IResolutionStrategy, ArchitechConfig } from './types.js';
 export declare class GenomeResolver {
     private config?;
     private cache;
     private strategies;
-    /**
-     * Default aliases mapping user-friendly names to actual file names
-     */
-    private readonly DEFAULT_ALIASES;
     constructor(config?: ArchitechConfig | undefined);
     /**
      * Register a resolution strategy
@@ -34,43 +30,18 @@ export declare class GenomeResolver {
      * Check if input looks like a file path
      */
     looksLikeFilePath(input: string): boolean;
-    /**
-     * Normalize genome name using aliases
-     */
-    normalizeGenomeName(name: string): string;
-    /**
-     * Extract metadata from genome file without executing it
-     */
-    extractMetadata(genomePath: string): Promise<GenomeMetadata>;
-    /**
-     * Estimate generation time based on module count
-     */
-    private estimateGenerationTime;
-    /**
-     * Find similar genome names for suggestions
-     */
-    findSimilarGenomes(input: string): Promise<string[]>;
-    /**
-     * Simple Levenshtein distance for fuzzy matching
-     */
-    private levenshteinDistance;
-    /**
-     * Get all available genomes from all sources
-     */
-    getAvailableGenomes(): Promise<string[]>;
-    /**
-     * Create helpful error when genome not found
-     */
     private createNotFoundError;
     /**
      * Clear resolution cache
      */
     clearCache(): void;
-    /**
-     * Get cache statistics
-     */
-    getCacheStats(): {
-        size: number;
-        entries: string[];
-    };
 }
+/**
+ * Create a GenomeResolver with the default strategy chain (file path, local marketplace, npm, custom sources).
+ * Keeps genome alias resolution decoupled from template marketplace handling.
+ */
+export declare function createGenomeResolver(config?: ArchitechConfig): GenomeResolver;
+/**
+ * Create a GenomeResolver using configuration loaded from disk.
+ */
+export declare function createGenomeResolverFromConfig(configPath?: string): Promise<GenomeResolver>;

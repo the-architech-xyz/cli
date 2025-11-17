@@ -4,9 +4,14 @@
  * Main orchestrator that coordinates all agents
  * Reads YAML recipe and delegates to appropriate agents
  */
-import { Genome, ExecutionResult } from "@thearchitech.xyz/types";
+import { ResolvedGenome, ExecutionResult, GenomeMarketplace, MarketplaceAdapter } from "@thearchitech.xyz/types";
 import { ProjectManager } from "../core/services/project/project-manager.js";
 import { EnhancedLogger } from "../core/cli/enhanced-logger.js";
+interface OrchestratorExecutionOptions {
+    marketplaceAdapter?: MarketplaceAdapter;
+    marketplaceInfo?: GenomeMarketplace;
+    pathOverrides?: Record<string, string>;
+}
 export declare class OrchestratorAgent {
     private projectManager;
     private pathHandler;
@@ -21,7 +26,7 @@ export declare class OrchestratorAgent {
     /**
      * Execute a recipe using unified dependency-driven execution
      */
-    executeRecipe(genome: Genome, verbose?: boolean, enhancedLogger?: EnhancedLogger): Promise<ExecutionResult>;
+    executeRecipe(genome: ResolvedGenome, verbose?: boolean, enhancedLogger?: EnhancedLogger, options?: OrchestratorExecutionOptions): Promise<ExecutionResult>;
     /**
      * Filter out framework modules from execution plan since they're executed during setup
      */
@@ -74,4 +79,9 @@ export declare class OrchestratorAgent {
      * Merge module configuration with user overrides (delegates to ModuleConfigurationService)
      */
     private mergeModuleConfiguration;
+    /**
+     * Type guard for platforms object
+     */
+    private isValidPlatforms;
 }
+export {};

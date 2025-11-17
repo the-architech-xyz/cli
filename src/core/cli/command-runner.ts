@@ -189,42 +189,113 @@ export class CommandRunner {
     return this.execWithDirectSpawn(command, args, options);
   }
 
-  private async execWithDirectSpawn(command: string, args: string[], options: CommandRunnerOptions): Promise<CommandResult> {
+  async execShellCommand(command: string, options: CommandRunnerOptions = {}): Promise<CommandResult> {
+    if (!command || !command.trim()) {
+      throw new Error('Shell command cannot be empty');
+    }
+
+    if (this.verbose) {
+      console.log(chalk.blue(`⚡ Executing shell command: ${command}`));
+    }
+
     return new Promise((resolve) => {
-      // For npx commands, we need to use shell to find npx in PATH
-      const useShell = command === 'npx' || command === 'npm' || command === 'yarn' || command === 'pnpm' || command === 'bun';
-      
-      // Use system's default shell
-      const shellPath = process.platform === 'win32' ? 'cmd.exe' : process.env.SHELL || '/bin/bash';
-      
-      const child = useShell 
-        ? spawn(command, args, {
-            cwd: options.cwd || process.cwd(),
-            stdio: options.silent ? 'pipe' : 'inherit',
-            shell: shellPath,
-            env: { 
-              ...process.env, 
-              ...options.env,
-              CI: 'true',
-              FORCE_COLOR: '1',
-              NODE_ENV: 'production'
-            }
-          })
-        : spawn(command, args, {
-            cwd: options.cwd || process.cwd(),
-            stdio: options.silent ? 'pipe' : 'inherit', // Real-time output for better UX
-            env: { 
-              ...process.env, 
-              ...options.env,
-              CI: 'true',
-              FORCE_COLOR: '1',
-              NODE_ENV: 'production'
-            }
+      const child = spawn(command, {
+        cwd: options.cwd,
+        env: { ...process.env, ...(options.env || {}) },
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: process.platform === 'win32' ? 'cmd.exe' : true,
       });
 
       let stdout = '';
       let stderr = '';
+
+      if (child.stdout) {
+        child.stdout.on('data', (data: Buffer) => {
+          const text = data.toString();
+          stdout += text;
+          if (this.verbose) {
+            process.stdout.write(text);
+          }
+        });
+      }
+
+      if (child.stderr) {
+        child.stderr.on('data', (data: Buffer) => {
+          const text = data.toString();
+          stderr += text;
+          if (this.verbose) {
+            process.stderr.write(text);
+          }
+        });
+      }
+
+      const spinner = ora({ text: `Running shell command`, spinner: 'dots' });
+      if (!this.verbose && !options.silent) {
+        spinner.start();
+      }
+
+      child.on('close', (code) => {
+        if (!this.verbose && !options.silent) {
+          if (code === 0) {
+            spinner.succeed(`Command completed successfully`);
+          } else {
+            spinner.fail(`Command failed: ${command}`);
+          }
+        }
+        resolve({ stdout, stderr, code: code ?? 1 });
+      });
+
+      child.on('error', (error) => {
+        if (!this.verbose && !options.silent) {
+          spinner.fail(`Command failed: ${command}`);
+        }
+        resolve({ stdout, stderr: error.message, code: 1 });
+      });
+    });
+  }
+
+  private async execWithDirectSpawn(command: string, args: string[], options: CommandRunnerOptions): Promise<CommandResult> {
+    return this.spawnProcess(command, args, options);
+  }
+
+  private async spawnProcess(command: string, args: string[], options: CommandRunnerOptions): Promise<CommandResult> {
+    return new Promise((resolve) => {
+      // Determine whether to use shell based on command (needed for npm/npx to resolve correctly)
+      const useShell = command === 'npx' || command === 'npm' || command === 'yarn' || command === 'pnpm' || command === 'bun';
+      const shellPath = process.platform === 'win32' ? 'cmd.exe' : '/bin/bash';
+
+      const spawnOptions: SpawnOptions = {
+        cwd: options.cwd,
+        env: { ...process.env, ...(options.env || {}) },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      };
+
+      if (useShell) {
+        spawnOptions.shell = shellPath;
+      }
+
+      const child = spawn(command, args, spawnOptions);
       
+      let stdout = '';
+      let stderr = '';
+      
+      if (child.stdout) {
+        child.stdout.on('data', (data: Buffer) => {
+          stdout += data.toString();
+        });
+      }
+      
+      if (child.stderr) {
+        child.stderr.on('data', (data: Buffer) => {
+          stderr += data.toString();
+        });
+      }
+      
+      const spinner = ora({ text: `Running ${command}`, spinner: 'dots' });
+      if (!this.verbose && !options.silent) {
+        spinner.start();
+      }
+
       // Store cleanup function references
       const cleanup = () => {
         // Remove all listeners to prevent memory leaks

@@ -6,7 +6,7 @@
  */
 import { Command } from 'commander';
 import { readFileSync } from 'fs';
-import { resolve, dirname } from 'path';
+import { resolve, dirname, isAbsolute } from 'path';
 import { execSync } from 'child_process';
 import inquirer from 'inquirer';
 import { OrchestratorAgent } from '../agents/orchestrator-agent.js';
@@ -14,9 +14,9 @@ import { ProjectManager } from '../core/services/project/project-manager.js';
 import { AgentLogger as Logger } from '../core/cli/logger.js';
 import { EnhancedLogger } from '../core/cli/enhanced-logger.js';
 import { ErrorHandler } from '../core/services/infrastructure/error/index.js';
-import { GenomeResolverFactory } from '../core/services/genome-resolution/index.js';
-import { GenomeTransformationService } from '@thearchitech.xyz/genome-transformer';
+import { createGenomeResolver } from '../core/services/genome-resolution/index.js';
 import { MarketplaceRegistry } from '../core/services/marketplace/marketplace-registry.js';
+import { fileURLToPath, pathToFileURL } from 'url';
 export function createNewCommand() {
     const command = new Command('new');
     command
@@ -51,7 +51,7 @@ export function createNewCommand() {
             logger.info(`🚀 Creating new project with genome: ${genomeInput}`);
             // GENOME RESOLUTION LAYER (NEW!)
             logger.info('🔍 Resolving genome...');
-            const resolver = GenomeResolverFactory.createDefault();
+            const resolver = createGenomeResolver();
             let resolved;
             try {
                 resolved = await resolver.resolve(genomeInput, {
@@ -99,30 +99,65 @@ export function createNewCommand() {
                 moduleCount: Array.isArray(rawGenome.modules) ? rawGenome.modules.length : 0,
                 transformationMode: rawGenome.transformation?.mode || rawGenome.options?.transformation?.mode,
             });
-            await configureMarketplaceOverrides(rawGenome, genomePath, logger);
-            const marketplacePath = await MarketplaceRegistry.getCoreMarketplacePath();
-            const { transformerOptions, mode: transformationMode } = resolveTransformationOptions(rawGenome, logger);
-            const genomeTransformer = new GenomeTransformationService({
-                marketplacePath,
-                logger: {
-                    info: (msg, meta) => logger.info(msg),
-                    debug: (msg, meta) => logger.debug(msg),
-                    warn: (msg, meta) => logger.warn(msg),
-                    error: (msg, meta) => logger.error(msg),
-                },
-                options: transformerOptions,
-            });
-            const transformationResult = await genomeTransformer.transform(rawGenome);
-            if (!transformationResult.success) {
-                logger.error(`❌ Genome transformation failed: ${transformationResult.error}`);
+            const marketplaceResolution = await configureMarketplaceOverrides(rawGenome, genomePath, logger);
+            let marketplaceAdapter = marketplaceResolution?.adapterPath
+                ? await loadMarketplaceAdapter(marketplaceResolution.adapterPath, logger)
+                : undefined;
+            if (!marketplaceAdapter) {
+                marketplaceAdapter = await loadDefaultMarketplaceAdapter(logger);
+            }
+            if (marketplaceAdapter?.validateGenome) {
+                await marketplaceAdapter.validateGenome(rawGenome);
+            }
+            if (marketplaceAdapter?.getDefaultParameters && Array.isArray(rawGenome.modules)) {
+                rawGenome.modules = rawGenome.modules.map((module) => {
+                    const defaults = marketplaceAdapter.getDefaultParameters(module.id);
+                    if (!defaults) {
+                        return module;
+                    }
+                    const parameters = module.parameters ? { ...defaults, ...module.parameters } : { ...defaults };
+                    return {
+                        ...module,
+                        parameters,
+                    };
+                });
+            }
+            // Transform genome via marketplace adapter (required - no legacy fallback)
+            if (!marketplaceAdapter?.transformGenome) {
+                logger.error('❌ The selected marketplace does not support the required "transformGenome" capability.');
+                logger.error('   This marketplace adapter must implement the transformGenome method to be compatible with this CLI version.');
                 process.exit(1);
             }
-            // Get the transformed genome (now guaranteed to have modules array)
-            const validatedGenome = transformationResult.resolvedGenome;
-            logger.info(`✅ Genome transformed: ${transformationResult.originalGenome.modules?.length || 0} → ${validatedGenome.modules.length} modules`, {
-                steps: transformationResult.transformationSteps.length,
-                duration: transformationResult.duration
-            });
+            let validatedGenome;
+            let transformationMode = 'agnostic';
+            const { transformerOptions, mode: resolvedMode } = resolveTransformationOptions(rawGenome, logger);
+            transformationMode = resolvedMode;
+            logger.info('🔄 Transforming genome via marketplace adapter...');
+            try {
+                validatedGenome = await marketplaceAdapter.transformGenome(rawGenome, {
+                    mode: transformationMode,
+                    options: {
+                        ...transformerOptions,
+                        // Ensure index signature compatibility
+                    },
+                });
+                const originalModuleCount = rawGenome.modules?.length || 0;
+                const transformedModuleCount = validatedGenome.modules?.length || 0;
+                logger.info(`✅ Genome transformed via adapter: ${originalModuleCount} → ${transformedModuleCount} modules`);
+            }
+            catch (error) {
+                logger.error(`❌ Genome transformation via adapter failed: ${error instanceof Error ? error.message : String(error)}`);
+                process.exit(1);
+            }
+            const debugEventStoreModule = validatedGenome.modules?.find((module) => module.id === 'capabilities/event-store');
+            if (debugEventStoreModule) {
+                logger.debug?.('Module metadata snapshot', {
+                    moduleId: debugEventStoreModule.id,
+                    hasResolved: !!debugEventStoreModule.resolved,
+                    hasSource: !!debugEventStoreModule.source,
+                    marketplace: debugEventStoreModule.marketplace?.name,
+                });
+            }
             // Ensure modules have default values for optional fields
             validatedGenome.modules = validatedGenome.modules.map((module) => ({
                 ...module,
@@ -169,11 +204,18 @@ export function createNewCommand() {
                 showDryRunPreview(validatedGenome, logger);
                 return;
             }
+            const marketplaceInfo = marketplaceResolution.marketplaceInfo ??
+                rawGenome.marketplace ??
+                (marketplaceAdapter ? { name: 'core' } : undefined);
             // Initialize project manager and orchestrator
             const projectManager = new ProjectManager(validatedGenome.project);
             const orchestrator = new OrchestratorAgent(projectManager);
             // Execute the genome with enhanced logging
-            const result = await orchestrator.executeRecipe(validatedGenome, options.verbose, enhancedLogger);
+            const result = await orchestrator.executeRecipe(validatedGenome, options.verbose, enhancedLogger, {
+                marketplaceAdapter,
+                marketplaceInfo,
+                pathOverrides: marketplaceResolution.pathOverrides,
+            });
             if (result.success) {
                 enhancedLogger.success('Project created successfully!');
                 enhancedLogger.logNextSteps(validatedGenome.project.path || './', validatedGenome.project.name);
@@ -243,31 +285,145 @@ function resolveTransformationOptions(rawGenome, logger) {
     }
     return { mode, transformerOptions: defaultOptions };
 }
+function normalizeMarketplacePath(value, baseDir) {
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return undefined;
+    }
+    if (trimmed.startsWith('file://')) {
+        try {
+            return fileURLToPath(new URL(trimmed));
+        }
+        catch {
+            return undefined;
+        }
+    }
+    if (isAbsolute(trimmed)) {
+        return trimmed;
+    }
+    return resolve(baseDir, trimmed);
+}
+async function loadMarketplaceAdapter(adapterPath, logger) {
+    try {
+        const moduleUrl = pathToFileURL(adapterPath);
+        const imported = await import(moduleUrl.href);
+        const adapter = imported.default ??
+            imported.marketplaceAdapter ??
+            imported.adapter ??
+            imported.synapMarketplaceAdapter;
+        if (!adapter) {
+            logger.warn('⚠️  Marketplace adapter module did not export an adapter instance', { adapterPath });
+        }
+        return adapter;
+    }
+    catch (error) {
+        logger.warn('⚠️  Failed to load marketplace adapter', {
+            adapterPath,
+            error: error instanceof Error ? error.message : error,
+        });
+        return undefined;
+    }
+}
+async function loadDefaultMarketplaceAdapter(logger) {
+    try {
+        const imported = await import('@thearchitech.xyz/marketplace/adapter');
+        const adapter = imported.default ??
+            imported.marketplaceAdapter ??
+            imported.adapter;
+        if (!adapter) {
+            logger.debug?.('⚠️  Default marketplace adapter module did not export an adapter instance', {});
+        }
+        return adapter;
+    }
+    catch (error) {
+        logger.debug?.('ℹ️  Default marketplace adapter unavailable', {
+            error: error instanceof Error ? error.message : error,
+        });
+        return undefined;
+    }
+}
 async function configureMarketplaceOverrides(rawGenome, genomePath, logger) {
+    const result = {};
     if (!rawGenome || typeof rawGenome !== 'object') {
-        return;
+        return result;
     }
     const marketplaceConfig = rawGenome.marketplace || rawGenome.marketplaces;
     if (!marketplaceConfig || typeof marketplaceConfig !== 'object') {
-        return;
+        return result;
     }
-    const overrides = marketplaceConfig.overrides || marketplaceConfig;
     const baseDir = dirname(genomePath);
-    if (overrides.core) {
-        const coreOverridePath = resolve(baseDir, String(overrides.core));
-        MarketplaceRegistry.setMarketplacePath('core', coreOverridePath);
-        logger.info('🛒 Using custom core marketplace override', { corePath: coreOverridePath });
+    const overrides = (typeof marketplaceConfig.overrides === 'object' && marketplaceConfig.overrides) || marketplaceConfig;
+    const rawName = typeof marketplaceConfig.name === 'string' ? marketplaceConfig.name.trim() : undefined;
+    const normalizedName = rawName && rawName.length > 0 ? rawName : 'core';
+    const normalizedInfo = { name: normalizedName };
+    const rootCandidate = marketplaceConfig.root ?? overrides.core;
+    const resolvedRoot = normalizeMarketplacePath(rootCandidate, baseDir);
+    if (resolvedRoot) {
+        normalizedInfo.root = resolvedRoot;
+        const isCoreMarketplace = normalizedName === 'core' || normalizedName === '@thearchitech.xyz/marketplace';
+        if (isCoreMarketplace) {
+            MarketplaceRegistry.setMarketplacePath('core', resolvedRoot);
+            logger.info('🛒 Using custom core marketplace override', { corePath: resolvedRoot });
+            result.corePath = resolvedRoot;
+        }
+    }
+    else if (typeof marketplaceConfig.root === 'string') {
+        normalizedInfo.root = marketplaceConfig.root;
+    }
+    const manifestCandidate = marketplaceConfig.manifest ?? overrides.manifest;
+    const resolvedManifest = normalizeMarketplacePath(manifestCandidate, resolvedRoot ?? baseDir);
+    if (resolvedManifest) {
+        normalizedInfo.manifest = resolvedManifest;
+        result.manifestPath = resolvedManifest;
+    }
+    else if (typeof marketplaceConfig.manifest === 'string') {
+        normalizedInfo.manifest = marketplaceConfig.manifest;
+    }
+    const adapterCandidate = marketplaceConfig.adapter ?? overrides.adapter;
+    const resolvedAdapter = normalizeMarketplacePath(adapterCandidate, resolvedRoot ?? baseDir);
+    if (resolvedAdapter) {
+        normalizedInfo.adapter = resolvedAdapter;
+        result.adapterPath = resolvedAdapter;
+    }
+    else if (typeof marketplaceConfig.adapter === 'string') {
+        normalizedInfo.adapter = marketplaceConfig.adapter;
+    }
+    if (typeof marketplaceConfig.types === 'string') {
+        const resolvedTypes = normalizeMarketplacePath(marketplaceConfig.types, resolvedRoot ?? baseDir);
+        normalizedInfo.types = resolvedTypes ?? marketplaceConfig.types;
+    }
+    if (typeof marketplaceConfig.version === 'string') {
+        normalizedInfo.version = marketplaceConfig.version;
+    }
+    const pathOverrideSource = overrides.paths || marketplaceConfig.paths;
+    if (pathOverrideSource && typeof pathOverrideSource === 'object') {
+        const normalizedOverrides = {};
+        for (const [key, value] of Object.entries(pathOverrideSource)) {
+            if (typeof value === 'string' && value.trim().length > 0) {
+                normalizedOverrides[key] = value;
+            }
+        }
+        if (Object.keys(normalizedOverrides).length > 0) {
+            result.pathOverrides = normalizedOverrides;
+        }
     }
     const uiOverrides = overrides.ui || marketplaceConfig.ui;
     if (uiOverrides && typeof uiOverrides === 'object') {
-        for (const [uiName, relativePath] of Object.entries(uiOverrides)) {
-            if (!relativePath)
+        for (const [uiName, overridePath] of Object.entries(uiOverrides)) {
+            if (!overridePath)
                 continue;
-            const uiOverridePath = resolve(baseDir, String(relativePath));
-            MarketplaceRegistry.setMarketplacePath(uiName, uiOverridePath);
-            logger.info('🛒 Registered UI marketplace override', { uiName, path: uiOverridePath });
+            const resolvedPath = normalizeMarketplacePath(overridePath, resolvedRoot ?? baseDir);
+            if (!resolvedPath)
+                continue;
+            MarketplaceRegistry.setMarketplacePath(uiName, resolvedPath);
+            logger.info('🛒 Registered UI marketplace override', { uiName, path: resolvedPath });
         }
     }
+    result.marketplaceInfo = normalizedInfo;
+    return result;
 }
 /**
  * Execute a TypeScript genome file and return the Genome object
@@ -403,24 +559,12 @@ function showDryRunPreview(genome, logger) {
  */
 async function showGenomeList(logger) {
     logger.info('📚 Available Genomes:\n');
-    const resolver = GenomeResolverFactory.createDefault();
-    const genomes = await resolver.getAvailableGenomes();
-    logger.info('🟢 Simple (Quick start, minimal setup):');
-    logger.info('  • hello-world, minimal');
-    logger.info('');
-    logger.info('🟡 Intermediate (Common use cases):');
-    logger.info('  • saas-starter, saas, full-saas');
-    logger.info('  • blog, blog-starter');
-    logger.info('  • ai-app, ai-chat, ai-powered');
-    logger.info('');
-    logger.info('🔴 Advanced (Full-featured):');
-    logger.info('  • web3, dapp, blockchain');
-    logger.info('  • showcase, ultimate, demo');
-    logger.info('');
-    logger.info('💡 Usage:');
-    logger.info('  architech new --genome hello-world');
-    logger.info('  architech new --genome saas-starter');
-    logger.info('  architech new /path/to/custom.genome.ts\n');
+    logger.info('🧬 Available genomes:\n');
+    logger.info('  • hello-world');
+    logger.info('  • saas-starter');
+    logger.info('  • ai-chat');
+    logger.info('  • blog');
+    logger.info('\nUse --genome to select one of these.');
 }
 /**
  * Interactive genome picker

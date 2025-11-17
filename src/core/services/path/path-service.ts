@@ -134,62 +134,6 @@ export class PathService {
   }
 
   /**
-   * Get source path
-   */
-  getSrcPath(): string {
-    return this.getPath('src') || 'src';
-  }
-
-  /**
-   * Get lib path
-   */
-  getLibPath(): string {
-    return this.getPath('lib') || 'src/lib';
-  }
-
-  /**
-   * Get components path
-   */
-  getComponentsPath(): string {
-    return this.getPath('components') || 'src/components';
-  }
-
-  /**
-   * Get UI components path
-   */
-  getUIComponentsPath(): string {
-    return this.getPath('ui_components') || 'src/components/ui';
-  }
-
-  /**
-   * Get utils path
-   */
-  getUtilsPath(): string {
-    return this.getPath('utils') || 'src/utils';
-  }
-
-  /**
-   * Get test path
-   */
-  getTestPath(): string {
-    return this.getPath('test') || 'src/__tests__';
-  }
-
-  /**
-   * Get database path
-   */
-  getDatabasePath(): string {
-    return this.getPath('database') || 'src/lib/db';
-  }
-
-  /**
-   * Get auth path
-   */
-  getAuthPath(): string {
-    return this.getPath('auth') || 'src/lib/auth';
-  }
-
-  /**
    * Get package.json path
    */
   getPackageJsonPath(): string {
@@ -232,273 +176,90 @@ export class PathService {
    * ```
    */
   getMarketplaceUI(): { [framework: string]: string; default: string } {
-    const namespaces = this.getMarketplaceNamespaces();
     const uiFramework = this.pathMap['ui.framework'] || '';
-    const specificNamespaceKey = uiFramework ? `components.ui.${uiFramework}` : '';
+    const marketplacePath = this.pathMap['ui.marketplace'] || this.pathMap['ui.path'] || '';
 
-    const resolvedPath = specificNamespaceKey && namespaces[specificNamespaceKey]
-      ? namespaces[specificNamespaceKey]
-      : namespaces['components.ui'] || namespaces['components.ui.default'] || this.pathMap['ui.path'] || '';
+    const marketplaceUI: { [framework: string]: string; default: string } = { default: uiFramework };
 
-    const marketplaceUI: { [framework: string]: string; default: string } = { default: '' };
-
-    if (uiFramework && resolvedPath) {
-      marketplaceUI.default = uiFramework;
-      marketplaceUI[uiFramework] = resolvedPath;
-    } else if (resolvedPath) {
-      // Fallback alias when no explicit framework is known
-      marketplaceUI.default = 'components.ui';
-      marketplaceUI['components.ui'] = resolvedPath;
+    if (uiFramework && marketplacePath) {
+      marketplaceUI[uiFramework] = marketplacePath;
+    } else if (marketplacePath) {
+      marketplaceUI['path'] = marketplacePath;
     }
 
     return marketplaceUI;
   }
 
-  /**
-   * Retrieve marketplace namespaces registered in the path map.
-   */
-  getMarketplaceNamespaces(): Record<string, string> {
-    const namespaces: Record<string, string> = {};
-    for (const [key, value] of Object.entries(this.pathMap)) {
-      if (key.startsWith('marketplace.namespace.')) {
-        const namespaceKey = key.replace('marketplace.namespace.', '');
-        namespaces[namespaceKey] = value;
-      }
-    }
-    return namespaces;
-  }
-
-  /**
-   * Resolve template variables in a string (for ${paths.key} patterns)
-   * CHANGED: Now uses ${} syntax to avoid conflicts with template {{}} syntax
-   * ENHANCED: Supports complex expressions like ${paths.key1 || paths.key2}
-   */
   resolveTemplate(template: string): string {
-    // Replace ${paths.key} patterns with actual resolved paths
-    // NOTE: Also support legacy {{paths.key}} for backward compatibility during migration
-    
-    // New syntax: ${paths.key} or ${paths.key1 || paths.key2 || 'fallback'}
-    let processed = template.replace(/\$\{paths\.([^}]+)\}/g, (match, expression) => {
+    return template.replace(/\$\{paths\.([^}]+)\}/g, (_match, rawKey) => {
+      const key = rawKey.trim();
       try {
-        const resolved = this.resolvePathExpression(expression);
-        return resolved;
+        return this.getPath(key);
       } catch (error) {
-        console.warn(`⚠️  Path expression '${expression}' failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        return this.getFallbackPath(expression, match);
+        throw new Error(`Unknown path key '${key}' in template`);
       }
     });
-    
-    // Legacy syntax: {{paths.key}} (for backward compatibility)
-    processed = processed.replace(/\{\{paths\.([^}]+)\}\}/g, (match, key) => {
-      console.warn(`⚠️  Legacy path syntax {{paths.${key}}} detected. Please update to \${paths.${key}}`);
-      try {
-        const resolved = this.resolvePathExpression(key);
-        return resolved;
-      } catch (error) {
-        return this.getFallbackPath(key, match);
-      }
-    });
-    
-    return processed;
-  }
-
-  /**
-   * Resolve a path expression that may contain operators like ||, ?, etc.
-   * Supports:
-   * - Simple keys: "api" → getPath("api")
-   * - Fallback chains: "shared_library || paths.api" → try shared_library, fallback to api
-   * - Literal strings: "shared_library || './src/lib/'" → try shared_library, fallback to './src/lib/'
-   * 
-   * CRITICAL: Ensures trailing slashes for directory paths to prevent concatenation issues
-   */
-  private resolvePathExpression(expression: string): string {
-    // Handle || operator: paths.shared_library || paths.api || './fallback'
-    if (expression.includes('||')) {
-      const parts = expression.split('||').map(p => p.trim()).filter(p => p.length > 0);
-      
-      if (parts.length === 0) {
-        throw new Error('Empty path expression after splitting on ||');
-      }
-      
-      for (const part of parts) {
-        let resolved: string | null = null;
-        
-        // Check if it's a path reference (starts with "paths." or is a simple key)
-        if (part.startsWith('paths.')) {
-          const key = part.replace('paths.', '').trim();
-          try {
-            resolved = this.getPath(key);
-          } catch {
-            continue; // Try next part
-          }
-        } else if (part.startsWith('"') || part.startsWith("'")) {
-          // It's a literal string, remove quotes and return
-          resolved = part.replace(/^["']|["']$/g, '');
-        } else {
-          // Try as a simple key (without "paths." prefix)
-          try {
-            resolved = this.getPath(part);
-          } catch {
-            continue; // Try next part
-          }
-        }
-        
-        // Ensure trailing slash for directory paths (unless it's a file path)
-        if (resolved && !resolved.endsWith('/') && !resolved.match(/\.\w+$/)) {
-          resolved = resolved + '/';
-        }
-        
-        if (resolved) {
-          return resolved;
-        }
-      }
-      
-      // If all parts failed, return the last part as fallback (even if it's not a valid path)
-      const lastPart = parts[parts.length - 1];
-      if (!lastPart) {
-        throw new Error('No fallback path found in expression');
-      }
-      if (lastPart.startsWith('"') || lastPart.startsWith("'")) {
-        const resolved = lastPart.replace(/^["']|["']$/g, '');
-        // Ensure trailing slash for directory paths
-        if (resolved && !resolved.endsWith('/') && !resolved.match(/\.\w+$/)) {
-          return resolved + '/';
-        }
-        return resolved;
-      }
-      // Return the last part as-is (might be a fallback path)
-      // Ensure trailing slash if it looks like a directory path
-      if (lastPart && !lastPart.endsWith('/') && !lastPart.match(/\.\w+$/)) {
-        return lastPart + '/';
-      }
-      return lastPart;
-    }
-    
-    // Handle ternary operator: condition ? paths.a : paths.b
-    if (expression.includes('?')) {
-      // For now, we'll parse simple ternary expressions
-      // More complex expressions can be added later if needed
-      const parts = expression.split('?').map(p => p.trim()).filter(p => p.length > 0);
-      if (parts.length === 2) {
-        const condition = parts[0];
-        const result = parts[1];
-        if (!condition || !result) {
-          throw new Error('Invalid ternary expression: missing condition or result');
-        }
-        const resultParts = result.split(':').map(p => p.trim()).filter(p => p.length > 0);
-        if (resultParts.length === 2) {
-          const truePath = resultParts[0];
-          const falsePath = resultParts[1];
-          if (!truePath || !falsePath) {
-            throw new Error('Invalid ternary expression: missing true or false path');
-          }
-          
-          // Simple condition check (for now, just check if key exists)
-          // TODO: Support more complex conditions
-          if (condition.includes('paths.')) {
-            const key = condition.replace('paths.', '').trim();
-            try {
-              this.getPath(key);
-              // Condition is true, use truePath
-              const resolved = this.resolvePathExpression(truePath);
-              // Ensure trailing slash for directory paths
-              if (resolved && !resolved.endsWith('/') && !resolved.match(/\.\w+$/)) {
-                return resolved + '/';
-              }
-              return resolved;
-            } catch {
-              // Condition is false, use falsePath
-              const resolved = this.resolvePathExpression(falsePath);
-              // Ensure trailing slash for directory paths
-              if (resolved && !resolved.endsWith('/') && !resolved.match(/\.\w+$/)) {
-                return resolved + '/';
-              }
-              return resolved;
-            }
-          }
-        }
-      }
-    }
-    
-    // Simple path key (no operators)
-    const resolved = this.getPath(expression);
-    // Ensure trailing slash for directory paths (unless it's a file path)
-    if (resolved && !resolved.endsWith('/') && !resolved.match(/\.\w+$/)) {
-      return resolved + '/';
-    }
-    return resolved;
-  }
-
-  /**
-   * Get fallback path for common keys
-   */
-  private getFallbackPath(key: string, originalMatch: string): string {
-    const commonDefaults: Record<string, string> = {
-      'app_root': 'src/app/',
-      'components': 'src/components/',
-      'shared_library': 'src/lib/',
-      'styles': 'src/styles/',
-      'readme': 'README.md',
-      'source_root': 'src/'
-    };
-    
-    if (commonDefaults[key]) {
-      console.warn(`  ✅ Using fallback default: ${commonDefaults[key]}`);
-      return commonDefaults[key];
-    }
-    
-    console.warn(`  ❌ No fallback available for '${key}', keeping template variable`);
-    return originalMatch;
   }
 
   /**
    * Validate that all ${paths.key} variables in a template exist in the framework paths
-   * Also supports legacy {{paths.key}} syntax
+   * Also validates against marketplace path key definitions if marketplace is provided
    * @param template The template string to validate
    * @param strict If true, throws an error for missing paths. If false, returns validation result
+   * @param marketplaceName Optional marketplace name for path key validation
+   * @param projectStructure Optional project structure for path key validation
    * @returns Validation result with missing paths
    */
-  validatePathVariables(template: string, strict: boolean = false): { valid: boolean; missingPaths: string[] } {
-    // Check both new ${paths.key} and legacy {{paths.key}} syntax
+  async validatePathVariables(
+    template: string,
+    strict: boolean = false,
+    marketplaceName?: string,
+    projectStructure?: 'monorepo' | 'single-app'
+  ): Promise<{ valid: boolean; missingPaths: string[]; errors?: Array<{ key: string; message: string }> }> {
+    // Check new ${paths.key} syntax
     const newSyntaxRegex = /\$\{paths\.([^}]+)\}/g;
-    const legacySyntaxRegex = /\{\{paths\.([^}]+)\}\}/g;
     const missingPaths: string[] = [];
-    
-    // Check new syntax
+    const errors: Array<{ key: string; message: string }> = [];
     let match;
-    while ((match = newSyntaxRegex.exec(template)) !== null) {
-      const pathKey = match[1];
-      if (pathKey) {
-        try {
-          this.getPath(pathKey);
-        } catch (error) {
-          missingPaths.push(pathKey);
-        }
-      }
-    }
     
-    // Check legacy syntax
-    while ((match = legacySyntaxRegex.exec(template)) !== null) {
-      const pathKey = match[1];
-      if (pathKey) {
-        try {
-          this.getPath(pathKey);
-        } catch (error) {
-          missingPaths.push(pathKey);
+    while ((match = newSyntaxRegex.exec(template)) !== null) {
+      const key = match[1]?.trim();
+      if (!key) continue;
+
+      // Check if path exists in PathService
+      if (!this.hasPath(key)) {
+        missingPaths.push(key);
+      }
+
+      // If marketplace is provided, validate against marketplace path key definitions
+      if (marketplaceName) {
+        const { PathKeyRegistry } = await import('./path-key-registry.js');
+        const isValid = await PathKeyRegistry.isValidPathKey(key, marketplaceName, projectStructure);
+        
+        if (!isValid) {
+          const validKeys = await PathKeyRegistry.getValidPathKeys(marketplaceName, projectStructure);
+          errors.push({
+            key,
+            message: `Path key '${key}' is not defined in marketplace '${marketplaceName}'. Available keys: ${validKeys.slice(0, 10).join(', ')}${validKeys.length > 10 ? '...' : ''}`
+          });
         }
       }
     }
 
-    const valid = missingPaths.length === 0;
+    const valid = missingPaths.length === 0 && errors.length === 0;
 
     if (!valid && strict) {
+      const errorMessages = [
+        ...missingPaths.map(key => `Missing path key: ${key}`),
+        ...errors.map(e => e.message)
+      ];
       throw new Error(
-        `Path validation failed. Missing path keys: ${missingPaths.join(', ')}. ` +
-        `Available paths: ${this.getAvailablePaths().join(', ')}`
+        `Path validation failed:\n${errorMessages.join('\n')}\n` +
+        `Available paths: ${this.getAvailablePaths().slice(0, 20).join(', ')}${this.getAvailablePaths().length > 20 ? '...' : ''}`
       );
     }
 
-    return { valid, missingPaths };
+    return { valid, missingPaths, errors: errors.length > 0 ? errors : undefined };
   }
 
   /**
@@ -514,16 +275,7 @@ export class PathService {
     const newSyntaxRegex = /\$\{paths\.([^}]+)\}/g;
     let match;
     while ((match = newSyntaxRegex.exec(template)) !== null) {
-      const pathKey = match[1];
-      if (pathKey && !pathKeys.includes(pathKey)) {
-        pathKeys.push(pathKey);
-      }
-    }
-    
-    // Find legacy syntax: {{paths.key}}
-    const legacySyntaxRegex = /\{\{paths\.([^}]+)\}\}/g;
-    while ((match = legacySyntaxRegex.exec(template)) !== null) {
-      const pathKey = match[1];
+      const pathKey = match[1]?.trim();
       if (pathKey && !pathKeys.includes(pathKey)) {
         pathKeys.push(pathKey);
       }

@@ -4,7 +4,7 @@
  * Resolves component dependencies from feature manifests.
  */
 
-import { Genome } from '@thearchitech.xyz/types';
+import { Genome, ResolvedGenome } from '@thearchitech.xyz/types';
 import { Logger } from '../infrastructure/logging/index.js';
 import { MarketplaceService } from '../marketplace/marketplace-service.js';
 
@@ -12,7 +12,7 @@ export class ComponentDependencyResolver {
   /**
    * Resolve component dependencies from all features in the genome
    */
-  async resolveComponentDependencies(genome: Genome): Promise<Map<string, string[]>> {
+  async resolveComponentDependencies(genome: ResolvedGenome): Promise<Map<string, string[]>> {
     const componentRequirements = new Map<string, Set<string>>();
     
     // Iterate through all modules to find features with component requirements

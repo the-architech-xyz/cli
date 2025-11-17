@@ -22,6 +22,13 @@ export declare class MarketplaceService {
      * @param context - Optional ProjectContext for marketplace path resolution
      */
     static loadTemplate(moduleId: string, templateFile: string, context?: ProjectContext): Promise<string>;
+    private static tryLoadFromUIMarketplace;
+    private static getUIMarketplaceRoot;
+    private static uiManifestCache;
+    private static tryResolveViaUIManifest;
+    private static loadUIManifest;
+    private static deriveUIComponentKeys;
+    private static readIfExists;
     /**
      * Get template suggestions for better error messages
      */

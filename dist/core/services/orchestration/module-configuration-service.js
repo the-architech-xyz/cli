@@ -15,13 +15,14 @@ export class ModuleConfigurationService {
         if (!moduleConfig.parameters?.features) {
             // Build template context even for modules without features
             const mergedParameters = this.mergeParametersWithDefaults(moduleConfig.parameters, userOverrides);
+            const enrichedModule = {
+                ...module,
+                parameters: mergedParameters
+            };
             const templateContext = {
                 project: genome.project || {},
                 modules: genome.modules || [],
-                module: {
-                    id: module.id,
-                    parameters: mergedParameters
-                }
+                module: enrichedModule
             };
             return {
                 activeFeatures: [],
@@ -42,13 +43,14 @@ export class ModuleConfigurationService {
             }
         }
         // Build template context with merged parameters
+        const enrichedModule = {
+            ...module,
+            parameters: mergedParameters
+        };
         const templateContext = {
             project: genome.project || {},
             modules: genome.modules || [],
-            module: {
-                id: module.id,
-                parameters: mergedParameters
-            }
+            module: enrichedModule
         };
         return {
             activeFeatures,

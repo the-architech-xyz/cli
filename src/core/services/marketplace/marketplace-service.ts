@@ -34,42 +34,50 @@ export class MarketplaceService {
     templateFile: string,
     context?: ProjectContext
   ): Promise<string> {
-    const namespaceResolved = await this.tryLoadFromNamespaces(templateFile, context);
-    if (namespaceResolved !== null) {
-      return namespaceResolved;
-    }
-
-    // CONVENTION: Legacy UI templates ('ui/') still supported via namespaces
-    if (templateFile.startsWith('ui/')) {
-      const transformedPath = `components/${templateFile}`;
-      const legacyNamespaceResolved = await this.tryLoadFromNamespaces(transformedPath, context, true);
-      if (legacyNamespaceResolved !== null) {
-        return legacyNamespaceResolved;
-      }
+    const uiResolved = await this.tryLoadFromUIMarketplace(templateFile, context);
+    if (uiResolved !== null) {
+      return uiResolved;
     }
     
     const moduleMetadata = context?.module;
 
-    if (
-      moduleMetadata?.resolved?.root &&
-      !path.isAbsolute(templateFile) &&
-      !templateFile.startsWith('ui/')
-    ) {
-      const candidatePaths: string[] = [];
+    if (!path.isAbsolute(templateFile) && !templateFile.startsWith('ui/')) {
       const normalizedTemplate = templateFile.startsWith('templates/')
         ? templateFile.replace(/^templates\//, '')
         : templateFile;
 
-      candidatePaths.push(path.join(moduleMetadata.resolved.root, 'templates', normalizedTemplate));
-      if (templateFile.startsWith('templates/')) {
-        candidatePaths.push(path.join(moduleMetadata.resolved.root, templateFile));
+      const moduleRootCandidates = new Set<string>();
+
+      if (moduleMetadata?.resolved?.root) {
+        moduleRootCandidates.add(moduleMetadata.resolved.root);
       }
 
-      for (const candidate of candidatePaths) {
-        try {
-          return await fs.readFile(candidate, 'utf-8');
-        } catch {
-          continue;
+      const moduleMarketplaceRoot =
+        moduleMetadata?.marketplace?.root ||
+        context?.marketplace?.core ||
+        (await MarketplaceRegistry.getCoreMarketplacePath());
+
+      const sourceRoot = moduleMetadata?.source?.root;
+      if (sourceRoot) {
+        const sourcePath = path.isAbsolute(sourceRoot)
+          ? sourceRoot
+          : path.join(moduleMarketplaceRoot, sourceRoot);
+        moduleRootCandidates.add(sourcePath);
+      }
+
+      for (const moduleRoot of moduleRootCandidates) {
+        const candidatePaths = new Set<string>();
+        candidatePaths.add(path.join(moduleRoot, 'templates', normalizedTemplate));
+        if (templateFile.startsWith('templates/')) {
+          candidatePaths.add(path.join(moduleRoot, templateFile));
+        }
+
+        for (const candidate of candidatePaths) {
+          try {
+            return await fs.readFile(candidate, 'utf-8');
+          } catch {
+            continue;
+          }
         }
       }
     }
@@ -89,6 +97,7 @@ export class MarketplaceService {
     
     // DEFAULT: Core marketplace (relative path)
     const marketplaceRoot = context?.marketplace?.core || 
+                            moduleMetadata?.marketplace?.root ||
                             await MarketplaceRegistry.getCoreMarketplacePath();
     const resolvedModuleId = await PathService.resolveModuleId(moduleId);
     
@@ -101,6 +110,14 @@ export class MarketplaceService {
       return await fs.readFile(templatePath, 'utf-8');
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
+
+      Logger.warn('Template resolution fallback triggered', {
+        moduleId,
+        templateFile,
+        moduleResolvedRoot: moduleMetadata?.resolved?.root,
+        moduleSourceRoot: moduleMetadata?.source?.root,
+        marketplaceRoot,
+      });
 
       const suggestions = await this.getTemplateSuggestions(moduleMetadata, moduleId, templateFile);
       const modulePath = moduleMetadata?.resolved?.root || path.join(marketplaceRoot, resolvedModuleId);
@@ -117,81 +134,238 @@ export class MarketplaceService {
     }
   }
 
-  private static async tryLoadFromNamespaces(
+  private static async tryLoadFromUIMarketplace(
     templateFile: string,
-    context?: ProjectContext,
-    silentFallback: boolean = false
+    context?: ProjectContext
   ): Promise<string | null> {
-    if (!templateFile.startsWith('components/')) {
+    const uiRoot = this.getUIMarketplaceRoot(context);
+    if (!uiRoot) {
       return null;
     }
 
-    const namespaces = (context as any)?.marketplace?.namespaces || {};
-    if (Object.keys(namespaces).length === 0) {
-      if (!silentFallback) {
-        Logger.debug('⚠️ No marketplace namespaces available in context', {
-          operation: 'template_loading'
-        });
-      }
-      return null;
+    Logger.info('🎯 Resolving UI template', {
+      operation: 'template_loading',
+      templateFile,
+      uiRoot
+    });
+
+    const normalizedRoot = uiRoot.endsWith(path.sep) ? uiRoot : `${uiRoot}${path.sep}`;
+
+    const manifestResolved = await this.tryResolveViaUIManifest(templateFile, normalizedRoot);
+    if (manifestResolved) {
+      Logger.info('✅ UI template resolved via manifest', {
+        operation: 'template_loading',
+        templateFile,
+        uiRoot
+      });
+      return manifestResolved;
     }
 
-    const parts = templateFile.split('/');
-    if (parts.length < 2) {
-      return null;
-    }
-
-    // components/<category>/[optional-framework]/... → namespace keys like components.ui, components.ui.shadcn
-    const category = parts[1];
-    let namespaceKey = `components.${category}`;
-    let startIndex = 2;
-
-    if (parts.length > 2) {
-      const potentialSpecific = parts[2];
-      const specificKey = `${namespaceKey}.${potentialSpecific}`;
-      if (namespaces[specificKey]) {
-        namespaceKey = specificKey;
-        startIndex = 3;
-      } else if (potentialSpecific === 'default') {
-        startIndex = 3;
-      }
-    }
-
-    // Fall back to default category namespace if specific one missing
-    let basePath = namespaces[namespaceKey] || namespaces[`components.${category}`];
-
-    // Special case: allow fallback to components.core for shared assets
-    if (!basePath && category !== 'core') {
-      basePath = namespaces['components.core'];
-    }
-
-    if (!basePath) {
-      if (!silentFallback) {
-        Logger.debug('⚠️ Namespace not resolved for template', {
+    if (templateFile.startsWith('ui/')) {
+      const relativePath = templateFile.replace(/^ui\//, '');
+      const directResolved = await this.readIfExists(path.join(normalizedRoot, relativePath));
+      if (directResolved) {
+        Logger.info('✅ UI template resolved directly from filesystem', {
           operation: 'template_loading',
-          template: templateFile,
-          namespaceKey
+          templateFile,
+          candidatePath: path.join(normalizedRoot, relativePath)
         });
+        return directResolved;
       }
+    }
+
+    if (templateFile.startsWith('components/ui/')) {
+      const relativePath = templateFile.replace(/^components\/ui\//, '');
+      const directResolved = await this.readIfExists(path.join(normalizedRoot, relativePath));
+      if (directResolved) {
+        Logger.info('✅ UI template resolved directly from filesystem', {
+          operation: 'template_loading',
+          templateFile,
+          candidatePath: path.join(normalizedRoot, relativePath)
+        });
+        return directResolved;
+      }
+    }
+
+    return null;
+  }
+
+  private static getUIMarketplaceRoot(context?: ProjectContext): string | null {
+    const uiContext = (context as any)?.marketplace?.ui || {};
+    if (typeof uiContext.root === 'string' && uiContext.root.trim()) {
+      return uiContext.root;
+    }
+    if (typeof uiContext.path === 'string' && uiContext.path.trim()) {
+      return uiContext.path;
+    }
+
+    const handler = (context as any)?.pathHandler as PathService | undefined;
+    if (handler?.hasPath && typeof handler.hasPath === 'function') {
+      try {
+        if (handler.hasPath('ui.marketplace')) {
+          return handler.getPath('ui.marketplace');
+        }
+        if (handler.hasPath('ui.path')) {
+          return handler.getPath('ui.path');
+        }
+      } catch {
+        // Ignore path resolution errors here; caller will provide fallback.
+      }
+    }
+
+    return null;
+  }
+
+  private static uiManifestCache: Map<string, any> = new Map();
+
+  private static async tryResolveViaUIManifest(
+    templateFile: string,
+    uiRoot: string
+  ): Promise<string | null> {
+    const manifest = await this.loadUIManifest(uiRoot);
+    if (!manifest?.components) {
+      Logger.info('⚠️ UI manifest missing components section', {
+        operation: 'template_loading',
+        uiRoot
+      });
       return null;
     }
 
-    const relativeSegments = parts.slice(startIndex);
-    const relativePath = relativeSegments.join('/');
-    const absolutePath = path.join(basePath, relativePath);
+    const candidateKeys = this.deriveUIComponentKeys(templateFile);
+    if (candidateKeys.length === 0) {
+      Logger.info('⚠️ Unable to derive UI manifest keys', {
+        operation: 'template_loading',
+        templateFile
+      });
+      return null;
+    }
 
+    const manifestDir = uiRoot.replace(/[\\/]ui[\\/]?$/, '');
+    Logger.info('🔍 Searching UI manifest for template', {
+      operation: 'template_loading',
+      templateFile,
+      manifestDir,
+      candidateKeys
+    });
+    for (const key of candidateKeys) {
+      const entry = manifest.components[key];
+      if (!entry?.path) {
+        continue;
+      }
+
+      const resolvedPath = path.resolve(manifestDir, entry.path.replace(/^\.\//, ''));
+      const content = await this.readIfExists(resolvedPath);
+      if (content) {
+        Logger.info('✅ UI template resolved via manifest entry', {
+          operation: 'template_loading',
+          templateFile,
+          key,
+          resolvedPath
+        });
+        return content;
+      }
+    }
+
+    Logger.info('⚠️ UI manifest lookup failed for all candidates', {
+      operation: 'template_loading',
+      templateFile,
+      candidateKeys
+    });
+
+    return null;
+  }
+
+  private static async loadUIManifest(uiRoot: string): Promise<any | null> {
+    const manifestDir = uiRoot.replace(/[\\/]ui[\\/]?$/, '');
+    if (this.uiManifestCache.has(manifestDir)) {
+      return this.uiManifestCache.get(manifestDir);
+    }
+
+    const manifestPath = path.join(manifestDir, 'manifest.json');
+    try {
+      const content = await fs.readFile(manifestPath, 'utf-8');
+      const parsed = JSON.parse(content);
+      this.uiManifestCache.set(manifestDir, parsed);
+      Logger.info('✅ Loaded UI marketplace manifest', {
+        operation: 'template_loading',
+        manifestPath
+      });
+      return parsed;
+    } catch (error) {
+      Logger.debug('⚠️ UI marketplace manifest not found or invalid', {
+        operation: 'template_loading',
+        manifestPath,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      this.uiManifestCache.set(manifestDir, null);
+      return null;
+    }
+  }
+
+  private static deriveUIComponentKeys(templateFile: string): string[] {
+    const normalized = templateFile.startsWith('components/ui/')
+      ? templateFile.replace(/^components\/ui\//, '')
+      : templateFile.startsWith('ui/')
+        ? templateFile.replace(/^ui\//, '')
+        : null;
+
+    if (!normalized) {
+      return [];
+    }
+
+    const parts = normalized.split('/');
+    if (parts.length === 0) {
+      return [];
+    }
+
+    const fileName = parts[parts.length - 1];
+    if (!fileName) {
+      return [];
+    }
+    const baseName = fileName.replace(/\.(tsx|ts|jsx|js)\.tpl$/i, '').replace(/\.tpl$/i, '');
+    if (!baseName) {
+      return [];
+    }
+
+    const candidateKeys = new Set<string>();
+    candidateKeys.add(baseName);
+
+    const camelKey = baseName.charAt(0).toUpperCase() + baseName.slice(1);
+    candidateKeys.add(camelKey);
+
+    const pascalFromKebab = baseName
+      .split(/[-_]/g)
+      .map(segment => segment.charAt(0).toUpperCase() + segment.slice(1))
+      .join('');
+    candidateKeys.add(pascalFromKebab);
+
+    const kebabFromPascal = baseName
+      .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+      .replace(/[_\s]+/g, '-')
+      .toLowerCase();
+    candidateKeys.add(kebabFromPascal);
+
+    candidateKeys.add(baseName.toLowerCase());
+
+    Logger.info('🔑 Derived UI manifest keys', {
+      operation: 'template_loading',
+      templateFile,
+      normalized,
+      candidateKeys: Array.from(candidateKeys)
+    });
+
+    return Array.from(candidateKeys);
+  }
+
+  private static async readIfExists(absolutePath: string): Promise<string | null> {
     try {
       return await fs.readFile(absolutePath, 'utf-8');
     } catch (error) {
-      if (!silentFallback) {
-        Logger.debug('⚠️ Template not found in namespace path', {
-          operation: 'template_loading',
-          template: templateFile,
-          namespaceKey,
-          absolutePath,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
+      Logger.debug('⚠️ Template not found at expected UI marketplace path', {
+        operation: 'template_loading',
+        absolutePath,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
       return null;
     }
   }

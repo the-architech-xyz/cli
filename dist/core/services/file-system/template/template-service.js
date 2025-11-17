@@ -30,12 +30,20 @@ export class TemplateService {
     static processTemplate(template, context, options = {}) {
         const opts = { ...this.DEFAULT_OPTIONS, ...options };
         let processed = template;
-        // 0. Validate path variables if enabled
-        if (opts.validatePathVariables && context.pathHandler?.validatePathVariables) {
-            const validation = context.pathHandler.validatePathVariables(processed, opts.strictPathValidation);
-            if (!validation.valid) {
-                const errorMessage = `Path validation failed. Missing path keys: ${validation.missingPaths.join(', ')}. ` +
-                    `Available paths: ${context.pathHandler.getAvailablePaths?.()?.join(', ') || 'none'}`;
+        // 0. Validate path variables if enabled (sync validation only - checks if paths exist in PathService)
+        if (opts.validatePathVariables && context.pathHandler) {
+            const pathKeyRegex = /\$\{paths\.([^}]+)\}/g;
+            const missingPaths = [];
+            let match;
+            while ((match = pathKeyRegex.exec(processed)) !== null) {
+                const key = match[1]?.trim();
+                if (key && !context.pathHandler.hasPath(key)) {
+                    missingPaths.push(key);
+                }
+            }
+            if (missingPaths.length > 0) {
+                const errorMessage = `Path validation failed. Missing path keys: ${missingPaths.join(', ')}. ` +
+                    `Available paths: ${context.pathHandler.getAvailablePaths?.()?.slice(0, 20).join(', ') || 'none'}`;
                 if (opts.strictPathValidation) {
                     throw new Error(errorMessage);
                 }
@@ -135,16 +143,29 @@ export class TemplateService {
     }
     /**
      * Validate path variables in a template without processing
+     * Note: Marketplace validation is async, but this method provides sync validation
      */
     static validateTemplatePaths(template, context) {
-        if (!context.pathHandler?.validatePathVariables) {
+        if (!context.pathHandler) {
             return { valid: true, missingPaths: [], usedPaths: [] };
         }
-        const validation = context.pathHandler.validatePathVariables(template, false);
-        const usedPaths = []; // TODO: Implement path extraction if needed
+        // Sync validation: check if paths exist in PathService
+        const pathKeyRegex = /\$\{paths\.([^}]+)\}/g;
+        const missingPaths = [];
+        const usedPaths = [];
+        let match;
+        while ((match = pathKeyRegex.exec(template)) !== null) {
+            const key = match[1]?.trim();
+            if (key) {
+                usedPaths.push(key);
+                if (!context.pathHandler.hasPath(key)) {
+                    missingPaths.push(key);
+                }
+            }
+        }
         return {
-            valid: validation.valid,
-            missingPaths: validation.missingPaths,
+            valid: missingPaths.length === 0,
+            missingPaths,
             usedPaths
         };
     }

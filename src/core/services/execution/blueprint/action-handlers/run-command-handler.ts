@@ -51,24 +51,33 @@ export class RunCommandHandler extends BaseActionHandler {
     try {
       console.log(`  ⚡ Running command: ${command}`);
       console.log(`  📁 Working directory: ${projectRoot}`);
-      
+
       // For create-next-app commands, ensure the directory is clean
       if (command.includes('create-next-app')) {
         await this.ensureCleanDirectory(projectRoot);
       }
-      
-      // Split command into command and arguments
-      const commandParts = command.split(' ');
-      const [cmd, ...args] = commandParts;
-      
-      if (!cmd) {
-        return { success: false, error: 'Command is empty after processing' };
+
+      // Determine if the command requires a shell (handles cd, &&, ||, pipes, redirects)
+      const requiresShell = this.requiresShellExecution(command);
+      console.log(`  🔧 Shell execution: ${requiresShell ? 'enabled' : 'disabled'}`);
+      let result;
+
+      if (requiresShell) {
+        result = await this.commandRunner.execShellCommand(command, {
+          cwd: projectRoot
+        });
+      } else {
+        const commandParts = this.tokenizeCommand(command);
+        const [cmd, ...args] = commandParts;
+
+        if (!cmd) {
+          return { success: false, error: 'Command is empty after processing' };
+        }
+
+        result = await this.commandRunner.execCommand([cmd, ...args], {
+          cwd: projectRoot
+        });
       }
-      
-      // Execute the command
-      const result = await this.commandRunner.execCommand([cmd, ...args], {
-        cwd: projectRoot
-      });
 
       if (result.code === 0) {
         console.log(`  ✅ Command executed successfully`);
@@ -140,5 +149,40 @@ export class RunCommandHandler extends BaseActionHandler {
       console.log(`  ⚠️  Warning: Could not clean directory ${projectRoot}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       // Don't throw - let the command try to run anyway
     }
+  }
+
+  /**
+   * Determine if a command string requires shell execution
+   */
+  private requiresShellExecution(command: string): boolean {
+    const trimmed = command.trim();
+    if (!trimmed) {
+      return false;
+    }
+
+    const shellOperators = ['&&', '||', '|', ';', '>>', '<<', '>', '<'];
+    if (shellOperators.some(op => trimmed.includes(op))) {
+      return true;
+    }
+
+    // Commands starting with cd / export / set require shell builtins
+    if (/^(cd|export|set) /i.test(trimmed)) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Tokenize a command string into arguments, respecting quotes
+   */
+  private tokenizeCommand(command: string): string[] {
+    const matches = command.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+    return matches.map(part => {
+      if ((part.startsWith('"') && part.endsWith('"')) || (part.startsWith("'") && part.endsWith("'"))) {
+        return part.slice(1, -1);
+      }
+      return part;
+    });
   }
 }

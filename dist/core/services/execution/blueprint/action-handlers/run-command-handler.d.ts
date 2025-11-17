@@ -19,4 +19,12 @@ export declare class RunCommandHandler extends BaseActionHandler {
      * sees existing files and creates a subdirectory instead
      */
     private ensureCleanDirectory;
+    /**
+     * Determine if a command string requires shell execution
+     */
+    private requiresShellExecution;
+    /**
+     * Tokenize a command string into arguments, respecting quotes
+     */
+    private tokenizeCommand;
 }

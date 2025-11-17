@@ -3,10 +3,10 @@
  *
  * Resolves component dependencies from feature manifests.
  */
-import { Genome } from '@thearchitech.xyz/types';
+import { ResolvedGenome } from '@thearchitech.xyz/types';
 export declare class ComponentDependencyResolver {
     /**
      * Resolve component dependencies from all features in the genome
      */
-    resolveComponentDependencies(genome: Genome): Promise<Map<string, string[]>>;
+    resolveComponentDependencies(genome: ResolvedGenome): Promise<Map<string, string[]>>;
 }

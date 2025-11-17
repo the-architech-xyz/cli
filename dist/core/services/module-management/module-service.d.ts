@@ -4,7 +4,7 @@
  * Consolidates ModuleFetcherService, ModuleLoaderService, and AdapterLoader
  * into a single, cohesive service for module management
  */
-import { Genome } from '@thearchitech.xyz/marketplace';
+import { ResolvedGenome } from '@thearchitech.xyz/types';
 import { AdapterConfig, Blueprint, Module } from '@thearchitech.xyz/types';
 import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 import { PathService } from '../path/path-service.js';
@@ -37,9 +37,7 @@ export declare class ModuleService {
     /**
      * Create project context for module execution
      */
-    createProjectContext(genome: Genome, pathHandler: PathService, module: Module): Promise<ProjectContextResult>;
-    private getModuleIndex;
-    private resolveModuleDefinition;
+    createProjectContext(genome: ResolvedGenome, pathHandler: PathService, module: Module): Promise<ProjectContextResult>;
     /**
      * Get cached adapter
      */

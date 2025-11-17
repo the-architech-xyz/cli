@@ -5,14 +5,14 @@
  * Combines functionality of ParameterMerger and ModuleEnhancer.
  */
 
-import { Module, Genome, MergedConfiguration } from '@thearchitech.xyz/types';
+import { Module, Genome, ResolvedGenome, MergedConfiguration } from '@thearchitech.xyz/types';
 import { Logger } from '../infrastructure/logging/index.js';
 
 export class ModuleConfigurationService {
   /**
    * Merge module configuration with user overrides
    */
-  mergeModuleConfiguration(module: Module, adapter: any, genome: Genome): MergedConfiguration {
+  mergeModuleConfiguration(module: Module, adapter: any, genome: ResolvedGenome): MergedConfiguration {
     const moduleConfig = adapter.config;
     const userOverrides = module.parameters || {};
 
@@ -23,13 +23,15 @@ export class ModuleConfigurationService {
         userOverrides
       );
       
+      const enrichedModule = {
+        ...module,
+        parameters: mergedParameters
+      };
+
       const templateContext: Record<string, any> = {
         project: genome.project || {},
         modules: genome.modules || [],
-        module: {
-          id: module.id,
-          parameters: mergedParameters
-        }
+        module: enrichedModule
       };
       
       return {
@@ -58,13 +60,15 @@ export class ModuleConfigurationService {
     }
 
     // Build template context with merged parameters
+    const enrichedModule = {
+      ...module,
+      parameters: mergedParameters
+    };
+
     const templateContext: Record<string, any> = {
       project: genome.project || {},
       modules: genome.modules || [],
-      module: {
-        id: module.id,
-        parameters: mergedParameters
-      }
+      module: enrichedModule
     };
 
     return {

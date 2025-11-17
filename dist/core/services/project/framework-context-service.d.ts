@@ -7,7 +7,7 @@
  * This service is framework-agnostic and relies entirely on marketplace data.
  */
 import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
-import { Genome, Module } from '@thearchitech.xyz/types';
+import { ResolvedGenome, Module } from '@thearchitech.xyz/types';
 import { PathService } from '../path/path-service.js';
 export interface FrameworkContextConfig {
     pathResolution: {
@@ -29,7 +29,7 @@ export declare class FrameworkContextService {
     /**
      * Create dynamic ProjectContext based on framework and parameters
      */
-    static createProjectContext(genome: Genome, module: Module, pathHandler: PathService, modulesRecord: Record<string, Module>): Promise<ProjectContext>;
+    static createProjectContext(genome: ResolvedGenome, module: Module, pathHandler: PathService, modulesRecord: Record<string, Module>): Promise<ProjectContext>;
     /**
      * Load framework configuration from marketplace
      */

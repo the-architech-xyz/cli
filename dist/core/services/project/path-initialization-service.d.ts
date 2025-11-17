@@ -11,38 +11,41 @@
  * 4. Marketplace paths
  */
 import { PathService } from '../path/path-service.js';
-import { Genome } from '@thearchitech.xyz/types';
-import { AdapterConfig } from '@thearchitech.xyz/types';
+import { ResolvedGenome } from '@thearchitech.xyz/types';
+import type { AdapterConfig, GenomeMarketplace, MarketplaceAdapter } from '@thearchitech.xyz/types';
+interface PathInitializationOptions {
+    marketplaceAdapter?: MarketplaceAdapter;
+    marketplaceInfo?: GenomeMarketplace;
+    runtimeOverrides?: Record<string, string>;
+}
 export declare class PathInitializationService {
     /**
      * Initialize all paths for the project
      * This should be called ONCE before any module execution
      */
-    static initializePaths(genome: Genome, pathHandler: PathService, frameworkAdapter?: AdapterConfig): Promise<void>;
+    static initializePaths(genome: ResolvedGenome, pathHandler: PathService, frameworkAdapter?: AdapterConfig, options?: PathInitializationOptions): Promise<void>;
+    private static computeWorkspacePaths;
+    private static computeSingleAppPaths;
     /**
      * Compute monorepo-specific paths
      */
     private static computeMonorepoPaths;
-    /**
-     * Compute smart paths (auth_config, payment_config, etc.)
-     * These paths are computed based on project structure (single-app vs monorepo)
-     */
-    private static computeSmartPaths;
+    private static applyPaths;
+    private static cleanBasePath;
+    private static joinPath;
+    private static ensureTrailingSlash;
+    private static normalizeMarketplaceKey;
     /**
      * Compute marketplace paths
      * SINGLE SOURCE OF TRUTH for marketplace UI framework detection
      */
     private static computeMarketplacePaths;
-    /**
-     * Detect UI framework from genome
-     * PRIORITY: Modules (explicit) > Genome options > Framework inference > Package.json
-     *
-     * This is the SINGLE SOURCE OF TRUTH for UI framework detection.
-     * All other layers should read from PathService, not detect independently.
-     */
-    private static detectUIFramework;
+    private static determineActiveUIFramework;
+    private static extractExplicitUIFramework;
+    private static resolveUIRoot;
     /**
      * Validate paths (check for conflicts, normalize, etc.)
      */
     private static validatePaths;
 }
+export {};

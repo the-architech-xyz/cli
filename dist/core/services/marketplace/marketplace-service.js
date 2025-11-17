@@ -26,89 +26,42 @@ export class MarketplaceService {
      * @param context - Optional ProjectContext for marketplace path resolution
      */
     static async loadTemplate(moduleId, templateFile, context) {
-        // CONVENTION: If template starts with 'ui/', resolve from UI marketplace
-        // IMPORTANT: Check this BEFORE any other processing to avoid fallback to core marketplace
-        if (templateFile.startsWith('ui/')) {
-            // Keep the full 'ui/...' path - UI marketplace root + ui/ directory structure
-            const relativePath = templateFile; // Keep 'ui/architech-welcome/welcome-page.tsx.tpl'
-            // Get UI marketplace from context (SINGLE SOURCE OF TRUTH)
-            // Marketplace UI is initialized once by PathInitializationService and read-only after
-            if (!context?.marketplace?.ui) {
-                throw new Error(`Context or marketplace UI not available. ` +
-                    `Expected context.marketplace.ui to be set by PathInitializationService. ` +
-                    `Template: ${templateFile}`);
-            }
-            const uiFramework = context.marketplace.ui.default || null;
-            const uiMarketplacePath = uiFramework ? context.marketplace.ui[uiFramework] : null;
-            if (!uiFramework || !uiMarketplacePath) {
-                throw new Error(`UI framework not initialized. ` +
-                    `Expected context.marketplace.ui.default to be set by PathInitializationService. ` +
-                    `Template: ${templateFile}, ` +
-                    `Context marketplace: ${JSON.stringify(context?.marketplace)}`);
-            }
-            // Join UI marketplace root with full ui/... path
-            // Example: /path/to/marketplace-shadcn + ui/architech-welcome/welcome-page.tsx.tpl
-            const absolutePath = path.join(uiMarketplacePath, relativePath);
-            try {
-                return await fs.readFile(absolutePath, 'utf-8');
-            }
-            catch (error) {
-                // Fallback: Try core marketplace if template doesn't exist in UI marketplace
-                // This handles cases where a template exists in one UI marketplace (e.g., shadcn) but not another (e.g., tamagui)
-                const coreMarketplacePath = context?.marketplace?.core;
-                if (coreMarketplacePath) {
-                    const coreAbsolutePath = path.join(coreMarketplacePath, relativePath);
-                    try {
-                        Logger.debug(`⚠️ UI template not found in ${uiFramework} marketplace, trying core marketplace`, {
-                            operation: 'template_loading',
-                            uiFramework: uiFramework,
-                            uiPath: absolutePath,
-                            corePath: coreAbsolutePath
-                        });
-                        return await fs.readFile(coreAbsolutePath, 'utf-8');
-                    }
-                    catch (coreError) {
-                        // Both UI and core marketplaces failed - throw original error
-                        const errorMsg = error instanceof Error ? error.message : String(error);
-                        throw new Error(`UI template file not found in ${uiFramework} marketplace or core marketplace: ${absolutePath}\n` +
-                            `UI Framework: ${uiFramework}\n` +
-                            `UI Marketplace Path: ${uiMarketplacePath}\n` +
-                            `Core Marketplace Path: ${coreMarketplacePath}\n` +
-                            `Relative Path: ${relativePath}\n` +
-                            `Template: ${templateFile}\n` +
-                            `Error: ${errorMsg}`);
-                    }
-                }
-                else {
-                    // No core marketplace fallback available
-                    const errorMsg = error instanceof Error ? error.message : String(error);
-                    throw new Error(`UI template file not found: ${absolutePath}\n` +
-                        `UI Framework: ${uiFramework}\n` +
-                        `UI Marketplace Path: ${uiMarketplacePath}\n` +
-                        `Relative Path: ${relativePath}\n` +
-                        `Template: ${templateFile}\n` +
-                        `Error: ${errorMsg}`);
-                }
-            }
+        const uiResolved = await this.tryLoadFromUIMarketplace(templateFile, context);
+        if (uiResolved !== null) {
+            return uiResolved;
         }
         const moduleMetadata = context?.module;
-        if (moduleMetadata?.resolved?.root &&
-            !path.isAbsolute(templateFile) &&
-            !templateFile.startsWith('ui/')) {
-            const candidatePaths = [];
+        if (!path.isAbsolute(templateFile) && !templateFile.startsWith('ui/')) {
             const normalizedTemplate = templateFile.startsWith('templates/')
                 ? templateFile.replace(/^templates\//, '')
                 : templateFile;
-            candidatePaths.push(path.join(moduleMetadata.resolved.root, 'templates', normalizedTemplate));
-            if (templateFile.startsWith('templates/')) {
-                candidatePaths.push(path.join(moduleMetadata.resolved.root, templateFile));
+            const moduleRootCandidates = new Set();
+            if (moduleMetadata?.resolved?.root) {
+                moduleRootCandidates.add(moduleMetadata.resolved.root);
             }
-            for (const candidate of candidatePaths) {
-                try {
-                    return await fs.readFile(candidate, 'utf-8');
+            const moduleMarketplaceRoot = moduleMetadata?.marketplace?.root ||
+                context?.marketplace?.core ||
+                (await MarketplaceRegistry.getCoreMarketplacePath());
+            const sourceRoot = moduleMetadata?.source?.root;
+            if (sourceRoot) {
+                const sourcePath = path.isAbsolute(sourceRoot)
+                    ? sourceRoot
+                    : path.join(moduleMarketplaceRoot, sourceRoot);
+                moduleRootCandidates.add(sourcePath);
+            }
+            for (const moduleRoot of moduleRootCandidates) {
+                const candidatePaths = new Set();
+                candidatePaths.add(path.join(moduleRoot, 'templates', normalizedTemplate));
+                if (templateFile.startsWith('templates/')) {
+                    candidatePaths.add(path.join(moduleRoot, templateFile));
                 }
-                catch {
-                    continue;
+                for (const candidate of candidatePaths) {
+                    try {
+                        return await fs.readFile(candidate, 'utf-8');
+                    }
+                    catch {
+                        continue;
+                    }
                 }
             }
         }
@@ -125,6 +78,7 @@ export class MarketplaceService {
         }
         // DEFAULT: Core marketplace (relative path)
         const marketplaceRoot = context?.marketplace?.core ||
+            moduleMetadata?.marketplace?.root ||
             await MarketplaceRegistry.getCoreMarketplacePath();
         const resolvedModuleId = await PathService.resolveModuleId(moduleId);
         // Check if templateFile already includes 'templates/' prefix
@@ -136,6 +90,13 @@ export class MarketplaceService {
         }
         catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
+            Logger.warn('Template resolution fallback triggered', {
+                moduleId,
+                templateFile,
+                moduleResolvedRoot: moduleMetadata?.resolved?.root,
+                moduleSourceRoot: moduleMetadata?.source?.root,
+                marketplaceRoot,
+            });
             const suggestions = await this.getTemplateSuggestions(moduleMetadata, moduleId, templateFile);
             const modulePath = moduleMetadata?.resolved?.root || path.join(marketplaceRoot, resolvedModuleId);
             throw new Error(`Template file not found: ${templatePath}\n` +
@@ -145,6 +106,208 @@ export class MarketplaceService {
                 `Error: ${errorMsg}\n` +
                 `Suggestions: ${suggestions.join(', ')}\n` +
                 `Run 'npm run validate:templates' to check all templates.`);
+        }
+    }
+    static async tryLoadFromUIMarketplace(templateFile, context) {
+        const uiRoot = this.getUIMarketplaceRoot(context);
+        if (!uiRoot) {
+            return null;
+        }
+        Logger.info('🎯 Resolving UI template', {
+            operation: 'template_loading',
+            templateFile,
+            uiRoot
+        });
+        const normalizedRoot = uiRoot.endsWith(path.sep) ? uiRoot : `${uiRoot}${path.sep}`;
+        const manifestResolved = await this.tryResolveViaUIManifest(templateFile, normalizedRoot);
+        if (manifestResolved) {
+            Logger.info('✅ UI template resolved via manifest', {
+                operation: 'template_loading',
+                templateFile,
+                uiRoot
+            });
+            return manifestResolved;
+        }
+        if (templateFile.startsWith('ui/')) {
+            const relativePath = templateFile.replace(/^ui\//, '');
+            const directResolved = await this.readIfExists(path.join(normalizedRoot, relativePath));
+            if (directResolved) {
+                Logger.info('✅ UI template resolved directly from filesystem', {
+                    operation: 'template_loading',
+                    templateFile,
+                    candidatePath: path.join(normalizedRoot, relativePath)
+                });
+                return directResolved;
+            }
+        }
+        if (templateFile.startsWith('components/ui/')) {
+            const relativePath = templateFile.replace(/^components\/ui\//, '');
+            const directResolved = await this.readIfExists(path.join(normalizedRoot, relativePath));
+            if (directResolved) {
+                Logger.info('✅ UI template resolved directly from filesystem', {
+                    operation: 'template_loading',
+                    templateFile,
+                    candidatePath: path.join(normalizedRoot, relativePath)
+                });
+                return directResolved;
+            }
+        }
+        return null;
+    }
+    static getUIMarketplaceRoot(context) {
+        const uiContext = context?.marketplace?.ui || {};
+        if (typeof uiContext.root === 'string' && uiContext.root.trim()) {
+            return uiContext.root;
+        }
+        if (typeof uiContext.path === 'string' && uiContext.path.trim()) {
+            return uiContext.path;
+        }
+        const handler = context?.pathHandler;
+        if (handler?.hasPath && typeof handler.hasPath === 'function') {
+            try {
+                if (handler.hasPath('ui.marketplace')) {
+                    return handler.getPath('ui.marketplace');
+                }
+                if (handler.hasPath('ui.path')) {
+                    return handler.getPath('ui.path');
+                }
+            }
+            catch {
+                // Ignore path resolution errors here; caller will provide fallback.
+            }
+        }
+        return null;
+    }
+    static uiManifestCache = new Map();
+    static async tryResolveViaUIManifest(templateFile, uiRoot) {
+        const manifest = await this.loadUIManifest(uiRoot);
+        if (!manifest?.components) {
+            Logger.info('⚠️ UI manifest missing components section', {
+                operation: 'template_loading',
+                uiRoot
+            });
+            return null;
+        }
+        const candidateKeys = this.deriveUIComponentKeys(templateFile);
+        if (candidateKeys.length === 0) {
+            Logger.info('⚠️ Unable to derive UI manifest keys', {
+                operation: 'template_loading',
+                templateFile
+            });
+            return null;
+        }
+        const manifestDir = uiRoot.replace(/[\\/]ui[\\/]?$/, '');
+        Logger.info('🔍 Searching UI manifest for template', {
+            operation: 'template_loading',
+            templateFile,
+            manifestDir,
+            candidateKeys
+        });
+        for (const key of candidateKeys) {
+            const entry = manifest.components[key];
+            if (!entry?.path) {
+                continue;
+            }
+            const resolvedPath = path.resolve(manifestDir, entry.path.replace(/^\.\//, ''));
+            const content = await this.readIfExists(resolvedPath);
+            if (content) {
+                Logger.info('✅ UI template resolved via manifest entry', {
+                    operation: 'template_loading',
+                    templateFile,
+                    key,
+                    resolvedPath
+                });
+                return content;
+            }
+        }
+        Logger.info('⚠️ UI manifest lookup failed for all candidates', {
+            operation: 'template_loading',
+            templateFile,
+            candidateKeys
+        });
+        return null;
+    }
+    static async loadUIManifest(uiRoot) {
+        const manifestDir = uiRoot.replace(/[\\/]ui[\\/]?$/, '');
+        if (this.uiManifestCache.has(manifestDir)) {
+            return this.uiManifestCache.get(manifestDir);
+        }
+        const manifestPath = path.join(manifestDir, 'manifest.json');
+        try {
+            const content = await fs.readFile(manifestPath, 'utf-8');
+            const parsed = JSON.parse(content);
+            this.uiManifestCache.set(manifestDir, parsed);
+            Logger.info('✅ Loaded UI marketplace manifest', {
+                operation: 'template_loading',
+                manifestPath
+            });
+            return parsed;
+        }
+        catch (error) {
+            Logger.debug('⚠️ UI marketplace manifest not found or invalid', {
+                operation: 'template_loading',
+                manifestPath,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+            this.uiManifestCache.set(manifestDir, null);
+            return null;
+        }
+    }
+    static deriveUIComponentKeys(templateFile) {
+        const normalized = templateFile.startsWith('components/ui/')
+            ? templateFile.replace(/^components\/ui\//, '')
+            : templateFile.startsWith('ui/')
+                ? templateFile.replace(/^ui\//, '')
+                : null;
+        if (!normalized) {
+            return [];
+        }
+        const parts = normalized.split('/');
+        if (parts.length === 0) {
+            return [];
+        }
+        const fileName = parts[parts.length - 1];
+        if (!fileName) {
+            return [];
+        }
+        const baseName = fileName.replace(/\.(tsx|ts|jsx|js)\.tpl$/i, '').replace(/\.tpl$/i, '');
+        if (!baseName) {
+            return [];
+        }
+        const candidateKeys = new Set();
+        candidateKeys.add(baseName);
+        const camelKey = baseName.charAt(0).toUpperCase() + baseName.slice(1);
+        candidateKeys.add(camelKey);
+        const pascalFromKebab = baseName
+            .split(/[-_]/g)
+            .map(segment => segment.charAt(0).toUpperCase() + segment.slice(1))
+            .join('');
+        candidateKeys.add(pascalFromKebab);
+        const kebabFromPascal = baseName
+            .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+            .replace(/[_\s]+/g, '-')
+            .toLowerCase();
+        candidateKeys.add(kebabFromPascal);
+        candidateKeys.add(baseName.toLowerCase());
+        Logger.info('🔑 Derived UI manifest keys', {
+            operation: 'template_loading',
+            templateFile,
+            normalized,
+            candidateKeys: Array.from(candidateKeys)
+        });
+        return Array.from(candidateKeys);
+    }
+    static async readIfExists(absolutePath) {
+        try {
+            return await fs.readFile(absolutePath, 'utf-8');
+        }
+        catch (error) {
+            Logger.debug('⚠️ Template not found at expected UI marketplace path', {
+                operation: 'template_loading',
+                absolutePath,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+            return null;
         }
     }
     /**

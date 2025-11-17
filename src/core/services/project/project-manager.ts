@@ -7,7 +7,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { PathService } from '../path/path-service.js';
-import { Genome, ProjectConfig } from '@thearchitech.xyz/types';
+import { Genome, ProjectConfig, PathKey } from '@thearchitech.xyz/types';
 
 export class ProjectManager {
   private pathHandler: PathService;
@@ -259,19 +259,37 @@ ${packages.map(pkg => `  - '${pkg}'`).join('\n')}
    * Create basic project structure
    */
   private async createBasicStructure(): Promise<void> {
-    const directories = [
-      this.pathHandler.getSrcPath(),
-      this.pathHandler.getLibPath(),
-      this.pathHandler.getComponentsPath(),
-      this.pathHandler.getUIComponentsPath(),
-      this.pathHandler.getUtilsPath(),
-      this.pathHandler.getTestPath(),
-      this.pathHandler.getDatabasePath(),
-      this.pathHandler.getAuthPath(),
+    const directoryKeys: PathKey[] = [
+      PathKey.APPS_WEB_SRC,
+      PathKey.APPS_WEB_APP,
+      PathKey.APPS_WEB_COMPONENTS,
+      PathKey.APPS_WEB_MIDDLEWARE,
+      PathKey.APPS_WEB_SERVER,
+      PathKey.PACKAGES_SHARED_SRC,
+      PathKey.PACKAGES_SHARED_COMPONENTS,
+      PathKey.PACKAGES_SHARED_HOOKS,
+      PathKey.PACKAGES_SHARED_PROVIDERS,
+      PathKey.PACKAGES_SHARED_STORES,
+      PathKey.PACKAGES_SHARED_TYPES,
+      PathKey.PACKAGES_SHARED_UTILS,
+      PathKey.PACKAGES_SHARED_ROUTES,
+      PathKey.PACKAGES_SHARED_JOBS,
+      PathKey.PACKAGES_DATABASE_SRC,
+      PathKey.PACKAGES_UI_SRC,
+      PathKey.WORKSPACE_SCRIPTS,
     ];
 
-    for (const dir of directories) {
+    const created = new Set<string>();
+    for (const key of directoryKeys) {
+      if (!this.pathHandler.hasPath(key)) {
+        continue;
+      }
+      const dir = this.pathHandler.getPath(key);
+      if (created.has(dir)) {
+        continue;
+      }
       await this.pathHandler.ensureDir(dir);
+      created.add(dir);
     }
   }
 

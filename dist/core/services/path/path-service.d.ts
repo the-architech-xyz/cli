@@ -65,38 +65,6 @@ export declare class PathService {
      */
     ensureDir(dirPath: string): Promise<void>;
     /**
-     * Get source path
-     */
-    getSrcPath(): string;
-    /**
-     * Get lib path
-     */
-    getLibPath(): string;
-    /**
-     * Get components path
-     */
-    getComponentsPath(): string;
-    /**
-     * Get UI components path
-     */
-    getUIComponentsPath(): string;
-    /**
-     * Get utils path
-     */
-    getUtilsPath(): string;
-    /**
-     * Get test path
-     */
-    getTestPath(): string;
-    /**
-     * Get database path
-     */
-    getDatabasePath(): string;
-    /**
-     * Get auth path
-     */
-    getAuthPath(): string;
-    /**
      * Get package.json path
      */
     getPackageJsonPath(): string;
@@ -130,37 +98,24 @@ export declare class PathService {
         [framework: string]: string;
         default: string;
     };
-    /**
-     * Resolve template variables in a string (for ${paths.key} patterns)
-     * CHANGED: Now uses ${} syntax to avoid conflicts with template {{}} syntax
-     * ENHANCED: Supports complex expressions like ${paths.key1 || paths.key2}
-     */
     resolveTemplate(template: string): string;
     /**
-     * Resolve a path expression that may contain operators like ||, ?, etc.
-     * Supports:
-     * - Simple keys: "api" → getPath("api")
-     * - Fallback chains: "shared_library || paths.api" → try shared_library, fallback to api
-     * - Literal strings: "shared_library || './src/lib/'" → try shared_library, fallback to './src/lib/'
-     *
-     * CRITICAL: Ensures trailing slashes for directory paths to prevent concatenation issues
-     */
-    private resolvePathExpression;
-    /**
-     * Get fallback path for common keys
-     */
-    private getFallbackPath;
-    /**
      * Validate that all ${paths.key} variables in a template exist in the framework paths
-     * Also supports legacy {{paths.key}} syntax
+     * Also validates against marketplace path key definitions if marketplace is provided
      * @param template The template string to validate
      * @param strict If true, throws an error for missing paths. If false, returns validation result
+     * @param marketplaceName Optional marketplace name for path key validation
+     * @param projectStructure Optional project structure for path key validation
      * @returns Validation result with missing paths
      */
-    validatePathVariables(template: string, strict?: boolean): {
+    validatePathVariables(template: string, strict?: boolean, marketplaceName?: string, projectStructure?: 'monorepo' | 'single-app'): Promise<{
         valid: boolean;
         missingPaths: string[];
-    };
+        errors?: Array<{
+            key: string;
+            message: string;
+        }>;
+    }>;
     /**
      * Get all path variables used in a template
      * Supports both ${paths.key} and legacy {{paths.key}} syntax

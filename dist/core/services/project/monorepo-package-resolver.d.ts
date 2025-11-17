@@ -7,7 +7,7 @@
  * - Module usage (frontend-only, backend-only, or full-stack)
  * - Genome structure and apps configuration
  */
-import { Genome, Module } from '@thearchitech.xyz/types';
+import { ResolvedGenome, Module } from '@thearchitech.xyz/types';
 export interface ModuleUsage {
     frontend: boolean;
     backend: boolean;
@@ -33,7 +33,7 @@ export declare class MonorepoPackageResolver {
      * - Full-stack modules → packages/shared (shared between apps)
      * - Tech-stack layers → packages/shared (shared utilities)
      */
-    static resolveTargetPackage(module: Module, genome: Genome): string | null;
+    static resolveTargetPackage(module: Module, genome: ResolvedGenome): string | null;
     /**
      * Find genome module definition by module ID
      * Used to check for explicit targetPackage in genome

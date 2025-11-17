@@ -8,6 +8,7 @@
 import { Module } from "@thearchitech.xyz/types";
 import {
   Genome,
+  ResolvedGenome,
   ExecutionResult,
   ConstitutionalExecutionContext,
   BlueprintModule,
@@ -16,12 +17,15 @@ import {
   BlueprintAction,
   BlueprintActionType,
   GenomeModule,
+  GenomeMarketplace,
+  MarketplaceAdapter,
 } from "@thearchitech.xyz/types";
 import { ProjectContext } from "@thearchitech.xyz/marketplace/types/template-context.js";
 import { MARKETPLACE_DEFAULTS } from "../marketplace.config.js";
 import { ProjectManager } from "../core/services/project/project-manager.js";
 import { PathService } from "../core/services/path/path-service.js";
 import { BlueprintExecutor } from "../core/services/execution/blueprint/blueprint-executor.js";
+import { getProjectStructure, getProjectMonorepo, getProjectApps } from "../core/utils/genome-helpers.js";
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { FrameworkContextService } from "../core/services/project/framework-context-service.js";
@@ -36,6 +40,13 @@ import {
 import { EnhancedLogger } from "../core/cli/enhanced-logger.js";
 import { ErrorHandler } from "../core/services/infrastructure/error/index.js";
 // Deprecated: planning/graph/feature resolution handled by transformer
+
+interface OrchestratorExecutionOptions {
+  marketplaceAdapter?: MarketplaceAdapter;
+  marketplaceInfo?: GenomeMarketplace;
+  pathOverrides?: Record<string, string>;
+}
+
 // import { DependencyGraph } from "../core/services/execution-planning/dependency-graph.js";
 // import { ManifestDrivenFeatureResolver } from "../core/services/feature-resolution/manifest-driven-feature-resolver.js";
 // import { ModuleClassifier } from "../core/services/orchestration/module-classifier.js";
@@ -102,9 +113,10 @@ export class OrchestratorAgent {
    * Execute a recipe using unified dependency-driven execution
    */
   async executeRecipe(
-    genome: Genome,
+    genome: ResolvedGenome,
     verbose: boolean = false,
-    enhancedLogger?: EnhancedLogger
+    enhancedLogger?: EnhancedLogger,
+    options?: OrchestratorExecutionOptions
   ): Promise<ExecutionResult> {
     const traceId = ExecutionTracer.startTrace("orchestrator_execution");
     const results: any[] = [];
@@ -116,6 +128,8 @@ export class OrchestratorAgent {
       Logger.setLevel(LogLevel.DEBUG);
     }
     Logger.setVerbose(verbose);
+    const executionOptions = options ?? {};
+
 
     try {
       // Enhanced logging: Start validation phase
@@ -144,21 +158,16 @@ export class OrchestratorAgent {
       // 1.2. Initialize structure layer (single-app or monorepo) based on genome
       ExecutionTracer.logOperation(traceId, "Initializing structure layer");
       
-      // CRITICAL: Log BEFORE any operations to verify code execution
-      console.log('🔴 DEBUG: About to check genome structure...');
-      console.log('🔴 DEBUG: genome.project =', JSON.stringify(genome.project, null, 2).substring(0, 500));
-      
       // Debug: Log genome structure before initialization
       Logger.info(`🔍 Genome structure check:`, {
         traceId,
         operation: 'structure_initialization',
-        structure: (genome.project as any).structure,
-        hasMonorepo: !!(genome.project as any).monorepo,
-        hasApps: !!(genome.project as any).apps,
-        appsCount: ((genome.project as any).apps || []).length
+        structure: getProjectStructure(genome),
+        hasMonorepo: !!getProjectMonorepo(genome),
+        hasApps: getProjectApps(genome).length > 0,
+        appsCount: getProjectApps(genome).length
       });
       
-      console.log('🔴 DEBUG: About to import StructureInitializationLayer...');
       const { StructureInitializationLayer } = await import('../core/services/project/structure-initialization-layer.js');
       
       const structureLayer = new StructureInitializationLayer(this.pathHandler);
@@ -184,8 +193,6 @@ export class OrchestratorAgent {
         });
       }
       
-      console.log('🔴 DEBUG: Structure initialization complete, packages =', structureResult.packages.length);
-
       ExecutionTracer.logOperation(traceId, "Bootstrapping project foundations");
       const frameworkAdapterConfig = await this.projectBootstrapService.bootstrap(genome, structureResult);
 
@@ -271,7 +278,12 @@ export class OrchestratorAgent {
       await PathInitializationService.initializePaths(
         resolvedGenome,
         this.pathHandler,
-        frameworkAdapterConfig
+        frameworkAdapterConfig,
+        {
+          marketplaceAdapter: executionOptions.marketplaceAdapter,
+          marketplaceInfo: executionOptions.marketplaceInfo,
+          runtimeOverrides: executionOptions.pathOverrides,
+        }
       );
 
       // 6-10. Skip CLI planning/graph; execute modules sequentially in transformer order
@@ -416,7 +428,7 @@ export class OrchestratorAgent {
    * Single execution loop that relies on dependency graph for correct ordering
    */
   private async executeUnifiedPlan(
-    genome: Genome,
+    genome: ResolvedGenome,
     traceId: string,
     verbose: boolean,
     executionPlan: any,
@@ -549,7 +561,7 @@ export class OrchestratorAgent {
   /**
    * Resolve component dependencies (delegates to ComponentDependencyResolver)
    */
-  private async resolveComponentDependencies(genome: Genome): Promise<Map<string, string[]>> {
+  private async resolveComponentDependencies(genome: ResolvedGenome): Promise<Map<string, string[]>> {
     return this.componentDependencyResolver.resolveComponentDependencies(genome);
   }
 
@@ -559,7 +571,7 @@ export class OrchestratorAgent {
    */
   private async executeModule(
     module: Module,
-    genome: Genome,
+    genome: ResolvedGenome,
     traceId: string,
     enhancedLogger?: EnhancedLogger
   ): Promise<{ success: boolean; error?: string; executedModules?: any[] }> {
@@ -600,23 +612,21 @@ export class OrchestratorAgent {
       // Load normalized blueprint object via MarketplaceService (uses BlueprintLoader)
       const loadedBlueprint = await MarketplaceService.loadModuleBlueprint(module);
       
-      console.log(`🔴 DEBUG: Loaded blueprint for module ${module.id}:`, {
-        hasDefault: !!(loadedBlueprint as any).default,
-        hasActions: !!(loadedBlueprint as any).actions,
-        hasBlueprint: !!(loadedBlueprint as any).blueprint,
-        defaultType: typeof (loadedBlueprint as any).default,
-        actionsType: typeof (loadedBlueprint as any).actions,
-        blueprintType: typeof (loadedBlueprint as any).blueprint,
-        keys: Object.keys(loadedBlueprint as any)
+      Logger.debug('Loaded blueprint module metadata', {
+        operation: 'blueprint_loading',
+        moduleId: module.id,
+        hasDefault: !!loadedBlueprint.default,
+        hasActions: !!loadedBlueprint.actions,
+        hasBlueprint: !!loadedBlueprint.blueprint
       });
       
       Logger.info(`🧩 Preprocessing blueprint for module ${module.id}`, {
         traceId,
         operation: 'module_execution',
         blueprintFormat: {
-          hasDefault: !!(loadedBlueprint as any).default,
-          hasActions: !!(loadedBlueprint as any).actions,
-          hasBlueprint: !!(loadedBlueprint as any).blueprint
+          hasDefault: !!loadedBlueprint.default,
+          hasActions: !!loadedBlueprint.actions,
+          hasBlueprint: !!loadedBlueprint.blueprint
         }
       });
       
@@ -626,15 +636,7 @@ export class OrchestratorAgent {
       );
       
       if (!preprocessingResult.success) {
-        console.log(`🔴 DEBUG: Blueprint preprocessing failed for module ${module.id}:`, preprocessingResult.error);
-        console.log(`🔴 DEBUG: Blueprint module structure:`, JSON.stringify({
-          hasDefault: !!(loadedBlueprint as any).default,
-          defaultType: typeof (loadedBlueprint as any).default,
-          defaultKeys: (loadedBlueprint as any).default ? Object.keys((loadedBlueprint as any).default) : [],
-          hasActions: !!(loadedBlueprint as any).actions,
-          hasBlueprint: !!(loadedBlueprint as any).blueprint,
-          allKeys: Object.keys(loadedBlueprint as any)
-        }, null, 2));
+
         
         return {
           success: false,
@@ -644,7 +646,8 @@ export class OrchestratorAgent {
 
       // Create modules record for context factory
       const modulesRecord: Record<string, Module> = {};
-      const genomeModules = genome.modules || [];
+      // ResolvedGenome guarantees modules is always an array
+      const genomeModules = genome.modules;
       genomeModules.forEach(mod => {
         modulesRecord[mod.id] = mod;
       });
@@ -668,11 +671,11 @@ export class OrchestratorAgent {
       
       // Add targetPackage to context for action handlers (e.g., INSTALL_PACKAGES)
       // This allows handlers to know which package they should target, even if executing in a different package
-      (projectContext as any).targetPackage = targetPackage;
+      projectContext.targetPackage = targetPackage || undefined;
       
       // Add frontendApps to context for auto-wrapper generation
       // Extract frontend apps (web, mobile) from genome
-      const apps = (genome.project as any).apps || [];
+      const apps = getProjectApps(genome);
       const frontendApps = apps
         .filter((a: any) => a.type === 'web' || a.type === 'mobile')
         .map((app: any) => ({
@@ -696,31 +699,30 @@ export class OrchestratorAgent {
       // Add params as a direct alias for module.parameters (used by many templates)
       // CRITICAL: Must be added AFTER templateContext merge to ensure it's available
       // Always add params (even if empty) so templates can safely use params.xxx
-      (projectContext as any).params = moduleParams;
+      projectContext.params = moduleParams;
       
-      // Debug: Log params addition
-      console.log(`🔴 DEBUG: Added params to context for module ${module.id}:`, {
-        hasParams: Object.keys(moduleParams).length > 0,
-        paramKeys: Object.keys(moduleParams),
-        params: moduleParams
+      Logger.debug('Applied module parameters to context', {
+        operation: 'context_enrichment',
+        moduleId: module.id,
+        paramKeys: Object.keys(moduleParams)
       });
       
       // Add platforms if available (used by UI adapters like Tamagui)
       // Default to web: true, mobile: false if not specified
-      if (moduleParams.platforms) {
-        (projectContext as any).platforms = moduleParams.platforms;
+      if (this.isValidPlatforms(moduleParams.platforms)) {
+        projectContext.platforms = moduleParams.platforms;
       } else {
         // Provide sensible defaults based on framework
         const framework = projectContext.framework || 'nextjs';
-        (projectContext as any).platforms = {
+        projectContext.platforms = {
           web: framework === 'nextjs' || framework === 'react',
           mobile: framework === 'expo' || framework === 'react-native'
         };
       }
       
       // Add theme if available (used by UI adapters)
-      if (moduleParams.theme) {
-        (projectContext as any).theme = moduleParams.theme;
+      if (typeof moduleParams.theme === 'string') {
+        projectContext.theme = moduleParams.theme;
       }
 
       // NEW: Handle Constitutional Architecture configuration merging
@@ -740,7 +742,6 @@ export class OrchestratorAgent {
       // CRITICAL: Always use project root, pass context root separately
       const projectRoot = this.pathHandler.getProjectRoot();
       const contextRoot = targetPackage || '';  // Package path relative to project root, empty for single repo
-      console.log(`🔴 DEBUG: Creating VFS with projectRoot: ${projectRoot}, contextRoot: ${contextRoot} (targetPackage: ${targetPackage})`);
       blueprintVFS = new (await import('../core/services/file-system/file-engine/virtual-file-system.js')).VirtualFileSystem(
         `blueprint-${moduleResult.adapter.blueprint.id}`,
         projectRoot,   // Always project root
@@ -757,7 +758,11 @@ export class OrchestratorAgent {
       // 2. EXECUTE preprocessed actions with BlueprintExecutor
       // CRITICAL: Use targetPackagePath if available (monorepo), otherwise use project root
       const executorRoot = targetPackagePath || this.pathHandler.getProjectRoot();
-      console.log(`🔴 DEBUG: Creating BlueprintExecutor with root: ${executorRoot} (targetPackage: ${targetPackage})`);
+      Logger.debug('Creating blueprint executor', {
+        operation: 'blueprint_execution',
+        executorRoot,
+        targetPackage
+      });
       const blueprintExecutor = new BlueprintExecutor(executorRoot);
       const result = await blueprintExecutor.executeActions(
         preprocessingResult.actions,
@@ -897,17 +902,14 @@ export class OrchestratorAgent {
 
     if (!isCapabilityDriven) {
       // Traditional genome validation
-    if (!genome.modules || !Array.isArray(genome.modules)) {
-      errors.push("Genome must have a modules array");
-    } else if (genome.modules.length === 0) {
-      errors.push("Genome must have at least one module");
-    }
+      // ResolvedGenome guarantees modules is always an array
+      if (genome.modules.length === 0) {
+        errors.push("Genome must have at least one module");
+      }
     } else {
       // Capability-driven genome validation
-      if (!genome.modules || !Array.isArray(genome.modules)) {
-        // Initialize empty modules array for capability-driven genomes
-        genome.modules = [];
-      }
+      // ResolvedGenome guarantees modules is always an array
+      // No need to check or initialize
       
       // Validate capabilities
       if (!genome.capabilities || Object.keys(genome.capabilities).length === 0) {
@@ -966,8 +968,21 @@ export class OrchestratorAgent {
   /**
    * Merge module configuration with user overrides (delegates to ModuleConfigurationService)
    */
-  private mergeModuleConfiguration(module: Module, adapter: any, genome: Genome): MergedConfiguration {
+  private mergeModuleConfiguration(module: Module, adapter: any, genome: ResolvedGenome): MergedConfiguration {
     return this.moduleConfigService.mergeModuleConfiguration(module, adapter, genome);
   }
 
+  /**
+   * Type guard for platforms object
+   */
+  private isValidPlatforms(value: unknown): value is { web: boolean; mobile: boolean } {
+    return (
+      typeof value === 'object' &&
+      value !== null &&
+      'web' in value &&
+      'mobile' in value &&
+      typeof (value as { web: unknown; mobile: unknown }).web === 'boolean' &&
+      typeof (value as { web: unknown; mobile: unknown }).mobile === 'boolean'
+    );
+  }
 }

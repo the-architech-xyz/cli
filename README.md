@@ -8,7 +8,7 @@ The Architech CLI is a powerful, framework-agnostic code generation tool that wo
 
 ```bash
 # Install globally
-npm install -g @the-architech/cli
+npm install -g @the-architech-xyz/cli
 
 # Create your first project
 architech new my-app.genome.ts
@@ -42,14 +42,14 @@ architech new my-saas --genome saas-platform
 
 ```bash
 # From source (development)
-git clone https://github.com/the-architech/cli.git
+git clone https://github.com/the-architech-xyz/cli.git
 cd cli
 npm install
 npm run build
 npm link
 
 # From npm (coming soon)
-npm install -g @the-architech/cli
+npm install -g @the-architech-xyz/cli
 ```
 
 ## 🤝 Contributing

@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { getProjectStructure, getProjectApps, getProjectFramework } from '../../utils/genome-helpers.js';
 import { Logger } from '../infrastructure/logging/logger.js';
 import { VirtualFileSystem } from '../file-system/file-engine/virtual-file-system.js';
 import { BlueprintExecutor } from '../execution/blueprint/blueprint-executor.js';
@@ -15,13 +16,8 @@ export class ProjectBootstrapService {
         this.moduleConfigService = moduleConfigService;
     }
     async bootstrap(genome, structureResult) {
+        // ResolvedGenome guarantees metadata.moduleIndex exists
         const moduleIndex = this.getModuleIndex(genome);
-        if (!moduleIndex) {
-            Logger.debug('No module index metadata present; skipping project bootstrap.', {
-                operation: 'project_bootstrap'
-            });
-            return undefined;
-        }
         const plans = this.buildFrameworkPlans(genome, moduleIndex, structureResult);
         if (plans.length === 0) {
             Logger.debug('No framework modules detected for bootstrap.', {
@@ -42,15 +38,17 @@ export class ProjectBootstrapService {
         return preferredAdapter;
     }
     getModuleIndex(genome) {
-        return genome?.metadata?.moduleIndex || null;
+        // ResolvedGenome guarantees metadata.moduleIndex exists
+        return genome.metadata.moduleIndex;
     }
     getFrameworkMetadata(genome) {
-        const bootstrapMeta = (genome?.metadata?.bootstrap || {});
-        return bootstrapMeta.frameworks || [];
+        // ResolvedGenome guarantees metadata exists
+        const bootstrapMeta = genome.metadata.bootstrap;
+        return bootstrapMeta?.frameworks || [];
     }
     buildFrameworkPlans(genome, moduleIndex, structureResult) {
         const plans = [];
-        const structure = genome.project?.structure || 'single-app';
+        const structure = getProjectStructure(genome);
         const frameworkMetadata = this.getFrameworkMetadata(genome);
         const packagesByName = new Map();
         if (structureResult?.packages) {
@@ -59,7 +57,7 @@ export class ProjectBootstrapService {
             }
         }
         if (structure === 'monorepo') {
-            const apps = genome.project?.apps || [];
+            const apps = getProjectApps(genome);
             for (const app of apps) {
                 if (!app?.framework)
                     continue;
@@ -77,9 +75,9 @@ export class ProjectBootstrapService {
                     ...(app.parameters || {})
                 };
                 module.parameters = parameters;
-                const packageName = app.package || app.id || frameworkId.replace('framework/', '');
+                const packageName = this.getAppPackageName(app);
                 const packageStructure = packagesByName.get(packageName);
-                const targetRelPath = packageStructure?.path || `apps/${packageName}`;
+                const targetRelPath = packageStructure?.path || this.getAppPackagePath(app, packageName);
                 const targetPath = path.join(this.pathHandler.getProjectRoot(), targetRelPath);
                 plans.push({
                     frameworkId,
@@ -93,13 +91,19 @@ export class ProjectBootstrapService {
             }
         }
         else {
-            const framework = genome.project?.framework;
+            // For single-app, check both project.framework and apps[0].framework
+            // This handles genomes that specify framework via the apps array pattern
+            const framework = getProjectFramework(genome);
             if (!framework) {
-                Logger.warn('No project.framework specified; skipping framework bootstrap.', {
+                Logger.warn('No project.framework or apps[0].framework specified; skipping framework bootstrap.', {
                     operation: 'project_bootstrap'
                 });
                 return plans;
             }
+            // For single-app with apps[0].framework, also get parameters from the app config
+            const apps = getProjectApps(genome);
+            const appConfig = apps.length > 0 ? apps[0] : undefined;
+            const appParameters = appConfig?.parameters || {};
             const frameworkId = `framework/${framework}`;
             const module = this.buildModuleDefinition(frameworkId, moduleIndex, frameworkMetadata);
             if (!module) {
@@ -111,7 +115,10 @@ export class ProjectBootstrapService {
             const parameters = {
                 ...(module.parameters || {}),
                 ...(this.getFrameworkParameters(frameworkMetadata, frameworkId) || {}),
-                ...((genome.project?.parameters) || {})
+                // Note: genome.project.parameters doesn't exist in ProjectConfig type
+                // If needed, it should be added to the type definition
+                ...{},
+                ...appParameters // Merge app-specific parameters (e.g., from apps[0].parameters)
             };
             module.parameters = parameters;
             plans.push({
@@ -192,6 +199,36 @@ export class ProjectBootstrapService {
         }
         await this.moduleService.initialize();
         this.moduleServiceInitialized = true;
+    }
+    getAppPackageName(app) {
+        if (app?.package && typeof app.package === 'string') {
+            const parts = app.package.split('/').filter(Boolean);
+            if (parts.length > 0) {
+                return parts[parts.length - 1];
+            }
+        }
+        if (app?.id) {
+            return app.id;
+        }
+        if (app?.type) {
+            return app.type;
+        }
+        return 'app';
+    }
+    getAppPackagePath(app, packageName) {
+        if (app?.package && typeof app.package === 'string') {
+            return app.package;
+        }
+        switch (app?.type) {
+            case 'web':
+                return `apps/${packageName}`;
+            case 'api':
+                return `apps/${packageName}`;
+            case 'mobile':
+                return `apps/${packageName}`;
+            default:
+                return `apps/${packageName}`;
+        }
     }
 }
 //# sourceMappingURL=project-bootstrap-service.js.map

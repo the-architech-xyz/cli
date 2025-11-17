@@ -4,6 +4,7 @@
  * Generates a manifest.json file that describes the generated application,
  * including all installed modules, features, and configuration.
  */
+import { getProjectFramework } from '../../utils/genome-helpers.js';
 import { Logger } from '../infrastructure/logging/index.js';
 import * as fs from 'fs/promises';
 import * as path from 'path';
@@ -54,7 +55,7 @@ export class AppManifestGenerator {
             project: {
                 name: genome.project.name,
                 description: genome.project.description,
-                framework: (genome.project.apps && genome.project.apps[0]?.framework) || genome.project.framework || 'unknown'
+                framework: getProjectFramework(genome) || 'unknown'
             },
             modules,
             features

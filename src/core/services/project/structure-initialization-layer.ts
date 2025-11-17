@@ -10,9 +10,10 @@
  * - Genome is updated with created packages
  */
 
-import { Genome } from '@thearchitech.xyz/types';
+import { Genome, ResolvedGenome } from '@thearchitech.xyz/types';
 import { PathService } from '../path/path-service.js';
 import { Logger } from '../infrastructure/logging/logger.js';
+import { getProjectStructure, getProjectMonorepo, getProjectApps } from '../../utils/genome-helpers.js';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 
@@ -39,11 +40,11 @@ export class StructureInitializationLayer {
   /**
    * Initialize project structure based on genome
    */
-  async initialize(genome: Genome): Promise<StructureInitializationResult> {
+  async initialize(genome: ResolvedGenome): Promise<StructureInitializationResult> {
     // Debug: Log genome structure
-    const projectStructure = (genome.project as any).structure;
-    const hasMonorepo = (genome.project as any).monorepo;
-    const hasApps = (genome.project as any).apps;
+    const projectStructure = getProjectStructure(genome);
+    const hasMonorepo = !!getProjectMonorepo(genome);
+    const hasApps = getProjectApps(genome).length > 0;
     
     Logger.info(`🔍 Structure detection: structure=${projectStructure}, hasMonorepo=${!!hasMonorepo}, hasApps=${!!hasApps}`, {
       operation: 'structure_initialization',
@@ -102,16 +103,17 @@ export class StructureInitializationLayer {
   /**
    * Initialize monorepo structure based on capabilities and apps
    */
-  private async initializeMonorepo(genome: Genome): Promise<StructureInitializationResult> {
+  private async initializeMonorepo(genome: ResolvedGenome): Promise<StructureInitializationResult> {
     Logger.info('📁 Initializing monorepo structure based on capabilities and apps', {
       operation: 'structure_initialization'
     });
     
     const projectRoot = this.pathHandler.getProjectRoot();
-    const monorepoConfig = (genome.project as any).monorepo;
-    const apps = (genome.project as any).apps || [];
+    const monorepoConfig = getProjectMonorepo(genome);
+    const apps = getProjectApps(genome);
     const capabilities = (genome as any).capabilities || {};
-    const modules = genome.modules || [];
+    // ResolvedGenome guarantees modules is always an array
+    const modules = genome.modules;
     
     Logger.info(`🔍 Monorepo initialization details:`, {
       operation: 'structure_initialization',
@@ -142,9 +144,17 @@ export class StructureInitializationLayer {
     });
     
     // Merge with explicit packages from config (explicit takes precedence)
+    // Filter out undefined values from packages to match Record<string, string> type
+    const explicitPackages = monorepoConfig?.packages || {};
+    const filteredPackages: Record<string, string> = {};
+    for (const [key, value] of Object.entries(explicitPackages)) {
+      if (value !== undefined) {
+        filteredPackages[key] = value;
+      }
+    }
     const finalPackages = this.mergePackages(
       requiredPackages,
-      monorepoConfig?.packages || {}
+      filteredPackages
     );
     
     Logger.info(`📦 Determined ${Object.keys(finalPackages).length} packages to create`, {
@@ -219,7 +229,7 @@ export class StructureInitializationLayer {
    * Resolve which packages will actually be used by modules
    * Uses MonorepoPackageResolver to predict module placement
    */
-  private async resolveUsedPackages(genome: Genome, modules: any[]): Promise<Set<string>> {
+  private async resolveUsedPackages(genome: ResolvedGenome, modules: any[]): Promise<Set<string>> {
     const usedPackages = new Set<string>();
     
     // Import resolver dynamically to avoid circular dependencies (ESM import)
@@ -512,7 +522,8 @@ export class StructureInitializationLayer {
     );
     
     // Create index.ts placeholder
-    await this.createPackageIndex(packageName, fullPath, (genome as any).capabilities || {}, genome.modules || []);
+    // ResolvedGenome guarantees modules is always an array
+    await this.createPackageIndex(packageName, fullPath, (genome as any).capabilities || {}, genome.modules);
   }
 
   /**

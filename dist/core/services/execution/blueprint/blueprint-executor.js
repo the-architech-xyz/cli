@@ -15,6 +15,7 @@ import { YamlMergerModifier } from '../../file-system/modifiers/yaml-merger.js';
 import { ActionHandlerRegistry } from './action-handlers/index.js';
 import { ArchitechError } from '../../infrastructure/error/architech-error.js';
 import { TemplateService } from '../../file-system/template/template-service.js';
+import { PathKeyRegistry } from '../../path/path-key-registry.js';
 export class BlueprintExecutor {
     modifierRegistry;
     actionHandlerRegistry;
@@ -112,6 +113,28 @@ export class BlueprintExecutor {
             }
         }
         return expandedAction;
+    }
+    async enforcePathKeyContractOnAction(action, context) {
+        if (!action || typeof action.path !== 'string') {
+            return;
+        }
+        const templatePath = action.path;
+        if (typeof templatePath !== 'string' || !templatePath.includes('${paths.')) {
+            return;
+        }
+        const marketplaceName = context.module?.marketplace?.name || 'core';
+        const project = context.project || {};
+        const projectStructure = project.structure === 'monorepo'
+            ? 'monorepo'
+            : project.structure === 'single-app'
+                ? 'single-app'
+                : undefined;
+        const validation = await PathKeyRegistry.validatePathKeyUsage(templatePath, marketplaceName, projectStructure);
+        if (!validation.valid) {
+            const detail = validation.errors?.map((error) => `${error.key}: ${error.message}`).join('; ')
+                || 'Unknown path key error';
+            throw new Error(`Invalid path key in action path "${templatePath}": ${detail}`);
+        }
     }
     /**
      * Analyze actions and blueprint to determine which files need to be loaded into VFS
@@ -397,6 +420,7 @@ export class BlueprintExecutor {
                     continue;
                 }
                 const actionPath = 'path' in action ? action.path : 'N/A';
+                await this.enforcePathKeyContractOnAction(action, context);
                 // CRITICAL: Use VFS projectRoot (which is set to targetPackagePath for monorepo)
                 // This ensures commands and file operations run in the correct package directory
                 const vfsProjectRoot = vfs.projectRoot || context.project.path || '.';
@@ -479,7 +503,8 @@ export class BlueprintExecutor {
                     console.log(`  ⏭️  Skipping action (condition false): ${actionPath}`);
                     continue;
                 }
-                const actionPath = 'path' in action ? action.path : 'N/A';
+                const actionPath = 'path' in action ? action.path : action.type;
+                await this.enforcePathKeyContractOnAction(action, context);
                 // CRITICAL: Use VFS projectRoot (which is set to appTargetDir for framework setup)
                 // This ensures commands run in the correct package directory (apps/web, apps/api, etc.)
                 // The VFS is initialized with the correct directory in module-service.ts
