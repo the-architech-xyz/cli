@@ -19,29 +19,26 @@ export interface VFSFile {
 export class VirtualFileSystem {
   private files: Map<string, string> = new Map();
   private projectRoot: string;      // Always absolute project root
-  private contextRoot: string;       // Context relative to project root (e.g., "packages/shared")
   private blueprintId: string;
 
   constructor(
     blueprintId: string,
-    projectRoot: string,
-    contextRoot: string = ''  // Default to empty (single repo)
+    projectRoot: string
   ) {
     this.blueprintId = blueprintId;
     this.projectRoot = path.resolve(projectRoot);  // Always absolute
-    this.contextRoot = contextRoot;  // Relative to project root
   }
 
   /**
    * Initialize VFS with required files from disk
    * filePaths should already be resolved (no ${paths.key} variables)
-   * They will be normalized to be relative to contextRoot
+   * All paths are absolute from project root
    */
   async initializeWithFiles(filePaths: string[]): Promise<void> {
     for (const filePath of filePaths) {
       try {
         const normalizedPath = this.normalizePath(filePath);
-        // Build full path using same logic as flushToDisk to handle absolute paths
+        // Build full path - all paths are absolute from project root
         let fullPath: string;
         if (normalizedPath.startsWith('packages/') || normalizedPath.startsWith('apps/')) {
           // Absolute path from project root (package-prefixed)
@@ -50,10 +47,8 @@ export class VirtualFileSystem {
           // System absolute path
           fullPath = normalizedPath;
         } else {
-          // Relative path (relative to contextRoot)
-          fullPath = this.contextRoot
-            ? path.join(this.projectRoot, this.contextRoot, normalizedPath)
-            : path.join(this.projectRoot, normalizedPath);
+          // Relative path - treat as relative to project root
+          fullPath = path.join(this.projectRoot, normalizedPath);
         }
         
         
@@ -90,7 +85,7 @@ export class VirtualFileSystem {
     const normalizedPath = this.normalizePath(filePath);
     
     if (!this.files.has(normalizedPath)) {
-      // Lazy load from disk - use same logic as flushToDisk to handle absolute paths
+      // Lazy load from disk - all paths are absolute from project root
       let fullPath: string;
       if (normalizedPath.startsWith('packages/') || normalizedPath.startsWith('apps/')) {
         // Absolute path from project root (package-prefixed)
@@ -99,10 +94,8 @@ export class VirtualFileSystem {
         // System absolute path
         fullPath = normalizedPath;
       } else {
-        // Relative path (relative to contextRoot)
-        fullPath = this.contextRoot
-          ? path.join(this.projectRoot, this.contextRoot, normalizedPath)
-          : path.join(this.projectRoot, normalizedPath);
+        // Relative path - treat as relative to project root
+        fullPath = path.join(this.projectRoot, normalizedPath);
       }
       
       try {
@@ -163,7 +156,7 @@ export class VirtualFileSystem {
       return true;
     }
     
-    // If not in VFS, check disk - use same logic as flushToDisk to handle absolute paths
+    // If not in VFS, check disk - all paths are absolute from project root
     let fullPath: string;
     if (normalizedPath.startsWith('packages/') || normalizedPath.startsWith('apps/')) {
       // Absolute path from project root (package-prefixed)
@@ -172,10 +165,8 @@ export class VirtualFileSystem {
       // System absolute path
       fullPath = normalizedPath;
     } else {
-      // Relative path (relative to contextRoot)
-      fullPath = this.contextRoot
-        ? path.join(this.projectRoot, this.contextRoot, normalizedPath)
-        : path.join(this.projectRoot, normalizedPath);
+      // Relative path - treat as relative to project root
+      fullPath = path.join(this.projectRoot, normalizedPath);
     }
     
     const existsOnDisk = existsSync(fullPath);
@@ -227,9 +218,9 @@ export class VirtualFileSystem {
 
   /**
    * Flush all files to disk
-   * Handles both absolute (package-prefixed) and relative paths:
+   * All paths are absolute from project root:
    * - Absolute paths (packages/... or apps/...): projectRoot + filePath
-   * - Relative paths: projectRoot + contextRoot + filePath
+   * - Relative paths: projectRoot + filePath
    */
   async flushToDisk(): Promise<void> {
     
@@ -246,10 +237,8 @@ export class VirtualFileSystem {
           // System absolute path (starts with /)
           fullPath = filePath;
         } else {
-          // Relative path (relative to contextRoot)
-          fullPath = this.contextRoot
-            ? path.join(this.projectRoot, this.contextRoot, filePath)
-            : path.join(this.projectRoot, filePath);
+          // Relative path - treat as relative to project root
+          fullPath = path.join(this.projectRoot, filePath);
         }
         
         await fs.mkdir(path.dirname(fullPath), { recursive: true });
@@ -269,38 +258,25 @@ export class VirtualFileSystem {
   }
 
   /**
-   * Normalize file path to be relative to context root
+   * Normalize file path - all paths are absolute from project root
    * Handles:
-   * - Absolute paths (package-prefixed): Keep absolute if different from contextRoot, make relative if matches
-   * - Absolute paths (system): resolve relative to context root
+   * - Absolute paths (package-prefixed): Keep as-is (packages/... or apps/...)
+   * - Absolute paths (system): resolve relative to project root
    * - Paths with project root prefix: remove it
-   * - Paths with context root prefix: remove it
-   * 
-   * CRITICAL: Supports both absolute (package-prefixed) and relative paths
-   * - Absolute paths like "packages/shared/src/lib/..." are kept absolute if contextRoot differs
-   * - Absolute paths matching contextRoot are normalized to relative
    */
   private normalizePath(filePath: string): string {
     // First normalize the path
     let normalized = filePath.replace(/\\/g, '/').replace(/\/+/g, '/');
     
     // Check if it's a package-prefixed absolute path (starts with packages/ or apps/)
-    // These are absolute paths from project root in monorepo
+    // These are absolute paths from project root in monorepo - keep as-is
     if (normalized.startsWith('packages/') || normalized.startsWith('apps/')) {
-      // If it matches our contextRoot, make it relative
-      if (this.contextRoot && normalized.startsWith(this.contextRoot + '/')) {
-        normalized = normalized.substring(this.contextRoot.length + 1);
-      }
-      // Otherwise, keep it absolute (will be handled by flushToDisk)
       return normalized;
     }
     
     // Handle system absolute paths (starts with /)
     if (path.isAbsolute(normalized)) {
-      const contextFullPath = this.contextRoot
-        ? path.join(this.projectRoot, this.contextRoot)
-        : this.projectRoot;
-      normalized = path.relative(contextFullPath, normalized);
+      normalized = path.relative(this.projectRoot, normalized);
       normalized = normalized.replace(/\\/g, '/');
     }
     
@@ -311,13 +287,6 @@ export class VirtualFileSystem {
       if (normalized.startsWith('/')) {
         normalized = normalized.substring(1);
       }
-    }
-    
-    // If path starts with context root prefix, remove it
-    // Example: contextRoot = "packages/shared", normalized = "packages/shared/src/auth"
-    // Result: "src/auth"
-    if (this.contextRoot && normalized.startsWith(this.contextRoot + '/')) {
-      normalized = normalized.substring(this.contextRoot.length + 1);
     }
     
     return normalized;

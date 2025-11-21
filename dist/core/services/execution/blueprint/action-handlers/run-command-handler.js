@@ -5,9 +5,9 @@
  * This is a "Specialized Worker" in the Executor-Centric architecture.
  */
 import { BaseActionHandler } from './base-action-handler.js';
-import { ArchitechError } from '../../../infrastructure/error/architech-error.js';
 import { CommandRunner } from '../../../../cli/command-runner.js';
 import { TemplateService } from '../../../file-system/template/template-service.js';
+import { Logger } from '../../../infrastructure/logging/index.js';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 export class RunCommandHandler extends BaseActionHandler {
@@ -72,10 +72,16 @@ export class RunCommandHandler extends BaseActionHandler {
             }
         }
         catch (error) {
-            const architechError = ArchitechError.internalError(`Command execution error: ${error instanceof Error ? error.message : 'Unknown error'}`, { operation: 'run_command', command: runAction.command });
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const errorStack = error instanceof Error ? error.stack : String(error);
+            Logger.error(`Command execution error: ${errorMessage}`, {
+                operation: 'run_command',
+                command: runAction.command,
+                errorStack,
+            }, error instanceof Error ? error : undefined);
             return {
                 success: false,
-                error: architechError.getUserMessage()
+                error: errorMessage
             };
         }
     }

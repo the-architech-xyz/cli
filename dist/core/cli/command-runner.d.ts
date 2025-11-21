@@ -52,6 +52,19 @@ export declare class CommandRunner {
      * Useful for CLI tools that ask for user input
      */
     execNonInteractive(toolName: string, args?: string[], input?: string[], cwd?: string): Promise<CommandResult>;
+    /**
+     * Initialize a project using framework-specific initialization command
+     *
+     * V2 COMPLIANCE: Framework adapter should provide initialization command
+     *
+     * @deprecated This method hardcodes Next.js. Framework initialization should be handled
+     * by framework adapters via blueprint actions, not CLI commands.
+     *
+     * @param projectPath - Path where project should be created
+     * @param framework - Framework name (e.g., 'nextjs', 'expo', 'hono')
+     * @param options - Additional options
+     * @returns Command execution result
+     */
     initProject(projectPath: string, framework?: string, options?: Record<string, unknown>): Promise<CommandResult>;
 }
 export default CommandRunner;

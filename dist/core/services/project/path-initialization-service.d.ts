@@ -1,8 +1,16 @@
 /**
  * Path Initialization Service
  *
- * Centralized service for initializing all project paths before module execution.
- * This ensures paths are available during blueprint preprocessing and execution.
+ * @deprecated This service is deprecated in favor of PathMappingGenerator.
+ * Path generation is now handled by PathMappingGenerator.generateMappings() in OrchestratorAgent.
+ *
+ * This service is kept for backward compatibility and still handles:
+ * - Framework path merging
+ * - Marketplace path key loading
+ * - User override validation
+ * - Marketplace UI detection
+ *
+ * However, path defaults resolution is now redundant since PathMappingGenerator handles it.
  *
  * DOCTRINE: The CLI does NOT compute paths. All paths come from the marketplace adapter.
  *
@@ -26,6 +34,16 @@ export declare class PathInitializationService {
     /**
      * Initialize all paths for the project
      * This should be called ONCE before any module execution
+     *
+     * @deprecated Path generation is now handled by PathMappingGenerator.generateMappings().
+     * This method is kept for backward compatibility and still handles:
+     * - Framework path merging
+     * - Marketplace path key loading
+     * - User override validation
+     * - Marketplace UI detection
+     *
+     * However, the path defaults resolution part is redundant since PathMappingGenerator
+     * already generates mappings from adapter.resolvePathDefaults().
      */
     static initializePaths(genome: ResolvedGenome, pathHandler: PathService, frameworkAdapter?: AdapterConfig, options?: PathInitializationOptions): Promise<void>;
     private static applyPaths;

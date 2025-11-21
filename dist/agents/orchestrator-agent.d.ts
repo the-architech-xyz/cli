@@ -38,16 +38,43 @@ export declare class OrchestratorAgent {
     /**
      * Execute a single module with its own transactional VFS
      * Each blueprint gets: Create VFS → Execute → Flush to Disk
+     *
+     * NEW: Supports dual execution contexts:
+     * - Package execution (adapters, tech-stack)
+     * - App execution (connectors, features frontend/backend)
+     * - Root execution (single-app mode)
      */
     private executeModule;
+    /**
+     * Execute module in package context (adapters, tech-stack)
+     */
+    private executeInPackage;
+    /**
+     * Execute module in app context (connectors, features frontend/backend)
+     */
+    private executeInApp;
+    /**
+     * Execute module in root context (single-app mode or fallback)
+     */
+    private executeInRoot;
     /**
      * Ensure workspaces are configured in root package.json for monorepos
      */
     private ensureWorkspacesConfigured;
     /**
      * Install dependencies (monorepo-aware)
+     * V2 COMPLIANCE: Detects package manager from genome or lock files
      */
     private installDependencies;
+    /**
+     * Detect package manager from genome, lock files, or pnpm-workspace.yaml
+     * V2 COMPLIANCE: Checks genome monorepo config first, then lock files
+     */
+    private detectPackageManager;
+    /**
+     * Get install command for package manager
+     */
+    private getInstallCommand;
     /**
      * Validate recipe structure
      */
@@ -70,6 +97,10 @@ export declare class OrchestratorAgent {
      * NEW: Check if module supports Constitutional Architecture
      */
     private isConstitutionalModule;
+    /**
+     * Load recipe books from genome marketplaces
+     */
+    private loadRecipeBooksFromGenome;
     /**
      * Merge module configuration with user overrides (delegates to ModuleConfigurationService)
      */

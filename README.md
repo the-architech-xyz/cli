@@ -10,15 +10,27 @@ The Architech CLI is a powerful, framework-agnostic code generation tool that wo
 # Install globally
 npm install -g @the-architech-xyz/cli
 
-# Create your first project
+# Create your first project (V2 format)
 architech new my-app.genome.ts
 
 # Or use a pre-built genome
 architech new my-saas --genome saas-platform
 ```
 
+## ✨ What's New in V2
+
+- **Federated Composition Engine** - CLI resolves dependencies globally
+- **Lock Files** - Reproducible builds with `genome.lock`
+- **Multi-App Support** - Explicit app dependencies
+- **Recipe Books** - Declarative package-to-module mapping
+- **Full Transparency** - See exactly what modules are resolved
+
+**Migrating from V1?** See the [V2 Migration Guide](../docs/V2_MIGRATION_GUIDE.md)
+
 ## 📚 Documentation
 
+- **[V2 Migration Guide](../docs/V2_MIGRATION_GUIDE.md)** - Migrate from V1 to V2
+- **[V2 Architecture](../docs/V2_ARCHITECTURE.md)** - Architecture overview
 - **[Complete Guide](https://docs.thearchitech.dev)** - Full documentation
 - **[CLI Reference](https://docs.thearchitech.dev/cli)** - Command reference  
 - **[Genome Format](https://docs.thearchitech.dev/genome-format)** - TypeScript genomes

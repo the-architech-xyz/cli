@@ -4,8 +4,11 @@
  * Main orchestrator that coordinates all agents
  * Reads YAML recipe and delegates to appropriate agents
  */
+import { PathService } from "../core/services/path/path-service.js";
+import { PathMappingGenerator } from "../core/services/path/path-mapping-generator.js";
 import { BlueprintExecutor } from "../core/services/execution/blueprint/blueprint-executor.js";
 import { getProjectStructure, getProjectMonorepo, getProjectApps } from "../core/utils/genome-helpers.js";
+import * as fs from 'fs/promises';
 import * as path from 'path';
 import { FrameworkContextService } from "../core/services/project/framework-context-service.js";
 import { ModuleService } from "../core/services/module-management/module-service.js";
@@ -17,6 +20,7 @@ import { BlueprintPreprocessor } from "../core/services/execution/blueprint/blue
 import { AppManifestGenerator } from "../core/services/project/app-manifest-generator.js";
 import { ModuleConfigurationService } from "../core/services/orchestration/module-configuration-service.js";
 import { MonorepoPackageResolver } from "../core/services/project/monorepo-package-resolver.js";
+import { validateFrameworkCompatibility } from "../core/utils/framework-compatibility.js";
 import { ProjectBootstrapService } from "../core/services/project/project-bootstrap-service.js";
 export class OrchestratorAgent {
     projectManager;
@@ -80,9 +84,37 @@ export class OrchestratorAgent {
                 hasApps: getProjectApps(genome).length > 0,
                 appsCount: getProjectApps(genome).length
             });
+            // Load recipe books early for structure initialization
+            const recipeBooks = await this.loadRecipeBooksFromGenome(genome, executionOptions);
+            console.log(`[OrchestratorAgent] 🔨 Starting structure initialization...`);
+            console.log(`[OrchestratorAgent] Recipe books: ${recipeBooks?.size || 0}`);
             const { StructureInitializationLayer } = await import('../core/services/project/structure-initialization-layer.js');
-            const structureLayer = new StructureInitializationLayer(this.pathHandler);
-            const structureResult = await structureLayer.initialize(genome);
+            Logger.info(`🔨 Starting structure initialization...`, {
+                traceId,
+                operation: 'structure_initialization',
+                hasRecipeBooks: !!recipeBooks,
+                recipeBookCount: recipeBooks?.size || 0
+            });
+            const structureLayer = new StructureInitializationLayer(this.pathHandler, recipeBooks);
+            console.log(`[OrchestratorAgent] 🔨 Calling structureLayer.initialize()...`);
+            Logger.info(`🔨 Calling structureLayer.initialize()...`, {
+                traceId,
+                operation: 'structure_initialization'
+            });
+            // Extract dependency map from metadata if available
+            const dependencyMap = genome.metadata?.dependencies
+                ? new Map(Object.entries(genome.metadata.dependencies))
+                : undefined;
+            const structureResult = await structureLayer.initialize(genome, dependencyMap);
+            console.log(`[OrchestratorAgent] 🔨 Structure initialization completed: success=${structureResult.success}, packages=${structureResult.packages.length}`);
+            console.log(`[OrchestratorAgent] Packages:`, structureResult.packages.map(p => `${p.name} → ${p.path}`));
+            Logger.info(`🔨 Structure initialization completed: success=${structureResult.success}, packages=${structureResult.packages.length}`, {
+                traceId,
+                operation: 'structure_initialization',
+                success: structureResult.success,
+                packageCount: structureResult.packages.length,
+                error: structureResult.error
+            });
             if (!structureResult.success) {
                 throw new Error(`Structure initialization failed: ${structureResult.error}`);
             }
@@ -99,6 +131,12 @@ export class OrchestratorAgent {
                     packages: structureResult.packages.map(p => `${p.name} → ${p.path}`)
                 });
             }
+            else {
+                Logger.warn(`⚠️ No packages were created during structure initialization!`, {
+                    traceId,
+                    operation: 'structure_initialization'
+                });
+            }
             ExecutionTracer.logOperation(traceId, "Bootstrapping project foundations");
             const frameworkAdapterConfig = await this.projectBootstrapService.bootstrap(genome, structureResult);
             // Genome transformation is done in the command layer (new.ts)
@@ -111,8 +149,27 @@ export class OrchestratorAgent {
                 enhancedLogger.completePhase();
                 enhancedLogger.startPhase("planning");
             }
+            // NEW: Pre-compute path mappings (BEFORE path initialization)
+            // This generates all path mappings once, including semantic key expansion
+            ExecutionTracer.logOperation(traceId, "Generating path mappings");
+            const marketplaceAdapters = new Map();
+            // Collect all marketplace adapters
+            if (executionOptions.marketplaceAdapter) {
+                const marketplaceName = executionOptions.marketplaceInfo?.name || 'core';
+                marketplaceAdapters.set(marketplaceName, executionOptions.marketplaceAdapter);
+            }
+            // Generate path mappings (pass recipe books to override with packageStructure.directory)
+            const pathMappings = await PathMappingGenerator.generateMappings(resolvedGenome, marketplaceAdapters, recipeBooks);
+            // Store in PathService (global state for blueprint execution)
+            PathService.setMappings(pathMappings);
+            Logger.info(`✅ Pre-computed ${Object.keys(pathMappings).length} path mappings`, {
+                traceId,
+                operation: "path_mapping_generation",
+                mappingCount: Object.keys(pathMappings).length
+            });
             // Initialize all paths centrally (BEFORE framework setup and module execution)
             // This ensures paths (including marketplace UI) are available during blueprint execution
+            // NOTE: PathInitializationService will use pre-computed mappings when available
             ExecutionTracer.logOperation(traceId, "Initializing project paths");
             const { PathInitializationService } = await import('../core/services/project/path-initialization-service.js');
             await PathInitializationService.initializePaths(resolvedGenome, this.pathHandler, frameworkAdapterConfig, {
@@ -130,8 +187,10 @@ export class OrchestratorAgent {
                 traceId,
                 operation: "module_execution",
             });
+            // Recipe books already loaded during structure initialization, reuse them
+            // (If not loaded, load them now - but they should already be loaded above)
             for (const mod of resolvedGenome.modules) {
-                const execResult = await this.executeModule(mod, resolvedGenome, traceId, enhancedLogger);
+                const execResult = await this.executeModule(mod, resolvedGenome, traceId, enhancedLogger, recipeBooks);
                 if (!execResult.success) {
                     errors.push(execResult.error || `Module ${mod.id} failed`);
                     return {
@@ -196,7 +255,7 @@ export class OrchestratorAgent {
             });
             ExecutionTracer.logOperation(traceId, "Installing dependencies");
             try {
-                await this.installDependencies();
+                await this.installDependencies(genome);
                 Logger.info("✅ Final dependency installation completed successfully", {
                     traceId,
                     operation: "dependency_installation_complete"
@@ -281,7 +340,7 @@ export class OrchestratorAgent {
      * Execute unified dependency-driven plan
      * Single execution loop that relies on dependency graph for correct ordering
      */
-    async executeUnifiedPlan(genome, traceId, verbose, executionPlan, enhancedLogger) {
+    async executeUnifiedPlan(genome, traceId, verbose, executionPlan, enhancedLogger, recipeBooks) {
         const results = [];
         const errors = [];
         try {
@@ -327,7 +386,7 @@ export class OrchestratorAgent {
                         // Log module progress
                         enhancedLogger.logModuleProgress(module.id, "installing");
                     }
-                    const result = await this.executeModule(module, genome, traceId, enhancedLogger);
+                    const result = await this.executeModule(module, genome, traceId, enhancedLogger, recipeBooks);
                     if (result.success) {
                         results.push(result);
                         Logger.info(`✅ Module ${module.id} completed successfully`, {
@@ -380,27 +439,131 @@ export class OrchestratorAgent {
     /**
      * Execute a single module with its own transactional VFS
      * Each blueprint gets: Create VFS → Execute → Flush to Disk
+     *
+     * NEW: Supports dual execution contexts:
+     * - Package execution (adapters, tech-stack)
+     * - App execution (connectors, features frontend/backend)
+     * - Root execution (single-app mode)
      */
-    async executeModule(module, genome, traceId, enhancedLogger) {
-        let blueprintVFS = null;
-        let originalWorkingDirectory = null;
+    async executeModule(module, genome, traceId, enhancedLogger, recipeBooks) {
         try {
             Logger.info(`🔧 Executing module: ${module.id}`, {
                 traceId,
                 operation: "module_execution",
             });
-            // Handle monorepo package targeting using auto-detection
-            const targetPackage = MonorepoPackageResolver.resolveTargetPackage(module, genome);
-            let targetPackagePath = null;
-            if (targetPackage) {
-                originalWorkingDirectory = process.cwd();
-                targetPackagePath = path.join(this.pathHandler.getProjectRoot(), targetPackage);
-                process.chdir(targetPackagePath);
-                Logger.info(`📦 Executing module in package: ${targetPackage}`, {
+            // Resolve execution context (package OR apps)
+            const resolution = MonorepoPackageResolver.resolveExecutionContext(module, genome, recipeBooks);
+            // Skip modules with no valid execution context (no package AND no apps)
+            if (!resolution || (!resolution.targetPackage && (!resolution.targetApps || resolution.targetApps.length === 0))) {
+                Logger.warn(`⏭️ Skipping module ${module.id} - no valid execution context (no package and no compatible apps)`, {
                     traceId,
                     operation: "module_execution",
+                    moduleId: module.id,
+                    resolution: resolution ? JSON.stringify(resolution) : 'null'
+                });
+                return { success: true, executedModules: [] }; // Skip silently (not an error)
+            }
+            if (resolution?.targetPackage) {
+                // Package execution (adapters, tech-stack)
+                return await this.executeInPackage(module, genome, resolution.targetPackage, traceId, enhancedLogger);
+            }
+            else if (resolution?.targetApps && resolution.targetApps.length > 0) {
+                // App execution (connectors, features frontend/backend)
+                // Filter out non-existent apps BEFORE execution
+                const apps = getProjectApps(genome);
+                const existingAppIds = apps.map((a) => a.id);
+                const validTargetApps = resolution.targetApps.filter(appId => existingAppIds.includes(appId));
+                if (validTargetApps.length === 0) {
+                    Logger.warn(`⚠️ No valid apps found for module ${module.id}. ` +
+                        `Target apps: ${resolution.targetApps.join(', ')}, ` +
+                        `Available apps: ${existingAppIds.join(', ')}`, {
+                        traceId,
+                        operation: "module_execution",
+                        moduleId: module.id,
+                        targetApps: resolution.targetApps,
+                        availableApps: existingAppIds
+                    });
+                    return { success: false, error: `No valid apps found for module ${module.id}` };
+                }
+                if (validTargetApps.length < resolution.targetApps.length) {
+                    Logger.info(`🔒 Filtered out ${resolution.targetApps.length - validTargetApps.length} non-existent apps. ` +
+                        `Executing in: ${validTargetApps.join(', ')}`, {
+                        traceId,
+                        operation: "module_execution",
+                        moduleId: module.id,
+                        originalTargetApps: resolution.targetApps,
+                        validTargetApps
+                    });
+                }
+                // Execute for each valid app
+                const results = [];
+                let hasError = false;
+                let errorMessage;
+                for (const appId of validTargetApps) {
+                    const result = await this.executeInApp(module, genome, appId, traceId, enhancedLogger, recipeBooks);
+                    results.push(...(result.executedModules || []));
+                    if (!result.success) {
+                        hasError = true;
+                        errorMessage = result.error;
+                        // Continue executing for other apps, but track error
+                    }
+                }
+                return {
+                    success: !hasError,
+                    error: errorMessage,
+                    executedModules: results
+                };
+            }
+            else {
+                // Root execution (single-app mode or fallback)
+                return await this.executeInRoot(module, genome, traceId, enhancedLogger);
+            }
+        }
+        catch (error) {
+            const errorMessage = error instanceof Error ? error.message : "Unknown error";
+            Logger.error(`❌ Module ${module.id} execution error: ${errorMessage}`, {
+                traceId,
+                operation: "module_execution",
+            });
+            return { success: false, error: errorMessage };
+        }
+    }
+    /**
+     * Execute module in package context (adapters, tech-stack)
+     */
+    async executeInPackage(module, genome, targetPackage, traceId, enhancedLogger) {
+        let blueprintVFS = null;
+        let originalWorkingDirectory = null;
+        try {
+            Logger.info(`📦 Executing module in package: ${targetPackage}`, {
+                traceId,
+                operation: "module_execution",
+                moduleId: module.id,
+                targetPackage
+            });
+            originalWorkingDirectory = process.cwd();
+            const targetPackagePath = path.join(this.pathHandler.getProjectRoot(), targetPackage);
+            // CRITICAL: Ensure package directory exists before chdir
+            // This is a defensive check - packages should be created during structure initialization,
+            // but this prevents failures if structure initialization missed a package
+            try {
+                await fs.mkdir(targetPackagePath, { recursive: true });
+                Logger.debug(`✅ Ensured package directory exists: ${targetPackagePath}`, {
+                    traceId,
+                    operation: "module_execution",
+                    targetPackage
                 });
             }
+            catch (error) {
+                Logger.warn(`⚠️ Failed to create package directory: ${targetPackagePath}`, {
+                    traceId,
+                    operation: "module_execution",
+                    targetPackage,
+                    error: error instanceof Error ? error.message : String(error)
+                });
+                // Continue anyway - chdir will fail with a clearer error if directory doesn't exist
+            }
+            process.chdir(targetPackagePath);
             // Load the module to get its blueprint
             const moduleResult = await this.moduleService.loadModuleAdapter(module);
             if (!moduleResult.success || !moduleResult.adapter) {
@@ -455,6 +618,8 @@ export class OrchestratorAgent {
             // Add targetPackage to context for action handlers (e.g., INSTALL_PACKAGES)
             // This allows handlers to know which package they should target, even if executing in a different package
             projectContext.targetPackage = targetPackage || undefined;
+            // Also add targetApp if this is app execution (for features that install packages to apps)
+            // This is set when executing in app context
             // Add frontendApps to context for auto-wrapper generation
             // Extract frontend apps (web, mobile) from genome
             const apps = getProjectApps(genome);
@@ -513,19 +678,16 @@ export class OrchestratorAgent {
             // Templates with `ui/` prefix are automatically resolved from UI marketplace via MarketplaceService
             // The blueprint.ts file uses CREATE_FILE actions with `ui/...` template paths
             // 1. CREATE per-blueprint VFS
-            // CRITICAL: Always use project root, pass context root separately
+            // CRITICAL: Always use project root, no contextRoot (all paths absolute from project root)
             const projectRoot = this.pathHandler.getProjectRoot();
-            const contextRoot = targetPackage || ''; // Package path relative to project root, empty for single repo
-            blueprintVFS = new (await import('../core/services/file-system/file-engine/virtual-file-system.js')).VirtualFileSystem(`blueprint-${moduleResult.adapter.blueprint.id}`, projectRoot, // Always project root
-            contextRoot // Context relative to project root
+            blueprintVFS = new (await import('../core/services/file-system/file-engine/virtual-file-system.js')).VirtualFileSystem(`blueprint-${moduleResult.adapter.blueprint.id}`, projectRoot // Always project root, no contextRoot
             );
             Logger.info(`📦 Created VFS for blueprint: ${moduleResult.adapter.blueprint.id}`, {
                 traceId,
                 operation: "module_execution",
             });
             // 2. EXECUTE preprocessed actions with BlueprintExecutor
-            // CRITICAL: Use targetPackagePath if available (monorepo), otherwise use project root
-            const executorRoot = targetPackagePath || this.pathHandler.getProjectRoot();
+            const executorRoot = targetPackagePath;
             Logger.debug('Creating blueprint executor', {
                 operation: 'blueprint_execution',
                 executorRoot,
@@ -540,7 +702,7 @@ export class OrchestratorAgent {
                     traceId,
                     operation: "module_execution",
                 });
-                Logger.info(`✅ Module ${module.id} executed successfully`, {
+                Logger.info(`✅ Module ${module.id} executed successfully in package: ${targetPackage}`, {
                     traceId,
                     operation: "module_execution",
                 });
@@ -590,6 +752,218 @@ export class OrchestratorAgent {
                 process.chdir(originalWorkingDirectory);
             }
         }
+    }
+    /**
+     * Execute module in app context (connectors, features frontend/backend)
+     */
+    async executeInApp(module, genome, appId, traceId, enhancedLogger, recipeBooks) {
+        let blueprintVFS = null;
+        let originalWorkingDirectory = null;
+        try {
+            // Get app path from genome
+            const apps = getProjectApps(genome);
+            // Find app by ID - single strategy (id field must be set correctly)
+            const app = apps.find((a) => a.id === appId);
+            if (!app) {
+                Logger.warn(`⚠️ App ${appId} not found in genome, skipping execution. Available app IDs: ${apps.map(a => a.id).join(', ')}`, {
+                    traceId,
+                    operation: "module_execution",
+                    moduleId: module.id,
+                    appId,
+                    availableAppIds: apps.map(a => a.id)
+                });
+                return { success: false, error: `App ${appId} not found` };
+            }
+            // Framework and app type compatibility validation (firewall)
+            // Get requirements from resolution (includes recipe book metadata)
+            // NOTE: Use the same recipeBooks passed to executeModule, not undefined
+            const resolution = MonorepoPackageResolver.resolveExecutionContext(module, genome, recipeBooks);
+            const frameworkRequirement = resolution?.requiredFramework;
+            const requiredAppTypes = resolution?.requiredAppTypes;
+            const compatibility = validateFrameworkCompatibility(module, appId, genome, frameworkRequirement, requiredAppTypes);
+            if (!compatibility.compatible) {
+                Logger.error(`❌ Framework compatibility firewall: ${compatibility.error}`, {
+                    traceId,
+                    operation: "module_execution",
+                    moduleId: module.id,
+                    appId,
+                    appFramework: app.framework
+                });
+                return {
+                    success: false,
+                    error: compatibility.error || 'Framework compatibility check failed'
+                };
+            }
+            // Resolve app path
+            const appPath = app.package || `apps/${appId}`;
+            const appFullPath = path.join(this.pathHandler.getProjectRoot(), appPath);
+            Logger.info(`📱 Executing module in app: ${appId} (${appPath})`, {
+                traceId,
+                operation: "module_execution",
+                moduleId: module.id,
+                appId,
+                appPath
+            });
+            originalWorkingDirectory = process.cwd();
+            process.chdir(appFullPath);
+            // Load the module to get its blueprint
+            const moduleResult = await this.moduleService.loadModuleAdapter(module);
+            if (!moduleResult.success || !moduleResult.adapter) {
+                return {
+                    success: false,
+                    error: `Failed to load module ${module.id}: ${moduleResult.error || "Unknown error"}`,
+                };
+            }
+            // Process blueprint with preprocessor
+            const mergedConfig = this.mergeModuleConfiguration(module, moduleResult.adapter, genome);
+            // Load normalized blueprint object via MarketplaceService
+            const loadedBlueprint = await MarketplaceService.loadModuleBlueprint(module);
+            const preprocessingResult = await this.blueprintPreprocessor.processBlueprint(loadedBlueprint, mergedConfig);
+            if (!preprocessingResult.success) {
+                return {
+                    success: false,
+                    error: `Blueprint preprocessing failed: ${preprocessingResult.error}`,
+                };
+            }
+            // Create modules record for context factory
+            const modulesRecord = {};
+            const genomeModules = genome.modules;
+            genomeModules.forEach(mod => {
+                modulesRecord[mod.id] = mod;
+            });
+            // Create dynamic project context
+            const projectContext = await FrameworkContextService.createProjectContext(genome, module, this.pathHandler, modulesRecord);
+            // Merge templateContext
+            if (mergedConfig.templateContext) {
+                Object.assign(projectContext, mergedConfig.templateContext);
+            }
+            // Add app-specific context for action handlers (e.g., INSTALL_PACKAGES)
+            // Set targetPackage to app path so INSTALL_PACKAGES installs to app's package.json
+            projectContext.targetPackage = appPath; // Use app path for package.json targeting
+            projectContext.targetApp = appId; // App ID for context (not in ProjectContext type)
+            // Add frontendApps to context
+            const allApps = getProjectApps(genome);
+            const frontendApps = allApps
+                .filter((a) => a.type === 'web' || a.type === 'mobile')
+                .map((app) => ({
+                type: app.type,
+                package: app.package,
+                framework: app.framework
+            }));
+            projectContext.frontendApps = frontendApps;
+            projectContext.hasMultipleFrontendApps = frontendApps.length > 1;
+            projectContext.hasWebApp = frontendApps.some((a) => a.type === 'web');
+            projectContext.hasMobileApp = frontendApps.some((a) => a.type === 'mobile');
+            // Extract module parameters
+            const moduleParams = projectContext.module?.parameters ||
+                mergedConfig.templateContext?.module?.parameters ||
+                {};
+            projectContext.params = moduleParams;
+            // Add platforms
+            if (this.isValidPlatforms(moduleParams.platforms)) {
+                projectContext.platforms = moduleParams.platforms;
+            }
+            else {
+                const framework = projectContext.framework || 'nextjs';
+                projectContext.platforms = {
+                    web: framework === 'nextjs' || framework === 'react',
+                    mobile: framework === 'expo' || framework === 'react-native'
+                };
+            }
+            if (typeof moduleParams.theme === 'string') {
+                projectContext.theme = moduleParams.theme;
+            }
+            // Handle Constitutional Architecture
+            if (this.isConstitutionalModule(moduleResult.adapter)) {
+                projectContext.constitutional = {
+                    activeFeatures: new Map([[module.id, mergedConfig.activeFeatures]]),
+                    mergedConfigurations: new Map([[module.id, mergedConfig]]),
+                    capabilityRegistry: new Map(),
+                };
+            }
+            // Create VFS with project root (all paths absolute from project root)
+            const projectRoot = this.pathHandler.getProjectRoot();
+            blueprintVFS = new (await import('../core/services/file-system/file-engine/virtual-file-system.js')).VirtualFileSystem(`blueprint-${moduleResult.adapter.blueprint.id}-${appId}`, projectRoot // Always project root, no contextRoot
+            );
+            Logger.info(`📱 Created VFS for blueprint: ${moduleResult.adapter.blueprint.id} in app: ${appId}`, {
+                traceId,
+                operation: "module_execution",
+            });
+            // Execute preprocessed actions
+            const blueprintExecutor = new BlueprintExecutor(appFullPath);
+            const result = await blueprintExecutor.executeActions(preprocessingResult.actions, projectContext, blueprintVFS);
+            if (result.success) {
+                // Flush VFS to disk
+                await blueprintVFS.flushToDisk();
+                Logger.info(`💾 VFS flushed to disk for blueprint: ${moduleResult.adapter.blueprint.id} in app: ${appId}`, {
+                    traceId,
+                    operation: "module_execution",
+                });
+                Logger.info(`✅ Module ${module.id} executed successfully in app: ${appId}`, {
+                    traceId,
+                    operation: "module_execution",
+                });
+                blueprintVFS.clear();
+                blueprintVFS = null;
+                return { success: true, executedModules: [module] };
+            }
+            else {
+                if (blueprintVFS) {
+                    blueprintVFS.clear();
+                    blueprintVFS = null;
+                }
+                Logger.error(`❌ Module ${module.id} execution failed in app ${appId}: ${result.errors?.join(", ") || "Unknown error"}`, {
+                    traceId,
+                    operation: "module_execution",
+                });
+                return {
+                    success: false,
+                    error: result.errors?.join(", ") || "Unknown error",
+                };
+            }
+        }
+        catch (error) {
+            if (blueprintVFS) {
+                blueprintVFS.clear();
+                blueprintVFS = null;
+            }
+            const errorMessage = error instanceof Error ? error.message : "Unknown error";
+            const errorStack = error instanceof Error ? error.stack : String(error);
+            // Log full error details for debugging
+            Logger.error(`❌ Module ${module.id} execution error in app ${appId}: ${errorMessage}`, {
+                traceId,
+                operation: "module_execution",
+                moduleId: module.id,
+                appId,
+                errorStack,
+                error: errorMessage,
+            }, error instanceof Error ? error : undefined);
+            // Return actual error message, not generic one
+            return { success: false, error: errorMessage };
+        }
+        finally {
+            if (blueprintVFS) {
+                blueprintVFS.clear();
+                blueprintVFS = null;
+            }
+            if (originalWorkingDirectory) {
+                process.chdir(originalWorkingDirectory);
+            }
+        }
+    }
+    /**
+     * Execute module in root context (single-app mode or fallback)
+     */
+    async executeInRoot(module, genome, traceId, enhancedLogger) {
+        // For now, execute similar to package but with root as context
+        // This is a fallback for single-app mode
+        Logger.info(`🌐 Executing module in root context: ${module.id}`, {
+            traceId,
+            operation: "module_execution",
+            moduleId: module.id
+        });
+        // Use executeInPackage with empty targetPackage (root)
+        return await this.executeInPackage(module, genome, '', traceId, enhancedLogger);
     }
     /**
      * Ensure workspaces are configured in root package.json for monorepos
@@ -662,8 +1036,9 @@ export class OrchestratorAgent {
     }
     /**
      * Install dependencies (monorepo-aware)
+     * V2 COMPLIANCE: Detects package manager from genome or lock files
      */
-    async installDependencies() {
+    async installDependencies(genome) {
         const projectRoot = this.pathHandler.getProjectRoot();
         const packageJsonPath = path.join(projectRoot, "package.json");
         Logger.info("📦 [installDependencies] Starting dependency installation", {
@@ -684,51 +1059,132 @@ export class OrchestratorAgent {
             });
             return;
         }
-        // Read package.json to check for workspaces
-        const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
-        const packageJson = JSON.parse(packageJsonContent);
-        const hasWorkspaces = packageJson.workspaces && Array.isArray(packageJson.workspaces) && packageJson.workspaces.length > 0;
-        if (hasWorkspaces) {
-            Logger.info("📦 Installing dependencies with npm (workspace-aware)...", {
-                workspaces: packageJson.workspaces
-            });
-        }
-        else {
-            // Check if monorepo structure exists
-            const appsDir = path.join(projectRoot, 'apps');
-            const packagesDir = path.join(projectRoot, 'packages');
-            let isMonorepo = false;
-            try {
-                await fs.access(appsDir);
-                isMonorepo = true;
-            }
-            catch {
-                try {
-                    await fs.access(packagesDir);
-                    isMonorepo = true;
-                }
-                catch {
-                    // Not a monorepo
-                }
-            }
-            if (isMonorepo) {
-                Logger.warn("⚠️  Monorepo structure detected but workspaces not configured in root package.json", {
-                    suggestion: "Workspaces should be configured for proper dependency installation"
-                });
-            }
-            Logger.info("📦 Installing dependencies with npm...");
-        }
-        // Run npm install in the project directory
+        // Detect package manager from genome, lock files, or pnpm-workspace.yaml
+        const packageManager = await this.detectPackageManager(genome, projectRoot);
+        Logger.info(`📦 Installing dependencies with ${packageManager}...`, {
+            packageManager,
+            operation: "dependency_installation"
+        });
+        // Run install command with detected package manager
         const { execSync } = await import('child_process');
+        const installCommand = this.getInstallCommand(packageManager);
         try {
-            execSync('npm install', {
+            execSync(installCommand, {
                 cwd: projectRoot,
                 stdio: 'inherit'
             });
-            Logger.info("✅ Dependencies installed successfully");
+            Logger.info(`✅ Dependencies installed successfully with ${packageManager}`);
         }
         catch (error) {
-            throw new Error(`Failed to install dependencies: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            throw new Error(`Failed to install dependencies with ${packageManager}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+    /**
+     * Detect package manager from genome, lock files, or pnpm-workspace.yaml
+     * V2 COMPLIANCE: Checks genome monorepo config first, then lock files
+     */
+    async detectPackageManager(genome, projectRoot) {
+        // Priority 1: Check genome monorepo config
+        if (genome) {
+            const monorepoConfig = getProjectMonorepo(genome);
+            if (monorepoConfig && typeof monorepoConfig === 'object') {
+                // Check for explicit packageManager in monorepo config
+                if ('packageManager' in monorepoConfig) {
+                    const pm = monorepoConfig.packageManager;
+                    if (pm === 'pnpm' || pm === 'yarn' || pm === 'npm') {
+                        Logger.debug(`📦 Detected package manager from genome: ${pm}`, {
+                            source: 'genome_monorepo_config',
+                            operation: 'package_manager_detection'
+                        });
+                        return pm;
+                    }
+                }
+                // Check turborepo module parameters
+                if (genome.modules) {
+                    const turborepoModule = genome.modules.find((m) => m.id === 'monorepo/turborepo' || m.id === 'adapters/monorepo/turborepo');
+                    if (turborepoModule && 'parameters' in turborepoModule && turborepoModule.parameters) {
+                        const pm = turborepoModule.parameters.packageManager;
+                        if (pm === 'pnpm' || pm === 'yarn' || pm === 'npm') {
+                            Logger.debug(`📦 Detected package manager from turborepo module: ${pm}`, {
+                                source: 'turborepo_module',
+                                operation: 'package_manager_detection'
+                            });
+                            return pm;
+                        }
+                    }
+                }
+            }
+        }
+        // Priority 2: Check for lock files in project root
+        if (projectRoot) {
+            const fs = await import('fs/promises');
+            const pathModule = await import('path');
+            try {
+                await fs.access(pathModule.join(projectRoot, 'pnpm-lock.yaml'));
+                Logger.debug(`📦 Detected package manager from lock file: pnpm`, {
+                    source: 'pnpm-lock.yaml',
+                    operation: 'package_manager_detection'
+                });
+                return 'pnpm';
+            }
+            catch {
+                // pnpm-lock.yaml doesn't exist
+            }
+            try {
+                await fs.access(pathModule.join(projectRoot, 'yarn.lock'));
+                Logger.debug(`📦 Detected package manager from lock file: yarn`, {
+                    source: 'yarn.lock',
+                    operation: 'package_manager_detection'
+                });
+                return 'yarn';
+            }
+            catch {
+                // yarn.lock doesn't exist
+            }
+            try {
+                await fs.access(pathModule.join(projectRoot, 'package-lock.json'));
+                Logger.debug(`📦 Detected package manager from lock file: npm`, {
+                    source: 'package-lock.json',
+                    operation: 'package_manager_detection'
+                });
+                return 'npm';
+            }
+            catch {
+                // package-lock.json doesn't exist
+            }
+            // Check for pnpm-workspace.yaml (indicates pnpm even without lock file)
+            try {
+                await fs.access(pathModule.join(projectRoot, 'pnpm-workspace.yaml'));
+                Logger.debug(`📦 Detected package manager from pnpm-workspace.yaml: pnpm`, {
+                    source: 'pnpm-workspace.yaml',
+                    operation: 'package_manager_detection'
+                });
+                return 'pnpm';
+            }
+            catch {
+                // pnpm-workspace.yaml doesn't exist
+            }
+        }
+        // Priority 3: Default to pnpm for V2 (supports workspace:* protocol)
+        Logger.debug(`📦 Using default package manager: pnpm`, {
+            source: 'default',
+            operation: 'package_manager_detection'
+        });
+        return 'pnpm';
+    }
+    /**
+     * Get install command for package manager
+     */
+    getInstallCommand(packageManager) {
+        switch (packageManager) {
+            case 'pnpm':
+                return 'pnpm install';
+            case 'yarn':
+                return 'yarn install';
+            case 'npm':
+                return 'npm install';
+            default:
+                return 'pnpm install';
         }
     }
     /**
@@ -818,6 +1274,32 @@ export class OrchestratorAgent {
             adapter.config.parameters &&
             adapter.config.parameters.features &&
             adapter.config.internal_structure);
+    }
+    /**
+     * Load recipe books from genome marketplaces
+     */
+    async loadRecipeBooksFromGenome(genome, executionOptions) {
+        const recipeBooks = new Map();
+        // Try to load from marketplace adapter if available
+        if (executionOptions?.marketplaceAdapter?.loadRecipeBook) {
+            try {
+                const recipeBook = await executionOptions.marketplaceAdapter.loadRecipeBook();
+                // Use marketplace name from options or default to 'official'
+                const marketplaceName = executionOptions.marketplaceInfo?.name || 'official';
+                recipeBooks.set(marketplaceName, recipeBook);
+                Logger.debug(`✅ Loaded recipe book from marketplace adapter: ${marketplaceName}`, {
+                    operation: 'recipe_book_loading',
+                    marketplaceName
+                });
+            }
+            catch (error) {
+                Logger.warn(`⚠️ Failed to load recipe book from marketplace adapter: ${error instanceof Error ? error.message : 'Unknown error'}`, {
+                    operation: 'recipe_book_loading',
+                    error: error instanceof Error ? error.stack : String(error)
+                });
+            }
+        }
+        return recipeBooks;
     }
     /**
      * Merge module configuration with user overrides (delegates to ModuleConfigurationService)

@@ -1,13 +1,14 @@
 /**
  * Marketplace Defaults Configuration
  * 
- * Auto-includes opinionated modules for all Next.js projects
- * No conditions - just simple auto-inclusion for v1
+ * @deprecated No longer auto-included by CLI.
+ * Users must explicitly add modules to their genome if desired.
+ * 
+ * CLI now generates universal defaults (.gitignore, tsconfig.json, scripts).
+ * Opinionated modules (like golden-stack) remain optional marketplace modules.
  */
-
 export const MARKETPLACE_DEFAULTS = {
   autoInclude: [
-    'core/golden-stack' // Includes ESLint, Prettier, Zustand, Vitest, Zod
-    // Removed opinionated defaults - TanStack Query and Zustand should only be included when explicitly needed
+    'core/golden-stack' // DEPRECATED: No longer auto-included
   ]
 } as const;

@@ -31,8 +31,10 @@ export function getProjectStructure(genome: ResolvedGenome): 'monorepo' | 'singl
 
 /**
  * Get the project apps array, returning empty array if not specified.
+ * 
+ * Accepts both Genome and ResolvedGenome for flexibility.
  */
-export function getProjectApps(genome: ResolvedGenome): FrameworkApp[] {
+export function getProjectApps(genome: ResolvedGenome | { project: { apps?: FrameworkApp[] } }): FrameworkApp[] {
   return genome.project.apps || [];
 }
 

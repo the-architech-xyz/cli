@@ -2,12 +2,17 @@
  * Monorepo Package Resolver
  *
  * Determines which package (apps/web, apps/api, packages/shared, etc.)
- * a module should be executed in based on:
- * - Module type and layer (frontend/backend/tech-stack/database)
- * - Module usage (frontend-only, backend-only, or full-stack)
- * - Genome structure and apps configuration
+ * a module should be executed in.
+ *
+ * NOW RECIPE BOOK DRIVEN:
+ * - Uses RecipeBookResolver as primary source
+ * - Recipe book targetPackage is PRIMARY source of truth
+ * - Generic fallback only (no provider-specific logic)
+ * - User overrides supported
  */
-import { ResolvedGenome, Module } from '@thearchitech.xyz/types';
+import { ResolvedGenome, Module, RecipeBook } from '@thearchitech.xyz/types';
+import type { TargetPackageResolution } from './recipe-book-resolver.js';
+export type { TargetPackageResolution };
 export interface ModuleUsage {
     frontend: boolean;
     backend: boolean;
@@ -17,44 +22,29 @@ export declare class MonorepoPackageResolver {
     /**
      * Determine which package a module should be executed in
      *
-     * Priority Order (Highest to Lowest):
-     * 1. Genome module targetPackage (explicit) - ALWAYS respected
-     * 2. Module metadata targetPackage (if preserved during conversion)
-     * 3. Module ID patterns (ui/* → packages/ui, database/* → packages/database)
-     * 4. Layer-based inference (tech-stack, database, frontend, backend)
-     * 5. Usage-based inference (frontend-only, backend-only, full-stack)
-     * 6. Module type-based inference (framework, feature, adapter, connector)
+     * NEW PRIORITY ORDER (Recipe Book Driven):
+     * 1. User override (genome.moduleOverrides) - HIGHEST
+     * 2. Genome module targetPackage (explicit)
+     * 3. Module metadata targetPackage (if preserved during conversion)
+     * 4. Recipe book targetPackage (PRIMARY SOURCE) - NEW
+     * 5. Generic fallback (no provider-specific logic) - FALLBACK ONLY
      *
-     * Strategy:
-     * - UI libraries → packages/ui (reusable components)
-     * - Database modules → packages/database (database logic)
-     * - Frontend-only modules → apps/web (single app) or packages/shared (multiple apps)
-     * - Backend-only modules → apps/api (if exists) or packages/shared
-     * - Full-stack modules → packages/shared (shared between apps)
-     * - Tech-stack layers → packages/shared (shared utilities)
+     * @param module - Module to resolve
+     * @param genome - Genome with user overrides
+     * @param recipeBooks - Optional recipe books map (if available)
+     * @returns Target package path or null
+     * @deprecated Use resolveExecutionContext() instead for full resolution including targetApps
      */
-    static resolveTargetPackage(module: Module, genome: ResolvedGenome): string | null;
+    static resolveTargetPackage(module: Module, genome: ResolvedGenome, recipeBooks?: Map<string, RecipeBook>): string | null;
     /**
-     * Find genome module definition by module ID
-     * Used to check for explicit targetPackage in genome
-     */
-    private static findGenomeModule;
-    /**
-     * Infer module layer from module ID
-     */
-    private static inferModuleLayer;
-    /**
-     * Infer module usage (frontend/backend/both) from module ID and layer
+     * Resolve full execution context (package + apps)
      *
-     * Improved inference logic based on best practices:
-     * - UI modules are ALWAYS frontend-only (reusable components)
-     * - Database modules are ALWAYS backend-focused (database logic)
-     * - Auth/Payment/Email adapters are typically full-stack (shared)
-     * - More specific detection before defaulting to full-stack
+     * Returns both targetPackage and targetApps for dual execution context support.
+     *
+     * @param module - Module to resolve
+     * @param genome - Genome with user overrides
+     * @param recipeBooks - Optional recipe books map (if available)
+     * @returns Full execution context resolution or null
      */
-    private static inferModuleUsage;
-    /**
-     * Get module type from module ID
-     */
-    private static getModuleType;
+    static resolveExecutionContext(module: Module, genome: ResolvedGenome, recipeBooks?: Map<string, RecipeBook>): TargetPackageResolution | null;
 }

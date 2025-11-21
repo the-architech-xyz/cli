@@ -337,47 +337,96 @@ export class MarketplaceService {
         }
     }
     /**
-     * Load feature manifest (feature.json) - convenience method
+     * Load feature manifest (schema.json) - convenience method
      */
     static async loadFeatureManifest(module) {
         return this.loadModuleConfig(module);
     }
     /**
-     * Load module configuration (adapter.json, integration.json, or feature.json)
+     * Load module configuration (schema.json)
+     * All modules use schema.json regardless of type (adapter, connector, feature)
      */
     static async loadModuleConfig(module) {
         if (!module?.resolved?.manifest) {
             throw new Error(`Module ${module?.id || '<unknown>'} is missing resolved manifest metadata.`);
         }
+        // Resolve manifest path
+        let manifestPath = module.resolved.manifest;
+        // If path is relative, resolve it using source.root
+        if (!path.isAbsolute(manifestPath) && module.source?.root) {
+            // Try to resolve using MarketplaceRegistry first (for core marketplace)
+            if (module.source.marketplace === 'official' || !module.source.marketplace) {
+                const corePath = await MarketplaceRegistry.getCoreMarketplacePath();
+                manifestPath = path.join(corePath, manifestPath);
+            }
+            else {
+                // For custom marketplaces, resolve relative to source.root
+                // source.root might be relative, so we need to resolve it
+                const sourceRoot = module.source.root;
+                if (path.isAbsolute(sourceRoot)) {
+                    manifestPath = path.join(sourceRoot, manifestPath);
+                }
+                else {
+                    // If source.root is relative, try to resolve it
+                    // This is a fallback - ideally source.root should be absolute
+                    const cliRoot = PathService.getCliRoot();
+                    const resolvedSourceRoot = path.resolve(cliRoot, '..', sourceRoot);
+                    manifestPath = path.join(resolvedSourceRoot, manifestPath);
+                }
+            }
+        }
         try {
-            const content = await fs.readFile(module.resolved.manifest, 'utf-8');
+            const content = await fs.readFile(manifestPath, 'utf-8');
             return JSON.parse(content);
         }
         catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            throw new Error(`Failed to load module configuration for ${module.id}: ${message}`);
+            throw new Error(`Failed to load module configuration for ${module.id}: ${message}. Tried path: ${manifestPath}`);
         }
     }
     /**
      * Get the absolute path to a module's blueprint file
      * This is the centralized, tested logic for blueprint path resolution.
      */
-    static getBlueprintPath(module, blueprintFileName) {
+    static async getBlueprintPath(module, blueprintFileName) {
         if (!module?.resolved?.blueprint) {
             throw new Error(`Module ${module?.id || '<unknown>'} is missing resolved blueprint metadata.`);
+        }
+        // Resolve blueprint path (similar to manifest path resolution)
+        let blueprintPath = module.resolved.blueprint;
+        // If path is relative, resolve it using source.root
+        if (!path.isAbsolute(blueprintPath) && module.source?.root) {
+            // Try to resolve using MarketplaceRegistry first (for core marketplace)
+            if (module.source.marketplace === 'official' || !module.source.marketplace) {
+                const corePath = await MarketplaceRegistry.getCoreMarketplacePath();
+                blueprintPath = path.join(corePath, blueprintPath);
+            }
+            else {
+                // For custom marketplaces, resolve relative to source.root
+                const sourceRoot = module.source.root;
+                if (path.isAbsolute(sourceRoot)) {
+                    blueprintPath = path.join(sourceRoot, blueprintPath);
+                }
+                else {
+                    // If source.root is relative, try to resolve it
+                    const cliRoot = PathService.getCliRoot();
+                    const resolvedSourceRoot = path.resolve(cliRoot, '..', sourceRoot);
+                    blueprintPath = path.join(resolvedSourceRoot, blueprintPath);
+                }
+            }
         }
         if (blueprintFileName) {
             return path.isAbsolute(blueprintFileName)
                 ? blueprintFileName
-                : path.join(path.dirname(module.resolved.blueprint), blueprintFileName);
+                : path.join(path.dirname(blueprintPath), blueprintFileName);
         }
-        return module.resolved.blueprint;
+        return blueprintPath;
     }
     /**
      * Load module blueprint (consolidated from BlueprintLoader)
      */
     static async loadModuleBlueprint(module, blueprintFileName) {
-        const blueprintPath = this.getBlueprintPath(module, blueprintFileName);
+        const blueprintPath = await this.getBlueprintPath(module, blueprintFileName);
         const result = await this.loadBlueprint(module.id, blueprintPath);
         if (!result.success) {
             throw new Error(result.error || 'Unknown blueprint loading error');

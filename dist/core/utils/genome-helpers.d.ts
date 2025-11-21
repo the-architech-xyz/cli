@@ -17,8 +17,14 @@ export declare function getProjectFramework(genome: ResolvedGenome): string | un
 export declare function getProjectStructure(genome: ResolvedGenome): 'monorepo' | 'single-app';
 /**
  * Get the project apps array, returning empty array if not specified.
+ *
+ * Accepts both Genome and ResolvedGenome for flexibility.
  */
-export declare function getProjectApps(genome: ResolvedGenome): FrameworkApp[];
+export declare function getProjectApps(genome: ResolvedGenome | {
+    project: {
+        apps?: FrameworkApp[];
+    };
+}): FrameworkApp[];
 /**
  * Get the project monorepo configuration, returning undefined if not specified.
  */

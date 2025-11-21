@@ -1,0 +1,28 @@
+{
+  "name": "@synap/db",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "drizzle-orm": "latest",
+    "postgres": "latest"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "drizzle-kit": "latest",
+    "@types/pg": "latest"
+  },
+  "exports": {
+    "./schema": "./src/schema/index.ts",
+    "./client": "./src/client.ts",
+    "./migrations": "./src/migrations/index.ts"
+  }
+}

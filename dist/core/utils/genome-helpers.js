@@ -26,6 +26,8 @@ export function getProjectStructure(genome) {
 }
 /**
  * Get the project apps array, returning empty array if not specified.
+ *
+ * Accepts both Genome and ResolvedGenome for flexibility.
  */
 export function getProjectApps(genome) {
     return genome.project.apps || [];

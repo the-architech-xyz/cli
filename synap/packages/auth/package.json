@@ -1,0 +1,29 @@
+{
+  "name": "@synap/auth",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "better-auth": "latest",
+    "@synap/db": "workspace:*",
+    "zod": "latest",
+    "@tanstack/react-query": "latest",
+    "zustand": "latest",
+    "immer": "latest",
+    "sonner": "latest"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  },
+  "exports": {
+    "./client": "./src/client.ts",
+    "./server": "./src/server.ts",
+    "./types": "./src/types.ts"
+  }
+}

@@ -10,6 +10,7 @@ import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-con
 import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file-system.js';
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ArchitechError } from '../../../infrastructure/error/architech-error.js';
+import { Logger } from '../../../infrastructure/logging/index.js';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 
@@ -59,13 +60,23 @@ export class AddEnvVarHandler extends BaseActionHandler {
         files: [envFilePath]
       };
     } catch (error) {
-      const architechError = ArchitechError.internalError(
-        `Failed to add environment variable: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        { operation: 'add_env_var', filePath: envFilePath, key }
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : String(error);
+      
+      Logger.error(
+        `Failed to add environment variable: ${errorMessage}`,
+        {
+          operation: 'add_env_var',
+          filePath: envFilePath,
+          key,
+          errorStack,
+        },
+        error instanceof Error ? error : undefined
       );
+      
       return { 
         success: false, 
-        error: architechError.getUserMessage() 
+        error: errorMessage
       };
     }
   }

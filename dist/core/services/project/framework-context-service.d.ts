@@ -37,6 +37,9 @@ export declare class FrameworkContextService {
      *
      * This is needed because EJS templates expect nested access like:
      * paths.packages.shared.src.payment.config
+     *
+     * NEW: Uses pre-computed mappings from PathService.getMappings()
+     * For semantic keys with multiple paths, uses the first path (EJS expects single value)
      */
     private static buildNestedPathsObject;
     /**
@@ -64,9 +67,15 @@ export declare class FrameworkContextService {
      */
     private static determineTargetPackageForPath;
     /**
-     * Check if path should go to shared package
+     * Check if path should go to a capability package (not packages/shared)
+     *
+     * V2 COMPLIANCE: Paths map to granular packages (packages/auth, packages/payments, etc.)
      */
     private static isSharedPath;
+    /**
+     * Infer capability name from path key or value
+     */
+    private static inferCapabilityFromPath;
     /**
      * Check if path should go to web app
      */

@@ -11,7 +11,8 @@ import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ModifierRegistry } from '../../../file-system/modifiers/modifier-registry.js';
 import { ArchitechError } from '../../../infrastructure/error/architech-error.js';
-import { resolve as pathResolve } from 'path';
+import { Logger } from '../../../infrastructure/logging/index.js';
+import * as path from 'path';
 
 export class InstallPackagesHandler extends BaseActionHandler {
   private modifierRegistry: ModifierRegistry;
@@ -81,22 +82,32 @@ export class InstallPackagesHandler extends BaseActionHandler {
       };
 
       // Determine target package.json path
-      // In monorepo, use targetPackage from context if available, otherwise use VFS contextRoot
-      // This ensures packages are installed in the correct package even if module executes elsewhere
+      // In monorepo, use targetPackage from context if available
+      // VFS now always uses project root, so package.json path is relative to project root
       let packageJsonPath = 'package.json';
       const targetPackage = (context as any).targetPackage;
-      if (targetPackage && vfs) {
-        // Get VFS contextRoot to check if we're already in the right package
-        const vfsContextRoot = (vfs as any).contextRoot || '';
-        // If targetPackage differs from VFS contextRoot, we need to use targetPackage
-        if (targetPackage !== vfsContextRoot) {
-          // Create a new VFS context for the target package, or use the path directly
-          // For now, we'll log a warning and use the target package path
-          console.log(`  ⚠️  Module executing in ${vfsContextRoot || 'root'}, but packages should be installed in ${targetPackage}`);
-          // Note: We can't easily switch VFS context here, so we'll install in current context
-          // This is a limitation - ideally we'd have a way to install in a different package
-          // For now, we'll proceed with current context and log the issue
-        }
+      const targetApp = (context as any).targetApp; // For app execution context
+      
+      // Priority: targetPackage > targetApp > root
+      if (targetPackage && targetPackage !== 'root' && vfs) {
+        // VFS projectRoot is always the project root, so we can use targetPackage directly
+        // The package.json path will be resolved relative to project root
+        packageJsonPath = path.join(targetPackage, 'package.json');
+        console.log(`  📦 Installing packages in ${targetPackage}`);
+      } else if (targetApp && vfs) {
+        // If executing in app context, install to app's package.json
+        const appPath = `apps/${targetApp}`;
+        packageJsonPath = path.join(appPath, 'package.json');
+        console.log(`  📦 Installing packages in app: ${targetApp} (${appPath})`);
+      } else if (!targetPackage || targetPackage === 'root') {
+        // If no targetPackage or it's 'root', warn but still install in root
+        // This should be rare - most modules should have a targetPackage or targetApp
+        Logger.warn(`Installing packages in root package.json (no targetPackage or targetApp set for module)`, {
+          moduleId: (context as any).moduleId,
+          packages: installAction.packages,
+          hasTargetPackage: !!targetPackage,
+          hasTargetApp: !!targetApp
+        });
       }
       
       // Execute the modifier on package.json
@@ -115,13 +126,22 @@ export class InstallPackagesHandler extends BaseActionHandler {
       };
 
     } catch (error) {
-      const architechError = ArchitechError.internalError(
-        `Package installation error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        { operation: 'install_packages', packages: installAction.packages }
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : String(error);
+      
+      Logger.error(
+        `Package installation error: ${errorMessage}`,
+        {
+          operation: 'install_packages',
+          packages: installAction.packages,
+          errorStack,
+        },
+        error instanceof Error ? error : undefined
       );
+      
       return { 
         success: false, 
-        error: architechError.getUserMessage() 
+        error: errorMessage
       };
     }
   }

@@ -16,6 +16,7 @@ import { ActionHandlerRegistry } from './action-handlers/index.js';
 import { ArchitechError } from '../../infrastructure/error/architech-error.js';
 import { TemplateService } from '../../file-system/template/template-service.js';
 import { PathService } from '../../path/path-service.js';
+import { Logger } from '../../infrastructure/logging/index.js';
 export class BlueprintExecutor {
     modifierRegistry;
     actionHandlerRegistry;
@@ -23,6 +24,189 @@ export class BlueprintExecutor {
         this.modifierRegistry = new ModifierRegistry();
         this.initializeModifiers();
         this.actionHandlerRegistry = new ActionHandlerRegistry(this.modifierRegistry);
+    }
+    /**
+     * Expand path keys to multiple actions based on pre-computed mappings
+     *
+     * NEW: Uses PathService.getMapping() to get all paths for a key.
+     * If a key has multiple paths (semantic expansion), creates one action per path.
+     *
+     * Simple Model:
+     * - Extract path key from template (e.g., "${paths.apps.frontend.components}")
+     * - Get all paths from PathService.getMapping(key)
+     * - If 1 path → 1 action (no expansion)
+     * - If 2+ paths → multiple actions (one per path)
+     *
+     * This replaces the old hardcoded semantic detection logic.
+     */
+    expandPathKey(actions, context) {
+        const expandedActions = [];
+        for (const action of actions) {
+            if (!action || !('path' in action) || typeof action.path !== 'string') {
+                expandedActions.push(action);
+                continue;
+            }
+            const pathTemplate = action.path;
+            // Extract path key from template (e.g., "${paths.apps.frontend.components}" -> "apps.frontend.components")
+            // Match patterns like ${paths.KEY} or paths.KEY
+            const pathKeyMatch = pathTemplate.match(/\$\{paths\.([^}]+)\}|paths\.([^.\s}]+)/);
+            if (!pathKeyMatch) {
+                // No path key found - use action as-is
+                expandedActions.push(action);
+                continue;
+            }
+            // Get the actual path key (e.g., "apps.frontend.components")
+            const pathKey = pathKeyMatch[1] || pathKeyMatch[2];
+            if (!pathKey) {
+                expandedActions.push(action);
+                continue;
+            }
+            // Get all paths for this key from pre-computed mappings
+            // Type assertion needed because TypeScript doesn't see the static method
+            const paths = PathService.getMapping(pathKey);
+            if (paths.length === 0) {
+                // No paths found - log warning but keep action (might be resolved later)
+                Logger.warn(`⚠️ Path key '${pathKey}' has no mappings. Action may fail.`, {
+                    operation: 'path_key_expansion',
+                    pathKey,
+                    pathTemplate
+                });
+                expandedActions.push(action);
+                continue;
+            }
+            if (paths.length === 1) {
+                // Single path - replace key with path and use action as-is
+                const expandedAction = JSON.parse(JSON.stringify(action));
+                expandedAction.path = pathTemplate.replace(/\$\{paths\.([^}]+)\}/g, (match, key) => {
+                    if (key === pathKey) {
+                        return paths[0];
+                    }
+                    return match;
+                });
+                expandedActions.push(expandedAction);
+            }
+            else {
+                // Multiple paths - create one action per path
+                Logger.debug(`🔄 Expanding path key '${pathKey}' to ${paths.length} paths`, {
+                    operation: 'path_key_expansion',
+                    pathKey,
+                    pathCount: paths.length
+                });
+                for (const path of paths) {
+                    const expandedAction = JSON.parse(JSON.stringify(action));
+                    // Replace path key with concrete path
+                    expandedAction.path = pathTemplate.replace(/\$\{paths\.([^}]+)\}/g, (match, key) => {
+                        if (key === pathKey) {
+                            return path;
+                        }
+                        return match;
+                    });
+                    expandedActions.push(expandedAction);
+                }
+            }
+        }
+        return expandedActions;
+    }
+    /**
+     * Check if a path key is semantic (has multiple paths in pre-computed mappings or is defined as semantic)
+     *
+     * NEW: First checks if key has multiple mappings (already expanded).
+     * If not, checks path-keys.json to see if it's defined as semantic.
+     * This ensures semantic keys are detected even if mappings haven't been generated yet.
+     */
+    async isSemanticPathKey(pathKey, context) {
+        // Method 1: Check if path key has multiple mappings (already expanded)
+        const paths = PathService.getMapping(pathKey);
+        if (paths.length > 1) {
+            return true;
+        }
+        // Method 2: Check path-keys.json to see if it's defined as semantic
+        // This is needed because semantic keys might not have mappings yet during validation
+        try {
+            const marketplaceName = context.marketplaceInfo?.name || 'core';
+            const pathKeys = await PathService.loadPathKeys(marketplaceName);
+            const keyDef = pathKeys.pathKeys.find(def => def.key === pathKey);
+            if (keyDef && keyDef.semantic === true) {
+                return true;
+            }
+        }
+        catch (error) {
+            // If we can't load path keys, fall back to pattern matching
+            Logger.warn(`Failed to load path keys for semantic check: ${error instanceof Error ? error.message : String(error)}`, {
+                operation: 'semantic_path_key_check',
+                pathKey
+            });
+        }
+        // Method 3: Pattern-based fallback (for keys that match semantic patterns)
+        const semanticPatterns = [
+            'apps.all.',
+            'apps.frontend.',
+            'apps.backend.'
+        ];
+        return semanticPatterns.some(pattern => pathKey.startsWith(pattern));
+    }
+    /**
+     * Validate blueprint paths against marketplace path-keys.json
+     * This provides type safety - blueprints can only use path keys defined in the marketplace
+     *
+     * NOTE: Semantic path keys (apps.frontend.*, apps.backend.*, etc.) are skipped here
+     * because they need to be expanded first. They will be validated after expansion.
+     */
+    async validateBlueprintPaths(blueprint, context) {
+        const errors = [];
+        const marketplaceName = context.marketplaceInfo?.name || 'core';
+        // Extract all path keys from blueprint actions
+        for (const action of blueprint.actions || []) {
+            if (!action || !('path' in action) || typeof action.path !== 'string') {
+                continue;
+            }
+            const pathTemplate = action.path;
+            const pathKeyRegex = /\$\{paths\.([^}]+)\}/g;
+            let match;
+            while ((match = pathKeyRegex.exec(pathTemplate)) !== null) {
+                const pathKey = match[1]?.trim();
+                if (!pathKey)
+                    continue;
+                // Skip semantic path keys - they'll be validated after expansion
+                // Check if path key is semantic by checking if it has mappings OR if it's defined as semantic in path-keys.json
+                const isSemanticCategory = await this.isSemanticPathKey(pathKey, context);
+                if (isSemanticCategory) {
+                    // This is a semantic category - skip validation, will be validated after expansion
+                    continue;
+                }
+                // For non-semantic keys, check if they exist in PathService (runtime check)
+                // This checks both pathMap (legacy) and mappings (new)
+                if (!context.pathHandler?.hasPath(pathKey)) {
+                    errors.push(`Path key '${pathKey}' not found in PathService. Used in action: ${pathTemplate}`);
+                    continue;
+                }
+                // ✅ TYPE SAFETY: Validate against marketplace path-keys.json
+                try {
+                    const isValid = await PathService.isValidPathKey(pathKey, marketplaceName, context.project?.structure);
+                    if (!isValid) {
+                        const validKeys = await PathService.getValidPathKeys(marketplaceName, context.project?.structure);
+                        const suggestions = validKeys
+                            .filter((k) => k.includes(pathKey.split('.').pop() || ''))
+                            .slice(0, 3);
+                        errors.push(`Path key '${pathKey}' is not defined in marketplace '${marketplaceName}'. ` +
+                            `Used in action: ${pathTemplate}` +
+                            (suggestions.length > 0 ? ` Did you mean: ${suggestions.join(', ')}?` : ''));
+                    }
+                }
+                catch (error) {
+                    // If validation fails (e.g., marketplace not found), log warning but don't block
+                    Logger.warn(`Failed to validate path key '${pathKey}' against marketplace: ${error instanceof Error ? error.message : String(error)}`, {
+                        operation: 'blueprint_path_validation',
+                        pathKey,
+                        marketplaceName
+                    });
+                }
+            }
+        }
+        return {
+            valid: errors.length === 0,
+            errors
+        };
     }
     /**
      * Expand forEach actions into individual actions
@@ -121,6 +305,25 @@ export class BlueprintExecutor {
         const templatePath = action.path;
         if (typeof templatePath !== 'string' || !templatePath.includes('${paths.')) {
             return;
+        }
+        // Extract all path keys from the template
+        const pathKeyRegex = /\$\{paths\.([^}]+)\}/g;
+        const pathKeys = [];
+        let match;
+        while ((match = pathKeyRegex.exec(templatePath)) !== null) {
+            const pathKey = match[1]?.trim();
+            if (pathKey) {
+                pathKeys.push(pathKey);
+            }
+        }
+        // Skip validation for semantic keys (they're already expanded by expandPathKey)
+        // Check if any path key is semantic
+        for (const pathKey of pathKeys) {
+            const isSemantic = await this.isSemanticPathKey(pathKey, context);
+            if (isSemantic) {
+                // Semantic key - skip validation (already expanded)
+                return;
+            }
         }
         const marketplaceName = context.module?.marketplace?.name || 'core';
         const project = context.project || {};
@@ -421,8 +624,42 @@ export class BlueprintExecutor {
                 const uniqueFilesToRead = Array.from(new Set(resolvedFilesToRead));
                 await vfs.initializeWithFiles(uniqueFilesToRead);
             }
-            // 3. Expand forEach actions
-            const expandedActions = this.expandForEachActions(actions, context);
+            // 2.5. Validate blueprint paths against marketplace path-keys.json (TYPE SAFETY)
+            const pathValidation = await this.validateBlueprintPaths({ actions }, context);
+            if (!pathValidation.valid) {
+                const errorMessage = `Blueprint path validation failed:\n${pathValidation.errors.join('\n')}`;
+                Logger.error(`Blueprint path validation failed: ${errorMessage}`, {
+                    operation: 'blueprint_path_validation',
+                    errors: pathValidation.errors
+                });
+                return {
+                    success: false,
+                    files: [],
+                    errors: pathValidation.errors,
+                    warnings: []
+                };
+            }
+            // 3. Expand path keys to multiple actions based on pre-computed mappings
+            // This replaces the old hardcoded semantic detection logic
+            const expandedPathActions = this.expandPathKey(actions, context);
+            // 3.5. Validate expanded paths (after path key expansion)
+            // Now validate the expanded paths to catch any invalid keys created during expansion
+            const expandedPathValidation = await this.validateBlueprintPaths({ actions: expandedPathActions }, context);
+            if (!expandedPathValidation.valid) {
+                const errorMessage = `Expanded path validation failed:\n${expandedPathValidation.errors.join('\n')}`;
+                Logger.error(`Expanded path validation failed: ${errorMessage}`, {
+                    operation: 'expanded_path_validation',
+                    errors: expandedPathValidation.errors
+                });
+                return {
+                    success: false,
+                    files: [],
+                    errors: expandedPathValidation.errors,
+                    warnings: []
+                };
+            }
+            // Then expand forEach actions
+            const expandedActions = this.expandForEachActions(expandedPathActions, context);
             // 4. Execute all actions on the VFS (unified execution)
             for (let i = 0; i < expandedActions.length; i++) {
                 const action = expandedActions[i];
@@ -463,11 +700,19 @@ export class BlueprintExecutor {
             };
         }
         catch (error) {
-            const architechError = ArchitechError.internalError(`Action execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { operation: 'action_execution', moduleId: 'preprocessed' });
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const errorStack = error instanceof Error ? error.stack : String(error);
+            // Log full error for debugging
+            Logger.error(`Action execution failed: ${errorMessage}`, {
+                operation: 'action_execution',
+                moduleId: 'preprocessed',
+                errorStack,
+            }, error instanceof Error ? error : undefined);
+            // Return actual error message, not generic wrapper
             return {
                 success: false,
                 files,
-                errors: [architechError.getUserMessage()],
+                errors: [errorMessage],
                 warnings
             };
         }
@@ -507,8 +752,11 @@ export class BlueprintExecutor {
                 });
                 await vfs.initializeWithFiles(resolvedFiles);
             }
-            // 3. Expand forEach actions
-            const expandedActions = this.expandForEachActions(blueprint.actions, context);
+            // 3. Expand path keys to multiple actions based on pre-computed mappings
+            // This replaces the old hardcoded semantic detection logic
+            const expandedPathActions = this.expandPathKey(blueprint.actions, context);
+            // 4. Expand forEach actions
+            const expandedActions = this.expandForEachActions(expandedPathActions, context);
             // 4. Execute all actions on the VFS (unified execution)
             for (let i = 0; i < expandedActions.length; i++) {
                 const action = expandedActions[i];
@@ -550,11 +798,19 @@ export class BlueprintExecutor {
             };
         }
         catch (error) {
-            const architechError = ArchitechError.internalError(`Blueprint execution failed: ${error instanceof Error ? error.message : 'Unknown error'}`, { operation: 'blueprint_execution', moduleId: blueprint?.id || 'unknown' });
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const errorStack = error instanceof Error ? error.stack : String(error);
+            // Log full error for debugging
+            Logger.error(`Blueprint execution failed: ${errorMessage}`, {
+                operation: 'blueprint_execution',
+                moduleId: blueprint?.id || 'unknown',
+                errorStack,
+            }, error instanceof Error ? error : undefined);
+            // Return actual error message, not generic wrapper
             return {
                 success: false,
                 files,
-                errors: [architechError.getUserMessage()],
+                errors: [errorMessage],
                 warnings
             };
         }

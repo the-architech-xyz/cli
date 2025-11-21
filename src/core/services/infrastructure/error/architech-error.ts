@@ -80,12 +80,13 @@ export class ArchitechError extends Error {
 
   /**
    * Create a user-friendly error message
+   * 
+   * Always returns the actual error message to preserve error context.
+   * The isUserFriendly flag is kept for backward compatibility but no longer
+   * affects the returned message.
    */
   getUserMessage(): string {
-    if (!this.isUserFriendly) {
-      return 'An unexpected error occurred. Please run with --verbose for more details.';
-    }
-
+    // Always return actual message - never hide errors
     const baseMessage = this.message;
     const contextInfo = this.getContextInfo();
     

@@ -107,18 +107,38 @@ export class FrameworkContextService {
      *
      * This is needed because EJS templates expect nested access like:
      * paths.packages.shared.src.payment.config
+     *
+     * NEW: Uses pre-computed mappings from PathService.getMappings()
+     * For semantic keys with multiple paths, uses the first path (EJS expects single value)
      */
     static buildNestedPathsObject(pathHandler) {
         const nested = {};
-        const allPathKeys = pathHandler.getAvailablePaths();
-        for (const key of allPathKeys) {
-            try {
-                const value = pathHandler.getPath(key);
-                this.setNestedValue(nested, key, value);
+        // Use pre-computed mappings (from PathMappingGenerator)
+        const mappings = PathService.getMappings();
+        // If mappings exist, use them (pre-computed model)
+        if (Object.keys(mappings).length > 0) {
+            for (const [key, paths] of Object.entries(mappings)) {
+                if (paths.length > 0 && paths[0]) {
+                    // For semantic keys with multiple paths, use first path for nested structure
+                    // (EJS templates expect single value, not array)
+                    // BlueprintExecutor will handle expansion during execution
+                    const value = paths[0];
+                    this.setNestedValue(nested, key, value);
+                }
             }
-            catch (error) {
-                // Skip paths that can't be retrieved
-                continue;
+        }
+        else {
+            // Fallback: Use pathHandler if mappings not available (backward compatibility)
+            const allPathKeys = pathHandler.getAvailablePaths();
+            for (const key of allPathKeys) {
+                try {
+                    const value = pathHandler.getPath(key);
+                    this.setNestedValue(nested, key, value);
+                }
+                catch (error) {
+                    // Skip paths that can't be retrieved
+                    continue;
+                }
             }
         }
         return nested;
@@ -192,7 +212,15 @@ export class FrameworkContextService {
             // Single app: return paths as-is
             return frameworkPaths;
         }
-        const pkgs = genome.project.monorepo.packages || {};
+        const monorepoConfig = genome.project.monorepo;
+        const pkgsRaw = monorepoConfig?.packages || {};
+        // Filter out undefined values to ensure Record<string, string>
+        const pkgs = {};
+        for (const [key, value] of Object.entries(pkgsRaw)) {
+            if (typeof value === 'string') {
+                pkgs[key] = value;
+            }
+        }
         const sharedPkg = pkgs.shared || null;
         const webPkg = pkgs.web || null;
         const apiPkg = pkgs.api || null;
@@ -214,9 +242,16 @@ export class FrameworkContextService {
      * Determine which package a path should go to based on initialized structure
      */
     static determineTargetPackageForPath(key, value, packages) {
-        // Shared package paths (auth, database, payment, etc.)
+        // V2 COMPLIANCE: Paths map to granular packages, not packages/shared
+        // Try to infer capability package from path key/value
         if (this.isSharedPath(key, value)) {
-            return packages.shared || null;
+            // Map to granular package based on capability
+            const capability = this.inferCapabilityFromPath(key, value);
+            if (capability && packages[capability]) {
+                return packages[capability];
+            }
+            // If no capability package found, return null (let path keys handle it)
+            return null;
         }
         // Web app paths (components, pages, app routes)
         if (this.isWebPath(key, value)) {
@@ -230,30 +265,62 @@ export class FrameworkContextService {
         return null;
     }
     /**
-     * Check if path should go to shared package
+     * Check if path should go to a capability package (not packages/shared)
+     *
+     * V2 COMPLIANCE: Paths map to granular packages (packages/auth, packages/payments, etc.)
      */
     static isSharedPath(key, value) {
-        // Path keys that indicate shared code
-        const sharedKeys = [
+        // Path keys that indicate capability-specific code (not packages/shared)
+        const capabilityKeys = [
             'auth_config', 'database_config', 'payment_config',
             'email_config', 'observability_config', 'state_config',
-            'testing_config', 'blockchain_config', 'content_config',
-            'shared_library'
+            'testing_config', 'blockchain_config', 'content_config'
         ];
-        // Path patterns that indicate shared code
-        const sharedPatterns = [
+        // Path patterns that indicate capability-specific code
+        const capabilityPatterns = [
             'auth', 'database', 'db', 'payment', 'email',
             'observability', 'state', 'testing', 'blockchain', 'content'
         ];
         // Check key
-        if (sharedKeys.some(k => key.includes(k))) {
+        if (capabilityKeys.some(k => key.includes(k))) {
             return true;
         }
         // Check value pattern
-        if (value.includes('lib/') && sharedPatterns.some(p => value.includes(p))) {
+        if (value.includes('lib/') && capabilityPatterns.some(p => value.includes(p))) {
             return true;
         }
         return false;
+    }
+    /**
+     * Infer capability name from path key or value
+     */
+    static inferCapabilityFromPath(key, value) {
+        // Map path patterns to capability names
+        const capabilityMap = {
+            'auth': 'auth',
+            'database': 'database',
+            'db': 'database',
+            'payment': 'payments',
+            'email': 'emailing',
+            'observability': 'monitoring',
+            'state': 'state',
+            'testing': 'testing',
+            'blockchain': 'blockchain',
+            'content': 'content'
+        };
+        // Check key
+        for (const [pattern, capability] of Object.entries(capabilityMap)) {
+            if (key.includes(pattern)) {
+                return capability;
+            }
+        }
+        // Check value
+        for (const [pattern, capability] of Object.entries(capabilityMap)) {
+            if (value.includes(pattern)) {
+                return capability;
+            }
+        }
+        return null;
     }
     /**
      * Check if path should go to web app
@@ -386,21 +453,29 @@ export class FrameworkContextService {
         const basePaths = {
             [PathKey.APPS_WEB_APP]: './src/app/',
             [PathKey.APPS_WEB_COMPONENTS]: './src/components/',
-            [PathKey.PACKAGES_SHARED_SRC]: './src/lib/',
+            // V2 COMPLIANCE: Removed PACKAGES_SHARED_* - use granular packages
             [PathKey.WORKSPACE_SCRIPTS]: './scripts/',
-            [PathKey.PACKAGES_SHARED_HOOKS]: './src/hooks/'
+            // V2 COMPLIANCE: Removed PACKAGES_SHARED_* - use granular packages
         };
         // Add monorepo-specific paths if monorepo structure detected (even in fallback)
         let paths = { ...basePaths };
         if (genome.project.structure === 'monorepo' && genome.project.monorepo) {
-            const pkgs = genome.project.monorepo.packages || {};
+            const monorepoConfig = genome.project.monorepo;
+            const pkgsRaw = monorepoConfig?.packages || {};
+            // Filter out undefined values to ensure Record<string, string>
+            const pkgs = {};
+            for (const [key, value] of Object.entries(pkgsRaw)) {
+                if (typeof value === 'string') {
+                    pkgs[key] = value;
+                }
+            }
             const apps = getProjectApps(genome);
             const apiApp = apps.find((a) => a.type === 'api' || a.framework === 'hono');
             const webApp = apps.find((a) => a.type === 'web');
             const apiPath = apiApp?.package || pkgs.api || './apps/api/';
             const webPath = webApp?.package || pkgs.web || './apps/web/';
-            const sharedPath = pkgs.shared || './packages/shared/';
-            const databasePath = pkgs.database || './packages/database/';
+            // V2 COMPLIANCE: No packages/shared - use granular packages
+            const databasePath = pkgs.database || pkgs.db || './packages/database/';
             const uiPath = pkgs.ui || './packages/ui/';
             const normalizePath = (p) => p.endsWith('/') ? p : `${p}/`;
             paths = {
@@ -412,8 +487,7 @@ export class FrameworkContextService {
                 [PathKey.APPS_WEB_SRC]: `${normalizePath(webPath)}src/`,
                 [PathKey.APPS_WEB_APP]: `${normalizePath(webPath)}src/app/`,
                 [PathKey.APPS_WEB_COMPONENTS]: `${normalizePath(webPath)}src/components/`,
-                [PathKey.PACKAGES_SHARED_ROOT]: normalizePath(sharedPath),
-                [PathKey.PACKAGES_SHARED_SRC]: `${normalizePath(sharedPath)}src/`,
+                // V2 COMPLIANCE: Removed PACKAGES_SHARED_* - use granular packages
                 [PathKey.PACKAGES_DATABASE_ROOT]: normalizePath(databasePath),
                 [PathKey.PACKAGES_DATABASE_SRC]: `${normalizePath(databasePath)}src/`,
                 [PathKey.PACKAGES_UI_ROOT]: normalizePath(uiPath),

@@ -1,0 +1,237 @@
+{
+  "version": "1.0.0",
+  "genomeHash": "132cdabae7a5d8d9573a81a34174bc1f3b01204b1a65895938a125d91d1a42d9",
+  "resolvedAt": "2025-11-21T19:11:27.186Z",
+  "marketplaces": {
+    "official": {
+      "type": "local",
+      "integrity": "sha256:376b8c0373ce64675e97015644f4c1415bef4d102e2bde54992573d895d8489a"
+    }
+  },
+  "modules": [
+    {
+      "id": "adapters/auth/better-auth",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:d2a92804e0cd3329d5817f2760a75b5aead8a7674cf979ac95f8dc579ba25a78",
+      "prerequisites": []
+    },
+    {
+      "id": "connectors/auth/better-auth-nextjs",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:c96b12fcaa8d9ce32ed0a23aad36a7c2ffe1bceed46be0c689e3d5915c2a9b4c",
+      "prerequisites": [
+        "adapters/auth/better-auth",
+        "adapters/database/drizzle",
+        "adapters/framework/nextjs"
+      ]
+    },
+    {
+      "id": "features/auth/frontend",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:9043916473e8693e851a03751adfc83e80ceef0790d091020964b8e6eadc0055",
+      "prerequisites": [
+        "adapters/ui/shadcn-ui"
+      ]
+    },
+    {
+      "id": "features/auth/tech-stack",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:b800a8d3cdc67262e700a61ab274d506b6711765ad6240ff032a6d73cb15cf10",
+      "prerequisites": []
+    },
+    {
+      "id": "adapters/ui/tamagui",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:d206c9516270f0b2eca8264564da91b27d98d389fe030edb610ba54c46d25bbe",
+      "prerequisites": []
+    },
+    {
+      "id": "connectors/ui/tamagui-nextjs",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:e475585ef8c9a746531ed5d25145eaf3929f790a0d6931eca8dda3b502bdd51a",
+      "prerequisites": [
+        "adapters/framework/nextjs",
+        "adapters/ui/tamagui"
+      ]
+    },
+    {
+      "id": "connectors/ui/tamagui-expo",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:54efdf73d58958e8e9e42515777ee1d141a419f2aa6aa8ccc83c6ff8d60c9981",
+      "prerequisites": [
+        "adapters/framework/expo",
+        "adapters/ui/tamagui"
+      ]
+    },
+    {
+      "id": "adapters/database/drizzle",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:1122ddc4caaed14baa1645fb9f6a5b776b0a0d78d4adddb0b274b95492e60cd5",
+      "prerequisites": []
+    },
+    {
+      "id": "features/ai-chat/frontend",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:2e895e34e487cfff7e3e9f4706540a463fde467a4a33675cba5282367d2e6846",
+      "prerequisites": [
+        "adapters/ui/shadcn-ui",
+        "features/ai-chat/tech-stack"
+      ]
+    },
+    {
+      "id": "features/ai-chat/tech-stack",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:d2d020f44874dae2ac95a3a17d03824cc0b1382e0ce3c4009204528843f5ba9c",
+      "prerequisites": []
+    },
+    {
+      "id": "features/ai-chat/backend/nextjs",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:ea2282320a760df2795cf7a7cb42b565d82e230cd6946993d03d35122f36025d",
+      "prerequisites": [
+        "adapters/auth/better-auth",
+        "adapters/database/drizzle"
+      ]
+    },
+    {
+      "id": "adapters/email/resend",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:ccd89b2292e5193ba22f52f53989d0cc5bbc1a01f7c619c6b6b851e96d03dade",
+      "prerequisites": []
+    },
+    {
+      "id": "connectors/email/resend-nextjs",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:daa562155a92c5965b9d5ad5426309ecdbc65e9e4ed61160dd9e2a8f40699569",
+      "prerequisites": [
+        "adapters/email/resend",
+        "adapters/framework/nextjs"
+      ]
+    },
+    {
+      "id": "features/emailing/frontend",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:490a121a0b6165c03aeede10767c8ca73c8d4a4e34ed451eb7c622a14cb89c64",
+      "prerequisites": [
+        "adapters/ui/shadcn-ui"
+      ]
+    },
+    {
+      "id": "features/emailing/tech-stack",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:f0e1cdbe211a011e64a1c6bf250bae89ed64615d58da253bc452db7df1c33c75",
+      "prerequisites": []
+    },
+    {
+      "id": "adapters/monorepo/turborepo",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:c9c4c99bfa74a29cff2c192ee59c3a4324424ac460bc449c335869b2a122ab55",
+      "prerequisites": []
+    },
+    {
+      "id": "adapters/framework/nextjs",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:b21c9e95536ebdd80abc17b7c3adb41e585828a353b9af13c7cc7bc39b7b72d7",
+      "prerequisites": []
+    },
+    {
+      "id": "adapters/framework/expo",
+      "version": "1.0.0",
+      "source": {
+        "marketplace": "official",
+        "type": "local"
+      },
+      "integrity": "sha256:29acc22c6e0fc2f6b52a44f7473b6dd7d21d455c09978ed29dcddbd014f1a105",
+      "prerequisites": []
+    }
+  ],
+  "executionPlan": [
+    "connectors/auth/better-auth-nextjs",
+    "features/auth/frontend",
+    "features/auth/tech-stack",
+    "connectors/ui/tamagui-nextjs",
+    "connectors/ui/tamagui-expo",
+    "features/ai-chat/frontend",
+    "features/ai-chat/backend/nextjs",
+    "connectors/email/resend-nextjs",
+    "features/emailing/frontend",
+    "features/emailing/tech-stack",
+    "adapters/monorepo/turborepo",
+    "adapters/framework/expo",
+    "adapters/ui/tamagui",
+    "features/ai-chat/tech-stack",
+    "adapters/auth/better-auth",
+    "adapters/database/drizzle",
+    "adapters/email/resend",
+    "adapters/framework/nextjs"
+  ],
+  "dependencies": {}
+}

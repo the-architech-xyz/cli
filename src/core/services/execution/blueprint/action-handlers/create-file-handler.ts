@@ -12,6 +12,7 @@ import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ArchitechError } from '../../../infrastructure/error/architech-error.js';
 import { TemplateService } from '../../../file-system/template/template-service.js';
 import { MarketplaceService } from '../../../marketplace/marketplace-service.js';
+import { Logger } from '../../../infrastructure/logging/index.js';
 import * as path from 'path';
 
 export class CreateFileHandler extends BaseActionHandler {
@@ -46,7 +47,7 @@ export class CreateFileHandler extends BaseActionHandler {
 
     // Process template path using TemplateService for full path variable support
     // Paths are resolved as absolute (package-prefixed) in monorepo or relative in single-repo
-    // VFS will handle normalization based on its contextRoot
+    // VFS handles all paths as absolute from project root
     const filePath = TemplateService.processTemplate(createAction.path, context);
 
     // Validate that no unresolved path variables remain
@@ -178,13 +179,22 @@ export class CreateFileHandler extends BaseActionHandler {
       };
 
     } catch (error) {
-      const architechError = ArchitechError.internalError(
-        `Failed to create file: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        { operation: 'create_file', filePath: createAction.path }
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : String(error);
+      
+      Logger.error(
+        `Failed to create file: ${errorMessage}`,
+        {
+          operation: 'create_file',
+          filePath: createAction.path,
+          errorStack,
+        },
+        error instanceof Error ? error : undefined
       );
+      
       return { 
         success: false, 
-        error: architechError.getUserMessage() 
+        error: errorMessage
       };
     }
   }
@@ -412,8 +422,9 @@ export class CreateFileHandler extends BaseActionHandler {
    * Check if file is a shared route component
    */
   private isSharedRoute(filePath: string, context: ProjectContext): boolean {
-    // Must be in shared package routes
-    if (!filePath.includes('shared') || !filePath.includes('routes/')) {
+    // Must be in shared package routes (not in apps/)
+    // Routes in apps/ are app-specific, not shared
+    if (filePath.includes('apps/') || !filePath.includes('shared') || !filePath.includes('routes/')) {
       return false;
     }
     
@@ -443,6 +454,12 @@ export class CreateFileHandler extends BaseActionHandler {
     const createAction = action as CreateFileAction & { sharedRoutes?: any };
     const frontendApps = context.frontendApps || [];
     const generatedFiles: string[] = [];
+    
+    // Safety check: Don't generate wrappers for files in apps/ directory
+    // These are app-specific routes, not shared routes
+    if (sharedComponentPath.includes('apps/')) {
+      return generatedFiles;
+    }
     
     if (frontendApps.length === 0) {
       return generatedFiles;
@@ -539,10 +556,9 @@ export default ${componentName};`;
     // Remove file extension
     let importPath = filePath.replace(/\.tsx?$/, '');
     
-    // Convert packages/shared/... to @repo/shared/...
-    if (importPath.startsWith('packages/shared/')) {
-      importPath = importPath.replace('packages/shared/', '@repo/shared/');
-    }
+    // V2 COMPLIANCE: No packages/shared - convert granular packages to workspace imports
+    // Convert packages/{package}/... to @{projectName}/{package}/...
+    // This is handled by workspace reference builder, so we don't need special handling here
     
     return importPath;
   }
@@ -551,7 +567,8 @@ export default ${componentName};`;
    * Extract route path from file path
    */
   private extractRoutePath(filePath: string, context: ProjectContext): string {
-    // packages/shared/routes/auth/LoginPage.tsx → (auth)/login
+    // V2 COMPLIANCE: Routes are in apps, not packages/shared
+    // apps/web/src/app/(auth)/login/page.tsx → (auth)/login
     
     // Remove package prefix
     let routePath = filePath.replace(/^packages\/shared\/routes\//, '');

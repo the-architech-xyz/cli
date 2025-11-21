@@ -11,6 +11,7 @@ import { VirtualFileSystem } from '../../../file-system/file-engine/virtual-file
 import { BaseActionHandler, ActionResult } from './base-action-handler.js';
 import { ModifierRegistry } from '../../../file-system/modifiers/modifier-registry.js';
 import { ArchitechError } from '../../../infrastructure/error/architech-error.js';
+import { Logger } from '../../../infrastructure/logging/index.js';
 import { TemplateService } from '../../../file-system/template/template-service.js';
 
 export class EnhanceFileHandler extends BaseActionHandler {
@@ -100,13 +101,23 @@ export class EnhanceFileHandler extends BaseActionHandler {
       };
 
     } catch (error) {
-      const architechError = ArchitechError.internalError(
-        `Modifier execution error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        { operation: 'enhance_file', filePath: enhanceAction.path, modifier: enhanceAction.modifier }
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : String(error);
+      
+      Logger.error(
+        `Modifier execution error: ${errorMessage}`,
+        {
+          operation: 'enhance_file',
+          filePath: enhanceAction.path,
+          modifier: enhanceAction.modifier,
+          errorStack,
+        },
+        error instanceof Error ? error : undefined
       );
+      
       return { 
         success: false, 
-        error: architechError.getUserMessage() 
+        error: errorMessage
       };
     }
   }

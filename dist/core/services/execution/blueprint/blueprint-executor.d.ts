@@ -15,6 +15,42 @@ export declare class BlueprintExecutor {
     private actionHandlerRegistry;
     constructor(projectRoot: string);
     /**
+     * Expand path keys to multiple actions based on pre-computed mappings
+     *
+     * NEW: Uses PathService.getMapping() to get all paths for a key.
+     * If a key has multiple paths (semantic expansion), creates one action per path.
+     *
+     * Simple Model:
+     * - Extract path key from template (e.g., "${paths.apps.frontend.components}")
+     * - Get all paths from PathService.getMapping(key)
+     * - If 1 path → 1 action (no expansion)
+     * - If 2+ paths → multiple actions (one per path)
+     *
+     * This replaces the old hardcoded semantic detection logic.
+     */
+    private expandPathKey;
+    /**
+     * Check if a path key is semantic (has multiple paths in pre-computed mappings or is defined as semantic)
+     *
+     * NEW: First checks if key has multiple mappings (already expanded).
+     * If not, checks path-keys.json to see if it's defined as semantic.
+     * This ensures semantic keys are detected even if mappings haven't been generated yet.
+     */
+    private isSemanticPathKey;
+    /**
+     * Validate blueprint paths against marketplace path-keys.json
+     * This provides type safety - blueprints can only use path keys defined in the marketplace
+     *
+     * NOTE: Semantic path keys (apps.frontend.*, apps.backend.*, etc.) are skipped here
+     * because they need to be expanded first. They will be validated after expansion.
+     */
+    validateBlueprintPaths(blueprint: {
+        actions?: BlueprintAction[];
+    }, context: ProjectContext): Promise<{
+        valid: boolean;
+        errors: string[];
+    }>;
+    /**
      * Expand forEach actions into individual actions
      */
     private expandForEachActions;

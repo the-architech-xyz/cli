@@ -10,7 +10,7 @@
  * - Import path resolution (from ImportPathResolver)
  * - Path key validation (from PathKeyRegistry)
  */
-import { AdapterConfig, MarketplacePathKeys } from '@thearchitech.xyz/types';
+import { AdapterConfig, MarketplacePathKeys, PathMappings } from '@thearchitech.xyz/types';
 import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 export declare class PathService {
     private projectRoot;
@@ -18,6 +18,7 @@ export declare class PathService {
     private pathMap;
     private userOverrides;
     private frameworkProjectRoot;
+    private static mappings;
     private static cliRoot;
     constructor(projectRoot: string, projectName?: string, frameworkAdapter?: AdapterConfig);
     /**
@@ -58,14 +59,33 @@ export declare class PathService {
      *
      * Resolution order:
      * 1. User override (from genome.project.paths) - HIGHEST PRIORITY
-     * 2. Marketplace adapter path (from adapter.resolvePathDefaults)
-     * 3. Error if not found
+     * 2. Pre-computed mappings (from PathMappingGenerator) - NEW
+     * 3. Marketplace adapter path (from adapter.resolvePathDefaults)
+     * 4. Error if not found
      *
      * This implements the "Reference Structure with Explicit Overrides" doctrine.
+     *
+     * NOTE: For backward compatibility, this returns the FIRST path from mappings
+     * if the key has multiple paths (semantic expansion). Use PathService.getMapping() for all paths.
      */
     getPath(key: string): string;
     /**
-     * Check if a path key exists in the framework's path map
+     * Resolve a path key template with dynamic variables
+     *
+     * Example:
+     * - Template: "packages.{packageName}.src"
+     * - Variables: {packageName: "auth"}
+     * - Returns: path value for "packages.auth.src"
+     *
+     * @param template Path key template with variables (e.g., "packages.{packageName}.src")
+     * @param variables Variable values to substitute (e.g., {packageName: "auth", appId: "web"})
+     * @returns Resolved path value
+     */
+    resolvePathWithVariables(template: string, variables: Record<string, string>): string;
+    /**
+     * Check if a path key exists in the framework's path map or pre-computed mappings
+     *
+     * NEW: Also checks static mappings (from PathMappingGenerator) for semantic keys
      */
     hasPath(key: string): boolean;
     /**
@@ -223,6 +243,44 @@ export declare class PathService {
      * @returns Record of path keys to import paths
      */
     static computeImportPaths(filePaths: Record<string, string>, context: ProjectContext): Record<string, string>;
+    /**
+     * Set pre-computed path mappings from PathMappingGenerator
+     *
+     * These mappings are generated once before blueprint execution
+     * and stored here for fast lookup during execution.
+     *
+     * @param mappings - Complete path mappings: { key: string[] }
+     */
+    static setMappings(mappings: PathMappings): void;
+    /**
+     * Get all pre-computed path mappings
+     *
+     * @returns Complete path mappings: { key: string[] }
+     */
+    static getMappings(): PathMappings;
+    /**
+     * Get paths for a specific key
+     *
+     * Returns array of paths for the key (supports multi-app expansion).
+     * Returns empty array if key not found.
+     *
+     * @param key - Path key (e.g., "apps.frontend.components")
+     * @returns Array of concrete paths
+     */
+    static getMapping(key: string): string[];
+    /**
+     * Check if a path key has mappings
+     *
+     * @param key - Path key to check
+     * @returns True if key exists in mappings
+     */
+    static hasMapping(key: string): boolean;
+    /**
+     * Clear all path mappings
+     *
+     * Useful for testing or resetting state.
+     */
+    static clearMappings(): void;
     private static pathKeyCache;
     private static defaultPathKeys;
     /**

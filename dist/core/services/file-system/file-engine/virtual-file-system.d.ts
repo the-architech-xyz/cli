@@ -13,13 +13,12 @@ export interface VFSFile {
 export declare class VirtualFileSystem {
     private files;
     private projectRoot;
-    private contextRoot;
     private blueprintId;
-    constructor(blueprintId: string, projectRoot: string, contextRoot?: string);
+    constructor(blueprintId: string, projectRoot: string);
     /**
      * Initialize VFS with required files from disk
      * filePaths should already be resolved (no ${paths.key} variables)
-     * They will be normalized to be relative to contextRoot
+     * All paths are absolute from project root
      */
     initializeWithFiles(filePaths: string[]): Promise<void>;
     /**
@@ -57,9 +56,9 @@ export declare class VirtualFileSystem {
     }>;
     /**
      * Flush all files to disk
-     * Handles both absolute (package-prefixed) and relative paths:
+     * All paths are absolute from project root:
      * - Absolute paths (packages/... or apps/...): projectRoot + filePath
-     * - Relative paths: projectRoot + contextRoot + filePath
+     * - Relative paths: projectRoot + filePath
      */
     flushToDisk(): Promise<void>;
     /**
@@ -67,16 +66,11 @@ export declare class VirtualFileSystem {
      */
     clear(): void;
     /**
-     * Normalize file path to be relative to context root
+     * Normalize file path - all paths are absolute from project root
      * Handles:
-     * - Absolute paths (package-prefixed): Keep absolute if different from contextRoot, make relative if matches
-     * - Absolute paths (system): resolve relative to context root
+     * - Absolute paths (package-prefixed): Keep as-is (packages/... or apps/...)
+     * - Absolute paths (system): resolve relative to project root
      * - Paths with project root prefix: remove it
-     * - Paths with context root prefix: remove it
-     *
-     * CRITICAL: Supports both absolute (package-prefixed) and relative paths
-     * - Absolute paths like "packages/shared/src/lib/..." are kept absolute if contextRoot differs
-     * - Absolute paths matching contextRoot are normalized to relative
      */
     private normalizePath;
 }

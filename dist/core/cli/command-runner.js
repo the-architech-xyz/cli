@@ -417,11 +417,29 @@ export class CommandRunner {
             }
         });
     }
-    // Helper method for The Architech specific operations
+    /**
+     * Initialize a project using framework-specific initialization command
+     *
+     * V2 COMPLIANCE: Framework adapter should provide initialization command
+     *
+     * @deprecated This method hardcodes Next.js. Framework initialization should be handled
+     * by framework adapters via blueprint actions, not CLI commands.
+     *
+     * @param projectPath - Path where project should be created
+     * @param framework - Framework name (e.g., 'nextjs', 'expo', 'hono')
+     * @param options - Additional options
+     * @returns Command execution result
+     */
     async initProject(projectPath, framework = 'nextjs', options = {}) {
+        // V2 COMPLIANCE: This method should delegate to framework adapter
+        // For now, keep as fallback but mark as deprecated
+        const Logger = require('../services/infrastructure/logging/logger.js').Logger;
+        Logger.warn(`CommandRunner.initProject() is deprecated and hardcodes Next.js. ` +
+            `Framework initialization should be handled by framework adapters.`, { framework, projectPath });
         const projectName = path.basename(projectPath);
         const parentDir = path.dirname(projectPath);
-        // Create Next.js project with all our preferred settings
+        // V2 VIOLATION: Hardcoded Next.js options
+        // TODO: Get from framework adapter metadata
         const createOptions = [
             '--typescript',
             '--tailwind',

@@ -11,7 +11,8 @@ import { join, resolve, dirname, isAbsolute } from 'path';
 import { execSync } from 'child_process';
 import inquirer from 'inquirer';
 import { Genome } from '@thearchitech.xyz/types';
-import type { GenomeMarketplace, MarketplaceAdapter, ResolvedGenome } from '@thearchitech.xyz/types';
+import type { GenomeMarketplace, MarketplaceAdapter, ResolvedGenome, V2Genome } from '@thearchitech.xyz/types';
+import { isV2Genome } from '@thearchitech.xyz/types';
 import { OrchestratorAgent } from '../agents/orchestrator-agent.js';
 import { ProjectManager } from '../core/services/project/project-manager.js';
 import { AgentLogger as Logger } from '../core/cli/logger.js';
@@ -21,6 +22,7 @@ import { CacheManagerService } from '../core/services/infrastructure/cache/cache
 import { ErrorHandler } from '../core/services/infrastructure/error/index.js';
 import { createGenomeResolver } from '../core/services/genome-resolution/index.js';
 import { MarketplaceRegistry } from '../core/services/marketplace/marketplace-registry.js';
+import { V2GenomeHandler } from '../core/services/composition/v2-genome-handler.js';
 import { fileURLToPath, pathToFileURL } from 'url';
 
 export function createNewCommand(): Command {
@@ -117,7 +119,15 @@ export function createNewCommand(): Command {
           process.exit(1);
         }
         
-        // Transform genome (handles both capability-first and module-first genomes)
+        // Check if this is a V2 genome
+        const isV2 = isV2Genome(rawGenome);
+        
+        if (isV2) {
+          logger.info('🧬 Detected V2 genome format - using Composition Engine');
+          return await handleV2Genome(rawGenome as V2Genome, genomePath, options, logger);
+        }
+
+        // Transform genome (handles both capability-first and module-first genomes) - V1 path
         logger.info('🔄 Transforming genome...');
         logger.debug('Genome snapshot before transformation', {
           hasModules: Array.isArray(rawGenome.modules),
@@ -591,6 +601,161 @@ console.log(JSON.stringify(genome));
   } catch (error) {
     logger.error(`❌ Failed to execute TypeScript genome: ${error instanceof Error ? error.message : 'Unknown error'}`);
     return null;
+  }
+}
+
+/**
+ * Handle V2 genome using Composition Engine
+ */
+async function handleV2Genome(
+  genome: V2Genome,
+  genomePath: string,
+  options: {
+    dryRun?: boolean;
+    verbose?: boolean;
+    quiet?: boolean;
+    uiFramework?: string;
+  },
+  logger: Logger
+): Promise<void> {
+  try {
+    logger.info('🚀 Processing V2 genome with Composition Engine', {
+      marketplaces: Object.keys(genome.marketplaces).length,
+      packages: Object.keys(genome.packages).length,
+      apps: Object.keys(genome.apps).length
+    });
+
+    // Load marketplace adapters
+    const marketplaceAdapters = new Map<string, MarketplaceAdapter>();
+    
+    for (const [marketplaceName, marketplaceConfig] of Object.entries(genome.marketplaces)) {
+      let adapter: MarketplaceAdapter | undefined;
+      
+      if (marketplaceConfig.type === 'local' && marketplaceConfig.path) {
+        // Load local marketplace adapter
+        // Resolve path relative to genome file location
+        const genomeDir = dirname(genomePath);
+        const marketplaceRoot = resolve(genomeDir, marketplaceConfig.path);
+        // Try adapter/index.js
+        const adapterPath = resolve(marketplaceRoot, 'adapter/index.js');
+        logger.debug(`Loading marketplace adapter from: ${adapterPath}`);
+        adapter = await loadMarketplaceAdapter(adapterPath, logger);
+        
+        // If that fails, try the marketplace root itself
+        if (!adapter) {
+          logger.debug(`Trying marketplace root as adapter: ${marketplaceRoot}`);
+          adapter = await loadMarketplaceAdapter(resolve(marketplaceRoot, 'index.js'), logger);
+        }
+      } else {
+        // Load default adapter for now (can be extended for npm/git marketplaces)
+        logger.debug(`Loading default marketplace adapter for: ${marketplaceName}`);
+        adapter = await loadDefaultMarketplaceAdapter(logger);
+      }
+      
+      if (adapter) {
+        marketplaceAdapters.set(marketplaceName, adapter);
+      }
+    }
+
+    if (marketplaceAdapters.size === 0) {
+      logger.error('❌ No marketplace adapters found');
+      process.exit(1);
+    }
+
+    // Determine project root (will be set after project initialization)
+    const projectRoot = process.cwd();
+
+    // Create V2 genome handler
+    const v2Handler = new V2GenomeHandler(
+      marketplaceAdapters,
+      logger,
+      projectRoot
+    );
+
+    // Resolve genome to lock file
+    logger.info('🔍 Resolving V2 genome...');
+    const lockFile = await v2Handler.resolveGenome(genome, projectRoot, false);
+
+    logger.info('✅ Genome resolved', {
+      moduleCount: lockFile.modules.length,
+      executionPlanLength: lockFile.executionPlan.length
+    });
+
+    // Convert lock file to ResolvedGenome format
+    logger.info('🔄 Converting to execution format...');
+    const resolvedGenome = await v2Handler.convertLockFileToResolvedGenome(lockFile, genome);
+
+    // Auto-generate project path if missing
+    if (!resolvedGenome.project.path) {
+      resolvedGenome.project.path = `./${resolvedGenome.project.name || 'my-app'}`;
+    }
+
+    // Add UI framework parameter if provided
+    if (options.uiFramework) {
+      if (!resolvedGenome.options) {
+        resolvedGenome.options = {} as any;
+      }
+      (resolvedGenome.options as any).uiFramework = options.uiFramework;
+    }
+
+    // Initialize enhanced logger
+    const enhancedLogger = new EnhancedLogger({
+      verbose: options.verbose || false,
+      quiet: options.quiet || false
+    });
+
+    if (options.dryRun) {
+      enhancedLogger.info('Dry run mode - showing what would be created:');
+      showDryRunPreview(resolvedGenome, logger);
+      return;
+    }
+
+    // Initialize project manager and orchestrator
+    const projectManager = new ProjectManager(resolvedGenome.project);
+    const orchestrator = new OrchestratorAgent(projectManager);
+
+    // Get first marketplace adapter for options (for backward compatibility)
+    const firstAdapter = Array.from(marketplaceAdapters.values())[0];
+    const marketplaceInfo: GenomeMarketplace | undefined = {
+      name: Object.keys(genome.marketplaces)[0] || 'core'
+    };
+
+    // Execute the genome with enhanced logging
+    const result = await orchestrator.executeRecipe(
+      resolvedGenome,
+      options.verbose,
+      enhancedLogger,
+      {
+        marketplaceAdapter: firstAdapter,
+        marketplaceInfo,
+        pathOverrides: undefined
+      }
+    );
+
+    if (result.success) {
+      enhancedLogger.success('Project created successfully!');
+      enhancedLogger.logNextSteps(resolvedGenome.project.path || './', resolvedGenome.project.name);
+      
+      if (result.warnings && result.warnings.length > 0) {
+        enhancedLogger.warn('Warnings:');
+        result.warnings.forEach((warning: string) => enhancedLogger.warn(`  - ${warning}`));
+      }
+    } else {
+      enhancedLogger.error('Project creation failed:');
+      if (result.errors) {
+        result.errors.forEach((error: string) => enhancedLogger.error(`  - ${error}`));
+      }
+      process.exit(1);
+    }
+  } catch (error) {
+    const criticalErrorResult = ErrorHandler.handleCriticalError(
+      error,
+      'new-command',
+      'v2_genome_processing',
+      options.verbose
+    );
+    logger.error(`💥 ${ErrorHandler.formatUserError(criticalErrorResult, options.verbose)}`);
+    process.exit(1);
   }
 }
 

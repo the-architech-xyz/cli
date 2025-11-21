@@ -1,1 +1,1 @@
-{"version":3,"file":"marketplace.config.js","sourceRoot":"","sources":["../src/marketplace.config.ts"],"names":[],"mappings":"AAAA;;;;;GAKG;AAEH,MAAM,CAAC,MAAM,oBAAoB,GAAG;IAClC,WAAW,EAAE;QACX,mBAAmB,CAAC,kDAAkD;QACtE,2GAA2G;KAC5G;CACO,CAAC"}
+{"version":3,"file":"marketplace.config.js","sourceRoot":"","sources":["../src/marketplace.config.ts"],"names":[],"mappings":"AAAA;;;;;;;;GAQG;AACH,MAAM,CAAC,MAAM,oBAAoB,GAAG;IAClC,WAAW,EAAE;QACX,mBAAmB,CAAC,sCAAsC;KAC3D;CACO,CAAC"}

@@ -34,18 +34,19 @@ export declare class MarketplaceService {
      */
     private static getTemplateSuggestions;
     /**
-     * Load feature manifest (feature.json) - convenience method
+     * Load feature manifest (schema.json) - convenience method
      */
     static loadFeatureManifest(module: Module): Promise<any>;
     /**
-     * Load module configuration (adapter.json, integration.json, or feature.json)
+     * Load module configuration (schema.json)
+     * All modules use schema.json regardless of type (adapter, connector, feature)
      */
     static loadModuleConfig(module: Module): Promise<any>;
     /**
      * Get the absolute path to a module's blueprint file
      * This is the centralized, tested logic for blueprint path resolution.
      */
-    static getBlueprintPath(module: Module, blueprintFileName?: string): string;
+    static getBlueprintPath(module: Module, blueprintFileName?: string): Promise<string>;
     /**
      * Load module blueprint (consolidated from BlueprintLoader)
      */

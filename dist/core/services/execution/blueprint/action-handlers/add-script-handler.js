@@ -5,7 +5,7 @@
  * This handler REQUIRES VFS mode and uses the Modifier System.
  */
 import { BaseActionHandler } from './base-action-handler.js';
-import { ArchitechError } from '../../../infrastructure/error/architech-error.js';
+import { Logger } from '../../../infrastructure/logging/index.js';
 export class AddScriptHandler extends BaseActionHandler {
     modifierRegistry;
     constructor(modifierRegistry) {
@@ -68,10 +68,17 @@ export class AddScriptHandler extends BaseActionHandler {
             };
         }
         catch (error) {
-            const architechError = ArchitechError.internalError(`Failed to add script: ${error instanceof Error ? error.message : 'Unknown error'}`, { operation: 'add_script', filePath, scriptName });
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const errorStack = error instanceof Error ? error.stack : String(error);
+            Logger.error(`Failed to add script: ${errorMessage}`, {
+                operation: 'add_script',
+                filePath,
+                scriptName,
+                errorStack,
+            }, error instanceof Error ? error : undefined);
             return {
                 success: false,
-                error: architechError.getUserMessage()
+                error: errorMessage
             };
         }
     }

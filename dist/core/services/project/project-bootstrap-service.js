@@ -18,13 +18,25 @@ export class ProjectBootstrapService {
     async bootstrap(genome, structureResult) {
         // ResolvedGenome guarantees metadata.moduleIndex exists
         const moduleIndex = this.getModuleIndex(genome);
+        Logger.info('🔍 Starting framework bootstrap', {
+            operation: 'project_bootstrap',
+            moduleIndexSize: Object.keys(moduleIndex).length,
+            frameworkModulesInIndex: Object.keys(moduleIndex).filter(id => id.includes('framework')),
+            bootstrapFrameworks: genome.metadata.bootstrap?.frameworks?.length || 0
+        });
         const plans = this.buildFrameworkPlans(genome, moduleIndex, structureResult);
         if (plans.length === 0) {
-            Logger.debug('No framework modules detected for bootstrap.', {
-                operation: 'project_bootstrap'
+            Logger.warn('⚠️ No framework modules detected for bootstrap.', {
+                operation: 'project_bootstrap',
+                apps: getProjectApps(genome).map(a => ({ id: a.id, framework: a.framework })),
+                availableFrameworkModules: Object.keys(moduleIndex).filter(id => id.includes('framework'))
             });
             return undefined;
         }
+        Logger.info(`✅ Found ${plans.length} framework(s) to bootstrap`, {
+            operation: 'project_bootstrap',
+            frameworks: plans.map(p => p.frameworkId)
+        });
         await this.ensureModuleServiceInitialized();
         let preferredAdapter;
         for (const plan of plans) {
@@ -61,14 +73,42 @@ export class ProjectBootstrapService {
             for (const app of apps) {
                 if (!app?.framework)
                     continue;
-                const frameworkId = `framework/${app.framework}`;
-                const module = this.buildModuleDefinition(frameworkId, moduleIndex, frameworkMetadata);
+                // Try multiple framework ID patterns to find the module
+                // V2 modules use: adapters/framework/nextjs
+                // Legacy modules use: framework/nextjs
+                const frameworkIdPatterns = [
+                    `adapters/framework/${app.framework}`, // V2 format (most common)
+                    `framework/${app.framework}`, // Legacy format
+                    `adapters/core/${app.framework}`, // Alternative format
+                ];
+                let module = null;
+                let foundFrameworkId = null;
+                for (const frameworkId of frameworkIdPatterns) {
+                    module = this.buildModuleDefinition(frameworkId, moduleIndex, frameworkMetadata);
+                    if (module) {
+                        // Use the actual module ID (might be different from frameworkId if we used alternative match)
+                        foundFrameworkId = module.id;
+                        Logger.info(`✅ Found framework module: ${module.id} for app ${app.id} (searched for ${frameworkId})`, {
+                            operation: 'project_bootstrap',
+                            appId: app.id,
+                            framework: app.framework,
+                            moduleId: module.id,
+                            searchedId: frameworkId
+                        });
+                        break;
+                    }
+                }
                 if (!module) {
-                    Logger.warn(`Framework module metadata not found for ${frameworkId}; skipping app ${app.id || '(unnamed)'}`, {
-                        operation: 'project_bootstrap'
+                    Logger.warn(`Framework module metadata not found for app ${app.id || '(unnamed)'} with framework '${app.framework}'. Tried: ${frameworkIdPatterns.join(', ')}`, {
+                        operation: 'project_bootstrap',
+                        appId: app.id,
+                        framework: app.framework,
+                        availableModules: Object.keys(moduleIndex).filter(id => id.includes('framework') || id.includes(app.framework))
                     });
                     continue;
                 }
+                // Use the actual module ID we found (not the search pattern)
+                const frameworkId = foundFrameworkId;
                 const parameters = {
                     ...(module.parameters || {}),
                     ...(this.getFrameworkParameters(frameworkMetadata, frameworkId) || {}),
@@ -104,14 +144,40 @@ export class ProjectBootstrapService {
             const apps = getProjectApps(genome);
             const appConfig = apps.length > 0 ? apps[0] : undefined;
             const appParameters = appConfig?.parameters || {};
-            const frameworkId = `framework/${framework}`;
-            const module = this.buildModuleDefinition(frameworkId, moduleIndex, frameworkMetadata);
+            // Try multiple framework ID patterns to find the module
+            // V2 modules use: adapters/framework/nextjs
+            // Legacy modules use: framework/nextjs
+            const frameworkIdPatterns = [
+                `adapters/framework/${framework}`, // V2 format (most common)
+                `framework/${framework}`, // Legacy format
+                `adapters/core/${framework}`, // Alternative format
+            ];
+            let module = null;
+            let foundFrameworkId = null;
+            for (const frameworkId of frameworkIdPatterns) {
+                module = this.buildModuleDefinition(frameworkId, moduleIndex, frameworkMetadata);
+                if (module) {
+                    // Use the actual module ID (might be different from frameworkId if we used alternative match)
+                    foundFrameworkId = module.id;
+                    Logger.info(`✅ Found framework module: ${module.id} for single-app (searched for ${frameworkId})`, {
+                        operation: 'project_bootstrap',
+                        framework,
+                        moduleId: module.id,
+                        searchedId: frameworkId
+                    });
+                    break;
+                }
+            }
             if (!module) {
-                Logger.warn(`Framework module metadata not found for ${frameworkId}; skipping bootstrap.`, {
-                    operation: 'project_bootstrap'
+                Logger.warn(`Framework module metadata not found for framework '${framework}'. Tried: ${frameworkIdPatterns.join(', ')}`, {
+                    operation: 'project_bootstrap',
+                    framework,
+                    availableModules: Object.keys(moduleIndex).filter(id => id.includes('framework') || id.includes(framework))
                 });
                 return plans;
             }
+            // Use the actual module ID we found (not the search pattern)
+            const frameworkId = foundFrameworkId;
             const parameters = {
                 ...(module.parameters || {}),
                 ...(this.getFrameworkParameters(frameworkMetadata, frameworkId) || {}),
@@ -131,24 +197,85 @@ export class ProjectBootstrapService {
         return plans;
     }
     buildModuleDefinition(frameworkId, moduleIndex, frameworkMetadata) {
-        const metadata = moduleIndex[frameworkId];
+        // Try exact match first
+        let metadata = moduleIndex[frameworkId];
+        // If not found, try alternative ID formats
         if (!metadata) {
+            const alternatives = [
+                frameworkId.replace('adapters/framework/', 'framework/'),
+                frameworkId.replace('framework/', 'adapters/framework/'),
+                frameworkId.replace('adapters/core/', 'adapters/framework/'),
+            ];
+            for (const altId of alternatives) {
+                if (moduleIndex[altId]) {
+                    metadata = moduleIndex[altId];
+                    Logger.debug(`Found framework module using alternative ID: ${altId} (searched for ${frameworkId})`, {
+                        operation: 'project_bootstrap',
+                        originalId: frameworkId,
+                        foundId: altId
+                    });
+                    break;
+                }
+            }
+        }
+        // If still not found, try partial match (e.g., search for "nextjs" in any framework module)
+        if (!metadata) {
+            const frameworkName = frameworkId.split('/').pop() || '';
+            const matchingKeys = Object.keys(moduleIndex).filter(id => id.includes('framework') && id.includes(frameworkName));
+            if (matchingKeys.length > 0) {
+                // Use the first match (prefer adapters/framework/* format)
+                const preferredKey = matchingKeys.find(k => k.startsWith('adapters/framework/')) || matchingKeys[0];
+                if (preferredKey) {
+                    metadata = moduleIndex[preferredKey];
+                }
+                Logger.info(`Found framework module using partial match: ${preferredKey} (searched for ${frameworkId})`, {
+                    operation: 'project_bootstrap',
+                    originalId: frameworkId,
+                    foundId: preferredKey,
+                    allMatches: matchingKeys
+                });
+            }
+        }
+        if (!metadata) {
+            // Enhanced logging: show all framework-related modules
+            const frameworkModules = Object.keys(moduleIndex).filter(id => id.includes('framework') || id.includes(frameworkId.split('/').pop() || ''));
+            Logger.warn(`Framework module not found in moduleIndex: ${frameworkId}`, {
+                operation: 'project_bootstrap',
+                frameworkId,
+                totalModulesInIndex: Object.keys(moduleIndex).length,
+                frameworkRelatedModules: frameworkModules,
+                first10Keys: Object.keys(moduleIndex).slice(0, 10)
+            });
             return null;
         }
         const parameters = this.getFrameworkParameters(frameworkMetadata, frameworkId) || {};
+        // Use the actual ID from metadata (might be different from frameworkId if we used alternative match)
+        const actualModuleId = metadata.id || frameworkId;
+        // Construct resolved field from metadata
+        // buildModuleIndex doesn't include resolved, so we construct it from manifest/blueprint
+        const resolved = {
+            root: metadata.source?.root || '',
+            manifest: metadata.manifest?.file || '',
+            blueprint: metadata.blueprint?.file || '',
+            templates: (metadata.templates || []).map((t) => typeof t === 'string' ? t : t.file)
+        };
         const module = {
-            id: frameworkId,
+            id: actualModuleId,
             category: metadata.category || metadata.type || 'framework',
             parameters,
             parameterSchema: metadata.parameters,
             features: {},
             externalFiles: [],
             marketplace: metadata.marketplace,
-            source: metadata.source,
+            source: metadata.source || {
+                root: resolved.root,
+                marketplace: metadata.marketplace?.name || 'official',
+                type: 'local'
+            },
             manifest: metadata.manifest,
             blueprint: metadata.blueprint,
             templates: metadata.templates || [],
-            resolved: metadata.resolved
+            resolved: resolved
         };
         return module;
     }

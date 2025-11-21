@@ -14,7 +14,7 @@
 import * as path from 'path';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
-import { AdapterConfig, MarketplacePathKeys, PathKeyDefinition } from '@thearchitech.xyz/types';
+import { AdapterConfig, MarketplacePathKeys, PathKeyDefinition, PathMappings } from '@thearchitech.xyz/types';
 import { ProjectContext } from '@thearchitech.xyz/marketplace/types/template-context.js';
 import { MarketplaceRegistry } from '../marketplace/marketplace-registry.js';
 import { Logger } from '../infrastructure/logging/logger.js';
@@ -25,6 +25,10 @@ export class PathService {
   private pathMap: Record<string, string> = {};
   private userOverrides: Record<string, string> = {}; // User-defined path overrides from genome.project.paths
   private frameworkProjectRoot: string;
+  
+  // NEW: Pre-computed path mappings (from PathMappingGenerator)
+  // Maps path keys to arrays of concrete paths
+  private static mappings: PathMappings = {};
 
   // Static CLI root management
   private static cliRoot: string | null = null;
@@ -101,10 +105,14 @@ export class PathService {
    * 
    * Resolution order:
    * 1. User override (from genome.project.paths) - HIGHEST PRIORITY
-   * 2. Marketplace adapter path (from adapter.resolvePathDefaults)
-   * 3. Error if not found
+   * 2. Pre-computed mappings (from PathMappingGenerator) - NEW
+   * 3. Marketplace adapter path (from adapter.resolvePathDefaults)
+   * 4. Error if not found
    * 
    * This implements the "Reference Structure with Explicit Overrides" doctrine.
+   * 
+   * NOTE: For backward compatibility, this returns the FIRST path from mappings
+   * if the key has multiple paths (semantic expansion). Use PathService.getMapping() for all paths.
    */
   getPath(key: string): string {
     // 1. Check user override first (highest priority)
@@ -112,7 +120,15 @@ export class PathService {
       return this.userOverrides[key];
     }
     
-    // 2. Check marketplace adapter paths
+    // 2. Check pre-computed mappings (NEW - supports multi-path keys)
+    const mappingPaths = PathService.getMapping(key);
+    if (mappingPaths.length > 0 && mappingPaths[0]) {
+      // Return first path for backward compatibility
+      // BlueprintExecutor will use getMapping() for full expansion
+      return mappingPaths[0];
+    }
+    
+    // 3. Check marketplace adapter paths (legacy fallback)
     const pathValue = this.pathMap[key];
     if (!pathValue) {
       throw new Error(
@@ -124,10 +140,42 @@ export class PathService {
   }
 
   /**
-   * Check if a path key exists in the framework's path map
+   * Resolve a path key template with dynamic variables
+   * 
+   * Example:
+   * - Template: "packages.{packageName}.src"
+   * - Variables: {packageName: "auth"}
+   * - Returns: path value for "packages.auth.src"
+   * 
+   * @param template Path key template with variables (e.g., "packages.{packageName}.src")
+   * @param variables Variable values to substitute (e.g., {packageName: "auth", appId: "web"})
+   * @returns Resolved path value
+   */
+  resolvePathWithVariables(template: string, variables: Record<string, string>): string {
+    // Replace variables in template
+    let resolvedKey = template;
+    for (const [varName, varValue] of Object.entries(variables)) {
+      const regex = new RegExp(`\\{${varName}\\}`, 'g');
+      resolvedKey = resolvedKey.replace(regex, varValue);
+    }
+    
+    // Get the path value for the resolved key
+    return this.getPath(resolvedKey);
+  }
+
+  /**
+   * Check if a path key exists in the framework's path map or pre-computed mappings
+   * 
+   * NEW: Also checks static mappings (from PathMappingGenerator) for semantic keys
    */
   hasPath(key: string): boolean {
-    return key in this.pathMap;
+    // Check instance pathMap first (legacy)
+    if (key in this.pathMap) {
+      return true;
+    }
+    
+    // Check pre-computed mappings (NEW - for semantic keys)
+    return PathService.hasMapping(key);
   }
 
   /**
@@ -242,6 +290,14 @@ export class PathService {
     return template.replace(/\$\{paths\.([^}]+)\}/g, (_match, rawKey) => {
       const key = rawKey.trim();
       try {
+        // First check if it's a semantic key with mappings
+        const mappings = PathService.getMapping(key);
+        if (mappings.length > 0 && mappings[0]) {
+          // Semantic key - return first path (for backward compatibility)
+          // BlueprintExecutor will handle full expansion
+          return mappings[0];
+        }
+        // Fall back to getPath() for non-semantic keys
         return this.getPath(key);
       } catch (error) {
         throw new Error(`Unknown path key '${key}' in template`);
@@ -583,6 +639,69 @@ export class PathService {
   }
 
   // ============================================================================
+  // PATH MAPPING METHODS (from PathMappingGenerator)
+  // ============================================================================
+
+  /**
+   * Set pre-computed path mappings from PathMappingGenerator
+   * 
+   * These mappings are generated once before blueprint execution
+   * and stored here for fast lookup during execution.
+   * 
+   * @param mappings - Complete path mappings: { key: string[] }
+   */
+  static setMappings(mappings: PathMappings): void {
+    this.mappings = mappings;
+    Logger.debug('✅ Path mappings set', {
+      operation: 'path_service',
+      mappingCount: Object.keys(mappings).length
+    });
+  }
+
+  /**
+   * Get all pre-computed path mappings
+   * 
+   * @returns Complete path mappings: { key: string[] }
+   */
+  static getMappings(): PathMappings {
+    return this.mappings;
+  }
+
+  /**
+   * Get paths for a specific key
+   * 
+   * Returns array of paths for the key (supports multi-app expansion).
+   * Returns empty array if key not found.
+   * 
+   * @param key - Path key (e.g., "apps.frontend.components")
+   * @returns Array of concrete paths
+   */
+  static getMapping(key: string): string[] {
+    return this.mappings[key] || [];
+  }
+
+  /**
+   * Check if a path key has mappings
+   * 
+   * @param key - Path key to check
+   * @returns True if key exists in mappings
+   */
+  static hasMapping(key: string): boolean {
+    return key in this.mappings;
+  }
+
+  /**
+   * Clear all path mappings
+   * 
+   * Useful for testing or resetting state.
+   */
+  static clearMappings(): void {
+    this.mappings = {};
+    Logger.debug('✅ Path mappings cleared', {
+      operation: 'path_service'
+    });
+  }
+
   // PATH KEY REGISTRY METHODS (from PathKeyRegistry)
   // ============================================================================
 
@@ -696,6 +815,21 @@ export class PathService {
     marketplaceName: string = 'core',
     projectStructure?: 'monorepo' | 'single-app'
   ): Promise<boolean> {
+    // PRIORITY 1: Check if path key exists in pre-computed mappings (runtime values)
+    // This includes path keys created from recipe books (e.g., packages.auth.src)
+    // Mappings are the SINGLE SOURCE OF TRUTH for runtime path resolution
+    try {
+      const mappings = this.getMapping(key);
+      if (mappings.length > 0) {
+        // Path key exists in mappings - it's valid
+        return true;
+      }
+    } catch {
+      // Mapping doesn't exist, continue to check path-keys.json
+    }
+
+    // PRIORITY 2: Check path-keys.json (static definitions)
+    // This validates against marketplace definitions
     const pathKeys = await this.loadPathKeys(marketplaceName);
     
     // Exact match

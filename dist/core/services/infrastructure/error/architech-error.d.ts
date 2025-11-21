@@ -47,6 +47,10 @@ export declare class ArchitechError extends Error {
     constructor(message: string, code: ArchitechErrorCode, context?: ArchitechErrorContext, isUserFriendly?: boolean);
     /**
      * Create a user-friendly error message
+     *
+     * Always returns the actual error message to preserve error context.
+     * The isUserFriendly flag is kept for backward compatibility but no longer
+     * affects the returned message.
      */
     getUserMessage(): string;
     /**

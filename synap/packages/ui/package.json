@@ -1,0 +1,31 @@
+{
+  "name": "@synap/ui",
+  "version": "1.0.0",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@tamagui/core": "latest",
+    "@tamagui/config": "latest",
+    "react-native-web": "latest",
+    "tamagui": "latest",
+    "@tamagui/web": "latest",
+    "@tamagui/animations-react-native": "latest",
+    "@tamagui/lucide-icons": "latest"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-native": "^0.73.0"
+  },
+  "exports": {
+    "./components": "./src/components/index.ts",
+    "./themes": "./src/themes/index.ts",
+    "./utils": "./src/utils/index.ts"
+  }
+}

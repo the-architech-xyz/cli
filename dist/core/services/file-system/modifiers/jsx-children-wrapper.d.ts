@@ -46,6 +46,10 @@ export declare class JsxChildrenWrapperModifier extends BaseModifier {
      */
     private wrapChildren;
     /**
+     * Create default Next.js layout structure when file is empty
+     */
+    private createDefaultNextJsLayout;
+    /**
      * Build the wrapped JSX structure
      */
     private buildWrappedStructure;
